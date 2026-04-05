@@ -31,6 +31,29 @@ export async function* streamSSE(
     return
   }
 
+  // Auto-refresh token on 401 and retry
+  if (res.status === 401) {
+    const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('foundry_refresh_token') : null
+    if (refreshToken) {
+      try {
+        const refreshRes = await fetch(`${API_BASE}/api/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        })
+        if (refreshRes.ok) {
+          const data = await refreshRes.json()
+          localStorage.setItem('foundry_token', data.access_token)
+          res = await fetch(`${API_BASE}${path}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.access_token}` },
+            body: JSON.stringify(body),
+          })
+        }
+      } catch { /* refresh failed */ }
+    }
+  }
+
   if (!res.ok) {
     yield { type: 'error', message: `HTTP ${res.status}` }
     return
