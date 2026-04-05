@@ -52,7 +52,7 @@ async def create_project(req: ProjectCreate, auth: AuthContext = Depends(require
         await cache_invalidate(f"projects_list:{auth.workspace_id}", f"ws_summary:{auth.workspace_id}")
         return _row_to_project(row)
 
-@router.get("", response_model=list[Project])
+@router.get("")
 async def list_projects(auth: AuthContext = Depends(require_auth)):
     from app.db.cache import cache_get, cache_set
     cache_key = f"projects_list:{auth.workspace_id}"
@@ -69,7 +69,7 @@ async def list_projects(auth: AuthContext = Depends(require_auth)):
                ORDER BY created_at DESC""",
             auth.workspace_id
         )
-        result = [_row_to_project(r) for r in rows]
+        result = [_row_to_project(r).model_dump(mode='json') for r in rows]
         await cache_set(cache_key, result, ttl=300)
         return result
 

@@ -55,8 +55,8 @@ async def list_tasks(
                 FROM tasks WHERE {where} ORDER BY created_at DESC""",
             *params
         )
-        result = [_row_to_task(r) for r in rows]
-        await cache_set(cache_key, result, ttl=120)  # 2-min TTL for tasks (change more often)
+        result = [_row_to_task(r).model_dump(mode='json') for r in rows]
+        await cache_set(cache_key, result, ttl=120)
         return result
 
 @router.patch("/{task_id}", response_model=Task)

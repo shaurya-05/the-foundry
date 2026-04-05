@@ -74,7 +74,7 @@ async def list_knowledge(auth: AuthContext = Depends(require_auth)):
                FROM knowledge_items WHERE workspace_id=$1 ORDER BY created_at DESC""",
             auth.workspace_id
         )
-        result = [_row_to_knowledge(r) for r in rows]
+        result = [_row_to_knowledge(r).model_dump(mode='json') for r in rows]
         await cache_set(cache_key, result, ttl=300)
         return result
 
