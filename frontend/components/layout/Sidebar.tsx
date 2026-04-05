@@ -67,7 +67,7 @@ export default function Sidebar({ onCopilot }: { onCopilot: () => void }) {
             </svg>
           </div>
           <div>
-            <div style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 14, letterSpacing: '0.10em', textTransform: 'uppercase', lineHeight: 1.1 }}>
+            <div style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 14, letterSpacing: '0.10em', lineHeight: 1.1 }}>
               <span style={{ color: '#5B93ED', fontWeight: 600 }}>The </span><span style={{ color: '#D12D1F' }}>FOUND</span><span style={{ color: '#D4A017' }}>3</span><span style={{ color: '#D12D1F' }}>RY</span>
             </div>
             <div style={{ fontFamily: 'var(--font-barlow-condensed)', fontSize: 10, letterSpacing: '0.10em', fontWeight: 600, marginTop: 2 }}>
