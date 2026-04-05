@@ -54,6 +54,8 @@ async def create_knowledge(item: KnowledgeCreate, auth: AuthContext = Depends(re
             await upsert_knowledge_node(str(row["id"]), item.title, item.type, auth.workspace_id)
         except Exception:
             pass
+        from app.db.cache import cache_invalidate
+        await cache_invalidate(f"knowledge_list:{auth.workspace_id}", f"ws_summary:{auth.workspace_id}")
         return _row_to_knowledge(row)
 
 @router.get("", response_model=list[KnowledgeItem])

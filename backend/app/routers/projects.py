@@ -48,6 +48,8 @@ async def create_project(req: ProjectCreate, auth: AuthContext = Depends(require
             await upsert_project_node(str(row["id"]), req.title, auth.workspace_id)
         except Exception:
             pass
+        from app.db.cache import cache_invalidate
+        await cache_invalidate(f"projects_list:{auth.workspace_id}", f"ws_summary:{auth.workspace_id}")
         return _row_to_project(row)
 
 @router.get("", response_model=list[Project])

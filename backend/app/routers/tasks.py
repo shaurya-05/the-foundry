@@ -22,6 +22,8 @@ async def create_task(req: TaskCreate, auth: AuthContext = Depends(require_auth)
                VALUES ($1, $2, 'task_created', $3, 'task', $4)""",
             auth.workspace_id, auth.user_id, f"Task added: {req.title}", str(row["id"])
         )
+        from app.db.cache import cache_invalidate_pattern
+        await cache_invalidate_pattern(f"tasks_list:{auth.workspace_id}:*")
         return _row_to_task(row)
 
 @router.get("", response_model=list[Task])
