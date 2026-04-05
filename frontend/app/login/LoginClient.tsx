@@ -85,8 +85,8 @@ export default function LoginClient() {
           }}>The FOUND3RY</div>
           <div style={{
             fontFamily: 'var(--font-ibm-plex-mono)',
-            fontSize: 9, color: 'rgba(232,35,31,0.6)', letterSpacing: '0.12em',
-          }}>by h3ros</div>
+            fontSize: 9, letterSpacing: '0.12em',
+          }}>by <span style={{ color: '#2563EB', fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}>h</span><span style={{ color: '#F97316', fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}>3</span><span style={{ color: '#2563EB', fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}>ros</span></div>
         </div>
       </div>
 

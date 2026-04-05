@@ -70,8 +70,8 @@ export default function Sidebar({ onCopilot }: { onCopilot: () => void }) {
             <div style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 14, letterSpacing: '0.10em', color: '#F0F4FF', textTransform: 'uppercase', lineHeight: 1.1 }}>
               The FOUND3RY
             </div>
-            <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'rgba(232,35,31,0.55)', letterSpacing: '0.12em', marginTop: 2 }}>
-              by h3ros
+            <div style={{ fontSize: 9, letterSpacing: '0.12em', marginTop: 2 }}>
+              <span style={{ color: 'var(--text-muted)' }}>by </span><span style={{ color: '#2563EB', fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}>h</span><span style={{ color: '#F97316', fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}>3</span><span style={{ color: '#2563EB', fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}>ros</span>
             </div>
           </div>
         </div>

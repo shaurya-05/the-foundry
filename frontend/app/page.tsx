@@ -223,7 +223,7 @@ export default function LandingPage() {
         maxWidth: 1200, margin: '0 auto',
       }}>
         <span style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--text-subtle, #9CA3AF)', letterSpacing: '0.06em' }}>
-          The FOUND3RY by h3ros · AI-powered builder OS
+          The FOUND3RY by <span style={{ color: '#2563EB', fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}>h</span><span style={{ color: '#F97316', fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}>3</span><span style={{ color: '#2563EB', fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}>ros</span> · AI-powered builder OS
         </span>
       </footer>
     </div>
