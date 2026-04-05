@@ -26,6 +26,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [signalsOpen, setSignalsOpen] = useState(false)
   const [copilotOpen, setCopilotOpen] = useState(false)
   const [notifCount, setNotifCount] = useState(0)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -37,11 +38,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       if (e.key === 'Escape') {
         setCommandOpen(false)
         setSignalsOpen(false)
+        setSidebarOpen(false)
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [])
+
+  // Close sidebar on route change (mobile)
+  const pathname = usePathname()
+  useEffect(() => { setSidebarOpen(false) }, [pathname])
 
   const openCopilot = useCallback(() => setCopilotOpen(true), [])
 
@@ -58,7 +64,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       }}
       className="tech-grid"
     >
-      <Sidebar onCopilot={openCopilot} />
+      {/* Desktop sidebar */}
+      <div className="sidebar-desktop">
+        <Sidebar onCopilot={openCopilot} />
+      </div>
+
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
+      <div className={`sidebar-mobile-overlay ${sidebarOpen ? 'open' : ''}`}>
+        <Sidebar onCopilot={openCopilot} />
+      </div>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
         <Header
@@ -66,6 +81,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           onSignals={() => setSignalsOpen(v => !v)}
           onCopilot={openCopilot}
           notifCount={notifCount}
+          onMenuToggle={() => setSidebarOpen(v => !v)}
         />
         {/* Email verification banner */}
         {user && !user.email_verified && (

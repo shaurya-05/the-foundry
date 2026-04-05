@@ -9,9 +9,10 @@ interface HeaderProps {
   onSignals: () => void
   onCopilot: () => void
   notifCount?: number
+  onMenuToggle?: () => void
 }
 
-export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0 }: HeaderProps) {
+export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0, onMenuToggle }: HeaderProps) {
   const pathname = usePathname()
   const section = pathname.split('/')[1] || 'dashboard'
   const accent = sectionAccents[section] || '#FF2D2D'
@@ -45,6 +46,21 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
         zIndex: 30,
       }}
     >
+      {/* Mobile hamburger */}
+      {onMenuToggle && (
+        <button
+          onClick={onMenuToggle}
+          className="mobile-hamburger"
+          style={{
+            display: 'none', alignItems: 'center', justifyContent: 'center',
+            width: 32, height: 32, background: 'none', border: 'none',
+            cursor: 'pointer', color: 'var(--text-primary)', fontSize: 18,
+          }}
+        >
+          &#9776;
+        </button>
+      )}
+
       {/* Section indicator */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
         {/* Accent bar */}

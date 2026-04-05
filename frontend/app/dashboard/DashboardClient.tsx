@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { api, KnowledgeItem, Project, Task, Idea, ActivityEvent, WorkspaceMember } from '@/lib/api'
 import GlassCard from '@/components/ui/GlassCard'
 import SectionHeader from '@/components/ui/SectionHeader'
+import OnboardingGuide from '@/components/layout/OnboardingGuide'
+import { useAuth } from '@/lib/auth'
 import Link from 'next/link'
 
 const STATUS_COLORS: Record<string, string> = {
@@ -100,6 +102,9 @@ export default function DashboardClient() {
           LIVE
         </span>
       </SectionHeader>
+
+      {/* Onboarding for new users */}
+      <DashboardOnboarding projects={projects} knowledge={knowledge} />
 
       {/* Top stats row */}
       <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 20 }}>
@@ -378,4 +383,12 @@ function timeAgo(ts: string): string {
   const h = Math.floor(m / 60)
   if (h < 24) return `${h}h ago`
   return `${Math.floor(h / 24)}d ago`
+}
+
+function DashboardOnboarding({ projects, knowledge }: { projects: Project[]; knowledge: KnowledgeItem[] }) {
+  const { user } = useAuth()
+  const isNew = projects.length === 0 && knowledge.length === 0
+  const dismissed = user?.preferences?.onboarding_dismissed === true
+  if (!isNew || dismissed) return null
+  return <OnboardingGuide />
 }
