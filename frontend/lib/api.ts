@@ -20,10 +20,34 @@ function getWorkspaceId(): string {
 }
 
 async function req<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  let res = await fetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...getAuthHeader(), ...options?.headers },
     ...options,
   })
+
+  // Auto-refresh token on 401 and retry once
+  if (res.status === 401) {
+    const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('foundry_refresh_token') : null
+    if (refreshToken) {
+      try {
+        const refreshRes = await fetch(`${API_BASE}/api/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        })
+        if (refreshRes.ok) {
+          const data = await refreshRes.json()
+          localStorage.setItem('foundry_token', data.access_token)
+          // Retry original request with new token
+          res = await fetch(`${API_BASE}${path}`, {
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.access_token}`, ...options?.headers },
+            ...options,
+          })
+        }
+      } catch { /* refresh failed, will throw below */ }
+    }
+  }
+
   if (!res.ok) {
     const err = await res.text()
     throw new Error(err || `HTTP ${res.status}`)
