@@ -28,7 +28,8 @@ export default function LandingPage() {
     if (!loading && user) router.replace('/dashboard')
   }, [user, loading, router])
 
-  if (loading || user) return null
+  // Show landing page immediately — redirect happens in background if logged in
+  if (!loading && user) return null
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg, #F4F5F7)', fontFamily: 'var(--font-barlow)' }}>
