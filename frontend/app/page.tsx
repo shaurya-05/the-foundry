@@ -223,7 +223,7 @@ export default function LandingPage() {
         maxWidth: 1200, margin: '0 auto',
       }}>
         <span style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--text-subtle, #9CA3AF)', letterSpacing: '0.06em' }}>
-          <span style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}><span style={{ color: '#2563EB' }}>THE </span><span style={{ color: '#D12D1F' }}>FOUND</span><span style={{ color: '#D4A017' }}>3</span><span style={{ color: '#D12D1F' }}>RY</span></span> by <span style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}><span style={{ color: '#2563EB' }}>h</span><span style={{ color: '#F97316' }}>3</span><span style={{ color: '#2563EB' }}>ros</span></span> · AI-powered builder OS
+          <span style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}><span style={{ color: '#2563EB' }}>THE </span><span style={{ color: '#D12D1F' }}>FOUND</span><span style={{ color: '#D4A017' }}>3</span><span style={{ color: '#D12D1F' }}>RY</span></span> by <span style={{ fontWeight: 700 }}><span style={{ color: '#2563EB' }}>h</span><span style={{ color: '#F97316' }}>3</span><span style={{ color: '#2563EB' }}>ros</span></span> · AI-powered builder OS
         </span>
       </footer>
     </div>

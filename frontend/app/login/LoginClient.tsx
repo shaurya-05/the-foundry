@@ -84,9 +84,9 @@ export default function LoginClient() {
             textTransform: 'uppercase', lineHeight: 1.1,
           }}><span style={{ color: '#2563EB' }}>THE </span><span style={{ color: '#D12D1F' }}>FOUND</span><span style={{ color: '#D4A017' }}>3</span><span style={{ color: '#D12D1F' }}>RY</span></div>
           <div style={{
-            fontFamily: 'var(--font-ibm-plex-mono)',
-            fontSize: 9, letterSpacing: '0.12em',
-          }}>by <span style={{ color: '#2563EB', fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}>h</span><span style={{ color: '#F97316', fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}>3</span><span style={{ color: '#2563EB', fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}>ros</span></div>
+            fontFamily: 'var(--font-barlow-condensed)',
+            fontSize: 10, letterSpacing: '0.10em', fontWeight: 600,
+          }}><span style={{ color: 'var(--text-muted, #6B7280)' }}>by </span><span style={{ color: '#2563EB', fontWeight: 700 }}>h</span><span style={{ color: '#F97316', fontWeight: 700 }}>3</span><span style={{ color: '#2563EB', fontWeight: 700 }}>ros</span></div>
         </div>
       </div>
 
