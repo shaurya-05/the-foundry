@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from app.models.schemas import CopilotMessage, IntentRequest, IntentResponse
 from app.services.claude import stream_sse
-from app.services.context_engine import get_workspace_summary, build_copilot_system
+from app.services.context_engine import get_workspace_summary, build_copilot_system, build_project_copilot_system
 from app.db.postgres import get_pool
 from app.dependencies import AuthContext, require_auth, RequireUsage
+from typing import Optional
 import re
 
 router = APIRouter(prefix="/api/copilot", tags=["copilot"])
@@ -25,25 +26,28 @@ async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(Requi
     from app.services.usage import increment_usage
     await increment_usage(auth.workspace_id, "copilot_messages")
 
-    # Save user message
     pool = await get_pool()
+
+    # Save user message
     async with pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO copilot_messages (workspace_id, user_id, role, content) VALUES ($1, $2, 'user', $3)",
-            auth.workspace_id, auth.user_id, req.message,
+            "INSERT INTO copilot_messages (workspace_id, user_id, role, content, project_id) VALUES ($1, $2, 'user', $3, $4)",
+            auth.workspace_id, auth.user_id, req.message, req.project_id,
         )
 
-    summary = await get_workspace_summary(auth.workspace_id)
-    system = build_copilot_system(summary)
+    # Build context — project-specific or workspace-level
+    if req.project_id:
+        system = await build_project_copilot_system(req.project_id, auth.workspace_id)
+    else:
+        summary = await get_workspace_summary(auth.workspace_id)
+        system = build_copilot_system(summary)
 
     async def stream_and_save():
         full_output = []
         async for chunk in stream_sse(system, req.message, max_tokens=500):
             full_output.append(chunk)
             yield chunk
-        # Save assistant response after stream completes
         output_text = "".join(full_output)
-        # Extract text content from SSE format
         lines = output_text.split("\n")
         content_parts = []
         for line in lines:
@@ -53,8 +57,8 @@ async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(Requi
         if assistant_text:
             async with pool.acquire() as conn:
                 await conn.execute(
-                    "INSERT INTO copilot_messages (workspace_id, user_id, role, content) VALUES ($1, $2, 'assistant', $3)",
-                    auth.workspace_id, auth.user_id, assistant_text,
+                    "INSERT INTO copilot_messages (workspace_id, user_id, role, content, project_id) VALUES ($1, $2, 'assistant', $3, $4)",
+                    auth.workspace_id, auth.user_id, assistant_text, req.project_id,
                 )
 
     return StreamingResponse(
@@ -65,18 +69,29 @@ async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(Requi
 
 
 @router.get("/history")
-async def get_copilot_history(limit: int = 50, auth: AuthContext = Depends(require_auth)):
-    """Returns recent copilot conversation history."""
+async def get_copilot_history(
+    project_id: Optional[str] = Query(None),
+    limit: int = 50,
+    auth: AuthContext = Depends(require_auth),
+):
+    """Returns copilot conversation history. Filter by project_id for per-project chat."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """SELECT id, role, content, created_at FROM copilot_messages
-               WHERE workspace_id=$1 ORDER BY created_at DESC LIMIT $2""",
-            auth.workspace_id, limit,
-        )
+        if project_id:
+            rows = await conn.fetch(
+                """SELECT id, role, content, created_at FROM copilot_messages
+                   WHERE workspace_id=$1 AND project_id=$2 ORDER BY created_at DESC LIMIT $3""",
+                auth.workspace_id, project_id, limit,
+            )
+        else:
+            rows = await conn.fetch(
+                """SELECT id, role, content, created_at FROM copilot_messages
+                   WHERE workspace_id=$1 AND project_id IS NULL ORDER BY created_at DESC LIMIT $2""",
+                auth.workspace_id, limit,
+            )
         return [
             {"id": str(r["id"]), "role": r["role"], "content": r["content"], "created_at": r["created_at"].isoformat()}
-            for r in reversed(rows)  # Return oldest first for chat display
+            for r in reversed(rows)
         ]
 
 

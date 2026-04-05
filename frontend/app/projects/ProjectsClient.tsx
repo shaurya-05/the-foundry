@@ -387,32 +387,247 @@ export default function ProjectsClient() {
                 </div>
 
                 {isExpanded && (
-                  <div
-                    onClick={e => e.stopPropagation()}
-                    style={{ marginTop: 16, borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: 16 }}
-                  >
-                    {currentPlan ? (
-                      <div style={{ maxHeight: 400, overflow: 'auto' }}>
-                        <Markdown content={currentPlan} streaming={isPlanning && streamingPlan} />
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>No plan yet.</span>
-                        <button
-                          onClick={() => forgePlan(project.id)}
-                          disabled={isPlanning}
-                          className="btn btn-ghost btn-sm"
-                          style={{ color: '#E8231F', borderColor: 'rgba(255,45,45,0.22)' }}
-                        >
-                          {isPlanning ? 'FORGING PLAN...' : 'FORGE PLAN'}
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  <ProjectExpandedView
+                    project={project}
+                    currentPlan={currentPlan}
+                    isPlanning={isPlanning}
+                    streamingPlan={streamingPlan}
+                    tasks={ptasks}
+                    onForgePlan={() => forgePlan(project.id)}
+                    onUpdateProject={(data) => {
+                      api.projects.update(project.id, data)
+                      setProjects(prev => prev.map(p => p.id === project.id ? { ...p, ...data } : p))
+                    }}
+                  />
                 )}
               </GlassCard>
             )
           })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+// ─── Expanded Project View with Tabs ───────────────────────────────────────
+
+type ProjectTab = 'plan' | 'notes' | 'tasks' | 'chat'
+
+function ProjectExpandedView({
+  project, currentPlan, isPlanning, streamingPlan, tasks,
+  onForgePlan, onUpdateProject,
+}: {
+  project: Project
+  currentPlan: string
+  isPlanning: boolean
+  streamingPlan: boolean
+  tasks: Task[]
+  onForgePlan: () => void
+  onUpdateProject: (data: Partial<Project>) => void
+}) {
+  const [tab, setTab] = useState<ProjectTab>('plan')
+  const [editingPlan, setEditingPlan] = useState(false)
+  const [planDraft, setPlanDraft] = useState(currentPlan)
+  const [notesDraft, setNotesDraft] = useState(project.notes || '')
+  const [chatMessages, setChatMessages] = useState<{ id: string; role: string; content: string }[]>([])
+  const [chatInput, setChatInput] = useState('')
+  const [chatStreaming, setChatStreaming] = useState(false)
+  const [chatLoaded, setChatLoaded] = useState(false)
+
+  // Load chat history when chat tab opened
+  useEffect(() => {
+    if (tab === 'chat' && !chatLoaded) {
+      api.copilot.history(project.id).then(msgs => {
+        setChatMessages(msgs)
+        setChatLoaded(true)
+      }).catch(() => {})
+    }
+  }, [tab, chatLoaded, project.id])
+
+  async function sendChat() {
+    if (!chatInput.trim() || chatStreaming) return
+    const msg = chatInput
+    setChatInput('')
+    setChatMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: msg }])
+    setChatStreaming(true)
+    let assistantText = ''
+    try {
+      for await (const chunk of streamSSE('/api/copilot/message', { message: msg, project_id: project.id })) {
+        if (chunk.type === 'text_delta') {
+          assistantText += chunk.text
+          setChatMessages(prev => {
+            const last = prev[prev.length - 1]
+            if (last?.role === 'assistant' && last.id === 'streaming') {
+              return [...prev.slice(0, -1), { ...last, content: assistantText }]
+            }
+            return [...prev, { id: 'streaming', role: 'assistant', content: assistantText }]
+          })
+        }
+      }
+      // Finalize streaming message
+      setChatMessages(prev => prev.map(m => m.id === 'streaming' ? { ...m, id: Date.now().toString() } : m))
+    } catch { /* ignore */ }
+    setChatStreaming(false)
+  }
+
+  function exportProject() {
+    const lines = [`# ${project.title}\n`, `**Status:** ${project.status}\n`]
+    if (currentPlan) lines.push(`## Plan\n\n${currentPlan}\n`)
+    if (project.notes) lines.push(`## Notes\n\n${project.notes}\n`)
+    if (tasks.length > 0) {
+      lines.push(`## Tasks\n`)
+      tasks.forEach(t => lines.push(`- [${t.status === 'completed' ? 'x' : ' '}] ${t.title}${t.description ? ': ' + t.description : ''}`))
+      lines.push('')
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `${project.title.replace(/[^a-zA-Z0-9]/g, '_')}.md`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const TAB_STYLE = (active: boolean): React.CSSProperties => ({
+    padding: '6px 14px', border: 'none', cursor: 'pointer',
+    background: active ? 'rgba(232,35,31,0.08)' : 'transparent',
+    color: active ? '#E8231F' : 'var(--text-muted)',
+    fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600,
+    fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase',
+    borderBottom: active ? '2px solid #E8231F' : '2px solid transparent',
+  })
+
+  return (
+    <div onClick={e => e.stopPropagation()} style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+      {/* Tab bar */}
+      <div style={{ display: 'flex', gap: 2, marginBottom: 14, borderBottom: '1px solid var(--border)' }}>
+        {(['plan', 'notes', 'tasks', 'chat'] as ProjectTab[]).map(t => (
+          <button key={t} onClick={() => setTab(t)} style={TAB_STYLE(tab === t)}>
+            {t === 'plan' ? 'Plan' : t === 'notes' ? 'Notes' : t === 'tasks' ? `Tasks (${tasks.length})` : 'Chat'}
+          </button>
+        ))}
+        <div style={{ flex: 1 }} />
+        <button onClick={exportProject} style={{ ...TAB_STYLE(false), color: 'var(--text-subtle)', fontSize: 9 }}>
+          Export .md
+        </button>
+      </div>
+
+      {/* Plan tab */}
+      {tab === 'plan' && (
+        <div>
+          {editingPlan ? (
+            <div>
+              <textarea
+                value={planDraft}
+                onChange={e => setPlanDraft(e.target.value)}
+                onBlur={() => { onUpdateProject({ plan: planDraft }); setEditingPlan(false) }}
+                onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); onUpdateProject({ plan: planDraft }); setEditingPlan(false) }}}
+                autoFocus
+                style={{
+                  width: '100%', minHeight: 300, padding: 12, borderRadius: 8,
+                  border: '1px solid var(--border)', background: 'var(--bg)',
+                  fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 12,
+                  color: 'var(--text-primary)', resize: 'vertical', outline: 'none',
+                }}
+              />
+              <div style={{ fontSize: 10, color: 'var(--text-subtle)', marginTop: 4, fontFamily: 'var(--font-ibm-plex-mono)' }}>
+                Cmd+S to save, or click outside
+              </div>
+            </div>
+          ) : currentPlan ? (
+            <div>
+              <div style={{ maxHeight: 400, overflow: 'auto' }}>
+                <Markdown content={currentPlan} streaming={isPlanning && streamingPlan} />
+              </div>
+              <button onClick={() => { setPlanDraft(currentPlan); setEditingPlan(true) }} className="btn btn-ghost btn-sm" style={{ marginTop: 8, fontSize: 9, color: 'var(--text-muted)' }}>
+                EDIT PLAN
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>No plan yet.</span>
+              <button onClick={onForgePlan} disabled={isPlanning} className="btn btn-ghost btn-sm" style={{ color: '#E8231F', borderColor: 'rgba(255,45,45,0.22)' }}>
+                {isPlanning ? 'FORGING PLAN...' : 'FORGE PLAN'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Notes tab */}
+      {tab === 'notes' && (
+        <textarea
+          value={notesDraft}
+          onChange={e => setNotesDraft(e.target.value)}
+          onBlur={() => onUpdateProject({ notes: notesDraft })}
+          placeholder="Add project notes, ideas, research... Auto-saves when you click away."
+          style={{
+            width: '100%', minHeight: 200, padding: 12, borderRadius: 8,
+            border: '1px solid var(--border)', background: 'var(--bg)',
+            fontFamily: 'var(--font-barlow)', fontSize: 13,
+            color: 'var(--text-primary)', resize: 'vertical', outline: 'none',
+          }}
+        />
+      )}
+
+      {/* Tasks tab */}
+      {tab === 'tasks' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {tasks.length === 0 ? (
+            <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>No tasks yet. Forge a plan to auto-generate tasks.</span>
+          ) : tasks.map(t => (
+            <div key={t.id} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+              background: 'var(--bg)', borderRadius: 6, border: '1px solid var(--border)',
+            }}>
+              <span className="badge" style={{
+                background: t.status === 'completed' ? 'rgba(22,163,74,0.1)' : 'rgba(0,0,0,0.04)',
+                color: t.status === 'completed' ? '#16A34A' : 'var(--text-muted)', fontSize: 8,
+              }}>
+                {t.status}
+              </span>
+              <span style={{ fontSize: 13, color: 'var(--text-primary)', fontFamily: 'var(--font-barlow)', flex: 1 }}>
+                {t.title}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Chat tab */}
+      {tab === 'chat' && (
+        <div style={{ display: 'flex', flexDirection: 'column', height: 350 }}>
+          <div style={{ flex: 1, overflow: 'auto', marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {chatMessages.length === 0 && !chatStreaming && (
+              <span style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--font-ibm-plex-mono)', padding: 12 }}>
+                Ask the copilot about this project — it has full context of the plan, tasks, and notes.
+              </span>
+            )}
+            {chatMessages.map(m => (
+              <div key={m.id} style={{
+                padding: '8px 12px', borderRadius: 8, maxWidth: '85%',
+                alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
+                background: m.role === 'user' ? 'rgba(232,35,31,0.08)' : 'var(--bg)',
+                border: `1px solid ${m.role === 'user' ? 'rgba(232,35,31,0.15)' : 'var(--border)'}`,
+              }}>
+                <div style={{ fontSize: 12, color: 'var(--text-primary)', fontFamily: 'var(--font-barlow)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                  {m.content}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              className="forge-input"
+              placeholder="Ask about this project..."
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && sendChat()}
+              style={{ flex: 1 }}
+            />
+            <button onClick={sendChat} disabled={chatStreaming || !chatInput.trim()} className="btn btn-primary" style={{ fontSize: 10 }}>
+              {chatStreaming ? '...' : 'SEND'}
+            </button>
+          </div>
         </div>
       )}
     </div>

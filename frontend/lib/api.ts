@@ -69,6 +69,10 @@ export const api = {
     update: (id: string, data: Partial<Project>) => req<Project>('/api/projects/' + id, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: string) => req('/api/projects/' + id, { method: 'DELETE' }),
     related: (id: string) => req<RelatedItems>('/api/projects/' + id + '/related', { method: 'POST' }),
+    export: (id: string) => req<{ title: string; status: string; plan: string; notes: string; tasks: { title: string; status: string; description: string; priority: string }[]; created_at: string }>('/api/projects/' + id + '/export'),
+  },
+  copilot: {
+    history: (projectId?: string) => req<{ id: string; role: string; content: string; created_at: string }[]>('/api/copilot/history' + (projectId ? `?project_id=${projectId}` : '')),
   },
   ideas: {
     list: () => req<Idea[]>('/api/ideas'),
@@ -189,6 +193,7 @@ export interface Project {
   id: string
   title: string
   plan?: string
+  notes?: string
   status: string
   visibility: 'private' | 'team' | 'public'
   clearance_level: number

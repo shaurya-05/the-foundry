@@ -46,6 +46,7 @@ class ProjectCreate(BaseModel):
 class ProjectUpdate(BaseModel):
     title: Optional[str] = None
     plan: Optional[str] = None
+    notes: Optional[str] = None
     status: Optional[str] = None
     visibility: Optional[str] = None
     clearance_level: Optional[int] = None
@@ -56,6 +57,7 @@ class Project(BaseModel):
     user_id: str
     title: str
     plan: Optional[str] = None
+    notes: Optional[str] = None
     status: str
     visibility: str = "private"
     clearance_level: int = 0
@@ -140,6 +142,7 @@ class PipelineRunStatus(BaseModel):
 # ─── Copilot ─────────────────────────────────────────────────────────────────
 class CopilotMessage(BaseModel):
     message: str
+    project_id: Optional[str] = None
     workspace_context: Optional[Dict[str, Any]] = {}
 
 class IntentRequest(BaseModel):

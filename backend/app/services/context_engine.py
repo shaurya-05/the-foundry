@@ -88,6 +88,58 @@ Workshop ({len(summary['projects'])} builds):
 Crucible: {', '.join(summary['ideas']) or '(none)'}
 Runsheet: {active} active, {completed} completed, {blocked} blocked"""
 
+async def build_project_copilot_system(project_id: str, workspace_id: str) -> str:
+    """Build a project-specific system prompt with full project context."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        project = await conn.fetchrow(
+            "SELECT title, status, plan, notes FROM projects WHERE id=$1 AND workspace_id=$2",
+            project_id, workspace_id,
+        )
+        if not project:
+            return build_copilot_system(await get_workspace_summary(workspace_id))
+
+        tasks = await conn.fetch(
+            "SELECT title, status, description FROM tasks WHERE project_id=$1 ORDER BY created_at",
+            project_id,
+        )
+        knowledge = await conn.fetch(
+            "SELECT title, summary FROM knowledge_items WHERE workspace_id=$1 ORDER BY created_at DESC LIMIT 5",
+            workspace_id,
+        )
+
+    task_list = "\n".join(
+        f"  - [{t['status']}] {t['title']}" + (f": {t['description'][:80]}" if t['description'] else "")
+        for t in tasks
+    ) or "  (no tasks yet)"
+
+    k_list = "\n".join(
+        f"  - {k['title']}: {(k['summary'] or '')[:60]}"
+        for k in knowledge
+    ) or "  (none)"
+
+    plan_excerpt = (project["plan"] or "")[:3000]
+    notes_excerpt = (project["notes"] or "")[:1000]
+
+    return f"""You are FORGE COPILOT, embedded in project "{project['title']}" [{project['status']}].
+You have full context of this project's plan, tasks, and notes.
+Help the builder refine their plan, suggest next steps, answer questions, and draft content.
+Be specific — reference actual tasks and plan sections by name.
+Keep responses under 300 words. Use ## headers. End with one decisive next action.
+
+PROJECT PLAN:
+{plan_excerpt or '(no plan generated yet)'}
+
+PROJECT NOTES:
+{notes_excerpt or '(no notes yet)'}
+
+TASKS:
+{task_list}
+
+RELATED KNOWLEDGE:
+{k_list}"""
+
+
 async def generate_insights(workspace_id: str) -> str:
     summary = await get_workspace_summary(workspace_id)
     prompt = f"""Workspace State:

@@ -63,7 +63,7 @@ async def list_projects(auth: AuthContext = Depends(require_auth)):
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            """SELECT id, workspace_id, user_id, title, status, plan,
+            """SELECT id, workspace_id, user_id, title, status, plan, notes,
                       visibility, clearance_level, metadata, created_at
                FROM projects WHERE workspace_id=$1
                ORDER BY created_at DESC""",
@@ -107,6 +107,31 @@ async def delete_project(project_id: str, auth: AuthContext = Depends(require_au
             raise HTTPException(status_code=404, detail="Not found")
     await cache_invalidate(f"projects_list:{auth.workspace_id}", f"ws_summary:{auth.workspace_id}")
     return {"ok": True}
+
+@router.get("/{project_id}/export")
+async def export_project(project_id: str, auth: AuthContext = Depends(require_auth)):
+    """Export project as structured document data."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        project = await conn.fetchrow(
+            "SELECT * FROM projects WHERE id=$1 AND workspace_id=$2",
+            project_id, auth.workspace_id,
+        )
+        if not project:
+            raise HTTPException(status_code=404, detail="Not found")
+        tasks = await conn.fetch(
+            "SELECT title, status, description, priority FROM tasks WHERE project_id=$1 ORDER BY created_at",
+            project_id,
+        )
+    return {
+        "title": project["title"],
+        "status": project["status"],
+        "plan": project["plan"] or "",
+        "notes": project["notes"] or "",
+        "tasks": [{"title": t["title"], "status": t["status"], "description": t["description"], "priority": t["priority"]} for t in tasks],
+        "created_at": project["created_at"].isoformat(),
+    }
+
 
 @router.post("/{project_id}/forge-plan")
 async def forge_project_plan(project_id: str, auth: AuthContext = Depends(require_auth)):
@@ -199,6 +224,7 @@ def _row_to_project(row) -> Project:
         user_id=str(row["user_id"]),
         title=row["title"],
         plan=row["plan"],
+        notes=row["notes"] if "notes" in row.keys() else "",
         status=row["status"],
         visibility=row["visibility"] if "visibility" in row.keys() else "private",
         clearance_level=row["clearance_level"] if "clearance_level" in row.keys() else 0,
