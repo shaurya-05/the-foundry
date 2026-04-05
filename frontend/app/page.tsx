@@ -42,7 +42,7 @@ export default function LandingPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
             width: 30, height: 30, borderRadius: 7,
-            background: 'linear-gradient(135deg, #FF2D2D, #FF7A1A)',
+            background: 'linear-gradient(135deg, #D12D1F, #D4A017)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 0 12px rgba(232,35,31,0.25)',
           }}>
@@ -51,8 +51,8 @@ export default function LandingPage() {
               <path d="M7.5 1L7.5 14M1 4.5L14 10.5M14 4.5L1 10.5" stroke="white" strokeWidth="0.7" opacity="0.45" />
             </svg>
           </div>
-          <span style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 16, letterSpacing: '0.08em', color: 'var(--text-primary, #0A0C12)', textTransform: 'uppercase' }}>
-            The FOUND3RY
+          <span style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 16, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            <span style={{ color: '#2563EB' }}>THE </span><span style={{ color: '#D12D1F' }}>FOUND</span><span style={{ color: '#D4A017' }}>3</span><span style={{ color: '#D12D1F' }}>RY</span>
           </span>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
@@ -223,7 +223,7 @@ export default function LandingPage() {
         maxWidth: 1200, margin: '0 auto',
       }}>
         <span style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--text-subtle, #9CA3AF)', letterSpacing: '0.06em' }}>
-          The FOUND3RY by <span style={{ color: '#2563EB', fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}>h</span><span style={{ color: '#F97316', fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}>3</span><span style={{ color: '#2563EB', fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}>ros</span> · AI-powered builder OS
+          <span style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}><span style={{ color: '#2563EB' }}>THE </span><span style={{ color: '#D12D1F' }}>FOUND</span><span style={{ color: '#D4A017' }}>3</span><span style={{ color: '#D12D1F' }}>RY</span></span> by <span style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}><span style={{ color: '#2563EB' }}>h</span><span style={{ color: '#F97316' }}>3</span><span style={{ color: '#2563EB' }}>ros</span></span> · AI-powered builder OS
         </span>
       </footer>
     </div>

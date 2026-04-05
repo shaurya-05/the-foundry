@@ -81,8 +81,8 @@ export default function LoginClient() {
           <div style={{
             fontFamily: 'var(--font-barlow-condensed)',
             fontWeight: 700, fontSize: 18, letterSpacing: '0.10em',
-            color: '#0A0C12', textTransform: 'uppercase', lineHeight: 1.1,
-          }}>The FOUND3RY</div>
+            textTransform: 'uppercase', lineHeight: 1.1,
+          }}><span style={{ color: '#2563EB' }}>THE </span><span style={{ color: '#D12D1F' }}>FOUND</span><span style={{ color: '#D4A017' }}>3</span><span style={{ color: '#D12D1F' }}>RY</span></div>
           <div style={{
             fontFamily: 'var(--font-ibm-plex-mono)',
             fontSize: 9, letterSpacing: '0.12em',
