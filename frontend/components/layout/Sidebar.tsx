@@ -55,7 +55,7 @@ export default function Sidebar({ onCopilot }: { onCopilot: () => void }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
           <div style={{
             width: 30, height: 30,
-            background: 'linear-gradient(135deg, #FF2D2D 0%, #FF7A1A 100%)',
+            background: 'linear-gradient(135deg, #D12D1F 0%, #D4A017 100%)',
             borderRadius: 7,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,

@@ -67,7 +67,7 @@ export default function LoginClient() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 36 }}>
         <div style={{
           width: 34, height: 34,
-          background: 'linear-gradient(135deg, #FF2D2D 0%, #FF7A1A 100%)',
+          background: 'linear-gradient(135deg, #D12D1F 0%, #D4A017 100%)',
           borderRadius: 8,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 0 16px rgba(232,35,31,0.25)',
