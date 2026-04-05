@@ -48,6 +48,7 @@ class ProfileUpdate(BaseModel):
     display_name: Optional[str] = None
     avatar_color: Optional[str] = None
     workspace_name: Optional[str] = None
+    preferences: Optional[dict] = None
 
 
 class RefreshRequest(BaseModel):
@@ -322,6 +323,25 @@ async def delete_account(req: DeleteAccountRequest, auth: AuthContext = Depends(
     return {"deleted": True}
 
 
+# ─── Data Export ──────────────────────────────────────────────────────────────
+
+@router.get("/export")
+async def export_data(auth: AuthContext = Depends(require_auth)):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        projects = await conn.fetch("SELECT id, title, status, plan, created_at FROM projects WHERE workspace_id=$1", auth.workspace_id)
+        tasks = await conn.fetch("SELECT id, title, description, status, priority, created_at FROM tasks WHERE workspace_id=$1", auth.workspace_id)
+        knowledge = await conn.fetch("SELECT id, title, summary, type, created_at FROM knowledge_items WHERE workspace_id=$1", auth.workspace_id)
+        ideas = await conn.fetch("SELECT id, title, domains, problem, created_at FROM ideas WHERE workspace_id=$1", auth.workspace_id)
+    return {
+        "exported_at": __import__('datetime').datetime.utcnow().isoformat(),
+        "projects": [dict(r) for r in projects],
+        "tasks": [dict(r) for r in tasks],
+        "knowledge": [dict(r) for r in knowledge],
+        "ideas": [dict(r) for r in ideas],
+    }
+
+
 # ─── Me ───────────────────────────────────────────────────────────────────────
 
 @router.get("/me")
@@ -330,7 +350,7 @@ async def get_me(authorization: Optional[str] = Header(None)):
     pool = await get_pool()
     async with pool.acquire() as conn:
         user = await conn.fetchrow(
-            "SELECT id, email, display_name, avatar_color, workspace_id, role, email_verified FROM users WHERE id=$1",
+            "SELECT id, email, display_name, avatar_color, workspace_id, role, email_verified, preferences FROM users WHERE id=$1",
             payload["sub"],
         )
         if not user:
@@ -361,6 +381,7 @@ async def get_me(authorization: Optional[str] = Header(None)):
             "workspace_name": ws["name"] if ws else "My Workspace",
             "role": user["role"],
             "email_verified": user["email_verified"],
+            "preferences": user["preferences"] or {},
             "members_count": int(members_count),
             "members": [
                 {
@@ -388,6 +409,10 @@ async def update_me(req: ProfileUpdate, authorization: Optional[str] = Header(No
         if req.avatar_color is not None:
             vals.append(req.avatar_color)
             sets.append(f"avatar_color=${len(vals)}")
+        if req.preferences is not None:
+            import json
+            vals.append(json.dumps(req.preferences))
+            sets.append(f"preferences=${len(vals)}::jsonb")
         if sets:
             await conn.execute(f"UPDATE users SET {', '.join(sets)} WHERE id=$1", *vals)
 

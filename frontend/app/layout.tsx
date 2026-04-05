@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Barlow_Condensed, Barlow, IBM_Plex_Mono } from 'next/font/google'
 import '../styles/globals.css'
 import { AuthProvider } from '@/lib/auth'
+import { ThemeProvider } from '@/lib/theme'
 
 const barlowCondensed = Barlow_Condensed({
   subsets: ['latin'],
@@ -36,7 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${barlowCondensed.variable} ${barlow.variable} ${ibmPlexMono.variable}`}
       suppressHydrationWarning
     >
-      <body><AuthProvider>{children}</AuthProvider></body>
+      <body><ThemeProvider><AuthProvider>{children}</AuthProvider></ThemeProvider></body>
     </html>
   )
 }

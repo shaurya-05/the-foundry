@@ -25,6 +25,7 @@ export interface AuthUser {
   workspace_name: string
   role: string
   email_verified: boolean
+  preferences: Record<string, unknown>
   members_count: number
   members: WorkspaceMember[]
 }
@@ -36,7 +37,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, displayName?: string) => Promise<void>
   logout: () => void
-  updateProfile: (data: { display_name?: string; avatar_color?: string; workspace_name?: string }) => Promise<void>
+  updateProfile: (data: { display_name?: string; avatar_color?: string; workspace_name?: string; preferences?: Record<string, unknown> }) => Promise<void>
   refreshUser: () => Promise<void>
 }
 
@@ -180,6 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     display_name?: string
     avatar_color?: string
     workspace_name?: string
+    preferences?: Record<string, unknown>
   }) => {
     if (!token) return
     const res = await fetch(`${API_BASE}/api/auth/me`, {

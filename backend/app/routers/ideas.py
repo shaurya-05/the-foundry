@@ -5,7 +5,7 @@ from app.models.schemas import IdeaCreate, IdeaForgeRequest, Idea
 from app.db.postgres import get_pool
 from app.services.claude import stream_sse
 from app.services.graph import upsert_idea_node
-from app.dependencies import AuthContext, require_auth
+from app.dependencies import AuthContext, require_auth, RequireUsage
 
 router = APIRouter(prefix="/api/ideas", tags=["ideas"])
 
@@ -63,7 +63,9 @@ async def delete_idea(idea_id: str, auth: AuthContext = Depends(require_auth)):
     return {"ok": True}
 
 @router.post("/forge")
-async def forge_ideas(req: IdeaForgeRequest, auth: AuthContext = Depends(require_auth)):
+async def forge_ideas(req: IdeaForgeRequest, auth: AuthContext = Depends(RequireUsage("forge_operations"))):
+    from app.services.usage import increment_usage
+    await increment_usage(auth.workspace_id, "forge_operations")
     return StreamingResponse(
         stream_sse(IDEA_SYSTEM, f"Domain/problem space: {req.domains}", max_tokens=1500),
         media_type="text/event-stream",

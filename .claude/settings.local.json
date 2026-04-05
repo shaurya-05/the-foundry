@@ -73,7 +73,17 @@
       "Bash(PATH=\"/Users/shauryakarra/.local/bin:$PATH\" cd \"/Users/shauryakarra/The FOUNDRY/frontend\")",
       "Bash(/Users/shauryakarra/.local/bin/node /Users/shauryakarra/.local/bin/npm ci)",
       "Bash(rm -rf node_modules)",
-      "Bash(PATH=\"/Users/shauryakarra/.local/bin:$PATH\" /Users/shauryakarra/.local/bin/node -e \"const {execSync}=require\\(''child_process''\\);execSync\\(''npm install'',{stdio:''inherit'',env:{...process.env,PATH:''/Users/shauryakarra/.local/bin:''+process.env.PATH}}\\)\")"
+      "Bash(PATH=\"/Users/shauryakarra/.local/bin:$PATH\" /Users/shauryakarra/.local/bin/node -e \"const {execSync}=require\\(''child_process''\\);execSync\\(''npm install'',{stdio:''inherit'',env:{...process.env,PATH:''/Users/shauryakarra/.local/bin:''+process.env.PATH}}\\)\")",
+      "Bash(gh repo:*)",
+      "Bash(/Users/shauryakarra/.local/bin/node -e \"const {execSync}=require\\(''child_process''\\);execSync\\(''npm install'',{stdio:''inherit'',env:{...process.env,PATH:''/Users/shauryakarra/.local/bin:''+process.env.PATH}}\\)\")",
+      "Bash(curl -s https://the-foundry-production-1482.up.railway.app/health)",
+      "Bash(for f:*)",
+      "Bash(do echo:*)",
+      "Bash(PGPASSWORD=runDXUbDXemhSAdlRREMfmNNPXziWwZo /Users/shauryakarra/.local/bin/node -e \":*)",
+      "Bash(done)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://foundr3y-2rwgc1kty-shaurya-05s-projects.vercel.app/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://foundr3y-app.vercel.app/)",
+      "Bash(curl -s -I -X OPTIONS https://the-foundry-production-1482.up.railway.app/api/auth/register -H \"Origin: https://foundr3y-app.vercel.app\" -H \"Access-Control-Request-Method: POST\" -H \"Access-Control-Request-Headers: Content-Type\")"
     ]
   }
 }

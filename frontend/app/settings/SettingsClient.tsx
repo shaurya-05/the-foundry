@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
+import { useTheme } from '@/lib/theme'
 
 const AVATAR_COLORS = [
   '#E8231F', '#0A85FF', '#16A34A', '#F06A00',
@@ -18,6 +19,7 @@ const VISIBILITY_OPTIONS = [
 export default function SettingsClient() {
   const router = useRouter()
   const { user, loading, logout, updateProfile, refreshUser } = useAuth()
+  const { theme, setTheme } = useTheme()
 
   const [displayName, setDisplayName]       = useState('')
   const [avatarColor, setAvatarColor]       = useState('#E8231F')
@@ -243,6 +245,34 @@ export default function SettingsClient() {
         </Field>
       </Section>
 
+      {/* ─── Appearance ──────────────────────────────────────────────── */}
+      <Section title="Appearance" accent="#F06A00">
+        <Field label="Theme">
+          <div style={{ display: 'flex', gap: 8 }}>
+            {(['light', 'dark', 'system'] as const).map(t => (
+              <button
+                key={t}
+                onClick={() => {
+                  setTheme(t)
+                  updateProfile({ preferences: { ...(user?.preferences || {}), theme: t } })
+                }}
+                style={{
+                  flex: 1, padding: '10px 14px', borderRadius: 8, cursor: 'pointer',
+                  border: `1px solid ${theme === t ? '#F06A00' : 'var(--border)'}`,
+                  background: theme === t ? 'rgba(240,106,0,0.06)' : 'var(--bg-surface)',
+                  color: theme === t ? '#F06A00' : 'var(--text-secondary)',
+                  fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600,
+                  fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase',
+                  transition: 'border-color 0.15s',
+                }}
+              >
+                {t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'System'}
+              </button>
+            ))}
+          </div>
+        </Field>
+      </Section>
+
       {/* ─── Workspace ──────────────────────────────────────────────── */}
       <Section title="Workspace" accent="#0A85FF">
         <Field label="Workspace Name">
@@ -419,6 +449,77 @@ export default function SettingsClient() {
               </label>
             ))}
           </div>
+        </Field>
+      </Section>
+
+      {/* ─── Notifications ────────────────────────────────────────────── */}
+      <Section title="Notifications" accent="#0891B2">
+        <Field label="Email Notifications">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[
+              { key: 'email_invites', label: 'Workspace invitations' },
+              { key: 'email_tasks', label: 'Task assignments' },
+              { key: 'email_updates', label: 'Project updates' },
+            ].map(opt => (
+              <label key={opt.key} style={{
+                display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                fontSize: 13, color: 'var(--text-secondary)', fontFamily: 'var(--font-barlow)',
+              }}>
+                <input
+                  type="checkbox"
+                  defaultChecked={true}
+                  style={{ accentColor: '#0891B2' }}
+                  onChange={e => {
+                    updateProfile({
+                      preferences: {
+                        ...(user?.preferences || {}),
+                        notifications: {
+                          ...((user?.preferences?.notifications as Record<string, boolean>) || {}),
+                          [opt.key]: e.target.checked,
+                        },
+                      },
+                    })
+                  }}
+                />
+                {opt.label}
+              </label>
+            ))}
+          </div>
+        </Field>
+      </Section>
+
+      {/* ─── Data & Export ──────────────────────────────────────────── */}
+      <Section title="Data & Export" accent="#374151">
+        <Field label="Export Your Data">
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)', marginBottom: 10 }}>
+            Download a copy of all your projects, tasks, knowledge items, and ideas as JSON.
+          </p>
+          <button
+            onClick={async () => {
+              const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+              const token = localStorage.getItem('foundry_token')
+              const res = await fetch(`${API_BASE}/api/auth/export`, {
+                headers: { Authorization: `Bearer ${token}` },
+              })
+              if (res.ok) {
+                const data = await res.json()
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url; a.download = 'foundry-export.json'; a.click()
+                URL.revokeObjectURL(url)
+              }
+            }}
+            style={{
+              padding: '8px 18px', background: 'none',
+              border: '1px solid var(--border)', borderRadius: 7,
+              color: 'var(--text-secondary)', cursor: 'pointer',
+              fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600,
+              fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase',
+            }}
+          >
+            Export Data
+          </button>
         </Field>
       </Section>
 

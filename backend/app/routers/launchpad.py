@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from app.models.schemas import LaunchBriefRequest
 from app.services.claude import stream_sse
-from app.dependencies import AuthContext, require_auth
+from app.dependencies import AuthContext, require_auth, RequireUsage
 
 router = APIRouter(prefix="/api/launchpad", tags=["launchpad"])
 
@@ -36,7 +36,9 @@ Include:
 Be specific and direct — no filler. Every section should have actionable information."""
 
 @router.post("/forge-brief")
-async def forge_launch_brief(req: LaunchBriefRequest, auth: AuthContext = Depends(require_auth)):
+async def forge_launch_brief(req: LaunchBriefRequest, auth: AuthContext = Depends(RequireUsage("forge_operations"))):
+    from app.services.usage import increment_usage
+    await increment_usage(auth.workspace_id, "forge_operations")
     return StreamingResponse(
         stream_sse(LAUNCH_BRIEF_SYSTEM, f"Concept: {req.concept}", max_tokens=1800),
         media_type="text/event-stream",

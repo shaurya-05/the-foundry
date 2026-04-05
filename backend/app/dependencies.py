@@ -52,3 +52,23 @@ def RequireRole(min_role: str):
         return auth
 
     return _check
+
+
+def RequireUsage(resource: str):
+    """Factory: returns a dependency that checks usage limits before allowing the request."""
+
+    async def _check(auth: AuthContext = Depends(require_auth)) -> AuthContext:
+        from app.services.usage import check_limit, check_storage_limit
+        # Storage resources use count-based checks
+        if resource in ("projects", "knowledge_items", "team_members"):
+            allowed = await check_storage_limit(auth.workspace_id, resource)
+        else:
+            allowed = await check_limit(auth.workspace_id, resource)
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Usage limit reached for {resource}. Upgrade your plan to continue.",
+            )
+        return auth
+
+    return _check

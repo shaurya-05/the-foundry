@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 from app.models.schemas import CopilotMessage, IntentRequest, IntentResponse
 from app.services.claude import stream_sse
 from app.services.context_engine import get_workspace_summary, build_copilot_system
-from app.dependencies import AuthContext, require_auth
+from app.dependencies import AuthContext, require_auth, RequireUsage
 import re
 
 router = APIRouter(prefix="/api/copilot", tags=["copilot"])
@@ -20,7 +20,9 @@ INTENT_PATTERNS = [
 ]
 
 @router.post("/message")
-async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(require_auth)):
+async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(RequireUsage("copilot_messages"))):
+    from app.services.usage import increment_usage
+    await increment_usage(auth.workspace_id, "copilot_messages")
     summary = await get_workspace_summary(auth.workspace_id)
     system = build_copilot_system(summary)
     return StreamingResponse(
