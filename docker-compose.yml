@@ -1,0 +1,108 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: foundry_postgres
+    environment:
+      POSTGRES_USER: foundry
+      POSTGRES_PASSWORD: foundry_secret
+      POSTGRES_DB: foundry_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/migrations/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql
+      - ./backend/migrations/002_collab_visibility.sql:/docker-entrypoint-initdb.d/002_collab_visibility.sql
+      - ./backend/migrations/003_auth.sql:/docker-entrypoint-initdb.d/003_auth.sql
+      - ./backend/migrations/004_email_verification.sql:/docker-entrypoint-initdb.d/004_email_verification.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U foundry -d foundry_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: foundry_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  neo4j:
+    image: neo4j:5
+    container_name: foundry_neo4j
+    environment:
+      NEO4J_AUTH: neo4j/foundry_secret
+      NEO4J_PLUGINS: '["apoc"]'
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: foundry_backend
+    environment:
+      DATABASE_URL: postgresql://foundry:foundry_secret@postgres:5432/foundry_db
+      REDIS_URL: redis://redis:6379
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: foundry_secret
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY}
+      JWT_SECRET: ${JWT_SECRET:-foundry_jwt_secret_change_in_prod}
+      ENVIRONMENT: development
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: foundry_celery
+    environment:
+      DATABASE_URL: postgresql://foundry:foundry_secret@postgres:5432/foundry_db
+      REDIS_URL: redis://redis:6379
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: foundry_secret
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - ./backend:/app
+    command: celery -A workers.pipeline_worker worker --loglevel=info
+
+volumes:
+  postgres_data:
+  redis_data:
+  neo4j_data:
