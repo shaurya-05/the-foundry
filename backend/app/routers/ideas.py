@@ -66,8 +66,25 @@ async def delete_idea(idea_id: str, auth: AuthContext = Depends(require_auth)):
 async def forge_ideas(req: IdeaForgeRequest, auth: AuthContext = Depends(RequireUsage("forge_operations"))):
     from app.services.usage import increment_usage
     await increment_usage(auth.workspace_id, "forge_operations")
+    pool = await get_pool()
+
+    async def stream_and_save():
+        full_output = []
+        async for chunk in stream_sse(IDEA_SYSTEM, f"Domain/problem space: {req.domains}", max_tokens=1500):
+            full_output.append(chunk)
+            yield chunk
+        output_text = "".join(full_output)
+        lines = output_text.split("\n")
+        content = "".join(l[6:] for l in lines if l.startswith("data: ") and l != "data: [DONE]")
+        if content:
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "INSERT INTO forge_outputs (workspace_id, user_id, type, input, output) VALUES ($1, $2, 'idea_forge', $3, $4)",
+                    auth.workspace_id, auth.user_id, req.domains, content,
+                )
+
     return StreamingResponse(
-        stream_sse(IDEA_SYSTEM, f"Domain/problem space: {req.domains}", max_tokens=1500),
+        stream_and_save(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

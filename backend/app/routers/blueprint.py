@@ -116,6 +116,7 @@ async def broadcast_op(op: NodeOp, workspace_id: Optional[str] = None, auth: Aut
 @router.get("/ops")
 async def get_recent_ops(workspace_id: Optional[str] = None, limit: int = 50, auth: AuthContext = Depends(require_auth)):
     ws_id = workspace_id or auth.workspace_id
+    await _verify_workspace_access(auth, ws_id)
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(

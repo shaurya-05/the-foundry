@@ -63,8 +63,10 @@ async def list_projects(auth: AuthContext = Depends(require_auth)):
         rows = await conn.fetch(
             """SELECT id, workspace_id, user_id, title, status, plan,
                       visibility, clearance_level, metadata, created_at
-               FROM projects WHERE workspace_id=$1 ORDER BY created_at DESC""",
-            auth.workspace_id
+               FROM projects WHERE workspace_id=$1
+               AND (visibility IN ('team', 'public') OR user_id=$2)
+               ORDER BY created_at DESC""",
+            auth.workspace_id, auth.user_id
         )
         result = [_row_to_project(r) for r in rows]
         await cache_set(cache_key, result, ttl=300)

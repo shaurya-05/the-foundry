@@ -196,10 +196,13 @@ async def run_pipeline(req: PipelineRunRequest, auth: AuthContext = Depends(requ
     )
 
 @router.get("/pipeline/{run_id}")
-async def get_pipeline_run(run_id: str):
+async def get_pipeline_run(run_id: str, auth: AuthContext = Depends(require_auth)):
     pool = await get_pool()
     async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT * FROM pipeline_runs WHERE id=$1", run_id)
+        row = await conn.fetchrow(
+            "SELECT * FROM pipeline_runs WHERE id=$1 AND workspace_id=$2",
+            run_id, auth.workspace_id,
+        )
         if not row:
             raise HTTPException(status_code=404, detail="Not found")
         return dict(row)

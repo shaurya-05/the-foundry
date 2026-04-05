@@ -316,9 +316,16 @@ async def delete_account(req: DeleteAccountRequest, auth: AuthContext = Depends(
                 detail="Transfer ownership of your workspace before deleting your account",
             )
 
-        # Soft delete
-        await conn.execute("UPDATE users SET deleted_at=NOW() WHERE id=$1", auth.user_id)
+        # Hard delete all user data (GDPR right to be forgotten)
+        await conn.execute("DELETE FROM copilot_messages WHERE user_id=$1", auth.user_id)
+        await conn.execute("DELETE FROM forge_outputs WHERE user_id=$1", auth.user_id)
+        await conn.execute("DELETE FROM agent_runs WHERE user_id=$1", auth.user_id)
+        await conn.execute("DELETE FROM command_history WHERE workspace_id=$1", auth.workspace_id)
+        await conn.execute("DELETE FROM tasks WHERE workspace_id=$1 AND user_id=$2", auth.workspace_id, auth.user_id)
+        await conn.execute("DELETE FROM email_verification_tokens WHERE user_id=$1", auth.user_id)
+        await conn.execute("DELETE FROM password_reset_tokens WHERE user_id=$1", auth.user_id)
         await conn.execute("DELETE FROM workspace_members WHERE user_id=$1", auth.user_id)
+        await conn.execute("UPDATE users SET deleted_at=NOW(), email=email||'_deleted_'||id, password_hash=NULL, preferences='{}' WHERE id=$1", auth.user_id)
 
     return {"deleted": True}
 
@@ -327,18 +334,27 @@ async def delete_account(req: DeleteAccountRequest, auth: AuthContext = Depends(
 
 @router.get("/export")
 async def export_data(auth: AuthContext = Depends(require_auth)):
+    """Full data export — includes all content for GDPR compliance."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        projects = await conn.fetch("SELECT id, title, status, plan, created_at FROM projects WHERE workspace_id=$1", auth.workspace_id)
-        tasks = await conn.fetch("SELECT id, title, description, status, priority, created_at FROM tasks WHERE workspace_id=$1", auth.workspace_id)
-        knowledge = await conn.fetch("SELECT id, title, summary, type, created_at FROM knowledge_items WHERE workspace_id=$1", auth.workspace_id)
-        ideas = await conn.fetch("SELECT id, title, domains, problem, created_at FROM ideas WHERE workspace_id=$1", auth.workspace_id)
+        user = await conn.fetchrow("SELECT email, display_name, created_at FROM users WHERE id=$1", auth.user_id)
+        projects = await conn.fetch("SELECT id, title, status, plan, metadata, created_at FROM projects WHERE workspace_id=$1", auth.workspace_id)
+        tasks = await conn.fetch("SELECT id, title, description, status, priority, metadata, created_at FROM tasks WHERE workspace_id=$1", auth.workspace_id)
+        knowledge = await conn.fetch("SELECT id, title, content, summary, type, source_url, tags, created_at FROM knowledge_items WHERE workspace_id=$1", auth.workspace_id)
+        ideas = await conn.fetch("SELECT id, title, domains, problem, metadata, created_at FROM ideas WHERE workspace_id=$1", auth.workspace_id)
+        agent_runs = await conn.fetch("SELECT id, agent_id, context, output, created_at FROM agent_runs WHERE workspace_id=$1", auth.workspace_id)
+        copilot_msgs = await conn.fetch("SELECT role, content, created_at FROM copilot_messages WHERE workspace_id=$1 ORDER BY created_at", auth.workspace_id)
+        forge_outs = await conn.fetch("SELECT type, input, output, created_at FROM forge_outputs WHERE workspace_id=$1", auth.workspace_id)
     return {
         "exported_at": __import__('datetime').datetime.utcnow().isoformat(),
+        "user": dict(user) if user else {},
         "projects": [dict(r) for r in projects],
         "tasks": [dict(r) for r in tasks],
         "knowledge": [dict(r) for r in knowledge],
         "ideas": [dict(r) for r in ideas],
+        "agent_runs": [dict(r) for r in agent_runs],
+        "copilot_history": [dict(r) for r in copilot_msgs],
+        "forge_outputs": [dict(r) for r in forge_outs],
     }
 
 
