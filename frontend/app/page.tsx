@@ -76,7 +76,7 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section style={{ textAlign: 'center', padding: '80px 24px 60px', maxWidth: 800, margin: '0 auto' }}>
+      <section style={{ textAlign: 'center', padding: '60px 24px 32px', maxWidth: 800, margin: '0 auto' }}>
         <div style={{
           fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: '#E8231F',
           letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16,
@@ -120,7 +120,7 @@ export default function LandingPage() {
       </section>
 
       {/* Features */}
-      <section style={{ padding: '40px 24px 60px', maxWidth: 1100, margin: '0 auto' }}>
+      <section style={{ padding: '24px 24px 48px', maxWidth: 1100, margin: '0 auto' }}>
         <h2 style={{
           fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 24,
           letterSpacing: '0.06em', textTransform: 'uppercase', textAlign: 'center',
@@ -152,7 +152,7 @@ export default function LandingPage() {
       </section>
 
       {/* How it works */}
-      <section style={{ padding: '40px 24px 60px', maxWidth: 900, margin: '0 auto' }}>
+      <section style={{ padding: '24px 24px 48px', maxWidth: 900, margin: '0 auto' }}>
         <h2 style={{
           fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 24,
           letterSpacing: '0.06em', textTransform: 'uppercase', textAlign: 'center',
@@ -194,7 +194,7 @@ export default function LandingPage() {
 
       {/* CTA */}
       <section style={{
-        textAlign: 'center', padding: '60px 24px 40px', maxWidth: 600, margin: '0 auto',
+        textAlign: 'center', padding: '32px 24px 40px', maxWidth: 600, margin: '0 auto',
       }}>
         <h2 style={{
           fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 28,
