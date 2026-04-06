@@ -100,7 +100,8 @@
       "Bash(python3 -c \"import aiohttp; import asyncio; print\\(''aiohttp available''\\)\")",
       "Bash(python3 tests/stress_test.py)",
       "Bash(python3 tests/load_test.py)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://found3ry.com)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://found3ry.com)",
+      "Bash(python3 -c \"from app.main import app; print\\(''Backend OK''\\)\")"
     ]
   }
 }

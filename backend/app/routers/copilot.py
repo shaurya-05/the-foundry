@@ -44,7 +44,7 @@ async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(Requi
 
     async def stream_and_save():
         full_output = []
-        async for chunk in stream_sse(system, req.message, max_tokens=500):
+        async for chunk in stream_sse(system, req.message, max_tokens=800):
             full_output.append(chunk)
             yield chunk
         output_text = "".join(full_output)

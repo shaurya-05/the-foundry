@@ -78,6 +78,7 @@ export const api = {
     list: () => req<Idea[]>('/api/ideas'),
     create: (data: { domains: string; content: string }) => req<Idea>('/api/ideas', { method: 'POST', body: JSON.stringify(data) }),
     delete: (id: string) => req('/api/ideas/' + id, { method: 'DELETE' }),
+    getSwot: (id: string) => req<{ swot: string; swot_generated_at: string }>('/api/ideas/' + id + '/swot'),
   },
   tasks: {
     list: (params?: { project_id?: string; status?: string }) => {
@@ -87,10 +88,16 @@ export const api = {
     create: (data: TaskCreate) => req<Task>('/api/tasks', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Partial<Task>) => req<Task>('/api/tasks/' + id, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: string) => req('/api/tasks/' + id, { method: 'DELETE' }),
+    myTasks: () => req<Task[]>('/api/tasks/my'),
   },
   agents: {
     pipelines: () => Promise.resolve(PIPELINE_DEFS),
     getRunStatus: (runId: string) => req(`/api/agents/pipeline/${runId}`),
+  },
+  analytics: {
+    velocity: () => req<{ completed_this_week: number; completed_last_week: number; created_this_week: number; created_last_week: number; velocity_ratio: number; trend: string }>('/api/analytics/velocity'),
+    health: () => req<{ project_id: string; title: string; total_tasks: number; completed: number; blocked: number; overdue: number; health_score: number; health_label: string }[]>('/api/analytics/health'),
+    attention: () => req<{ type: string; title: string; detail: string; entity_id: string; entity_type: string; severity: string }[]>('/api/analytics/attention'),
   },
   context: {
     insights: () => req<{ insights: string }>('/api/context/insights'),

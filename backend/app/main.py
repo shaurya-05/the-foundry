@@ -66,7 +66,7 @@ ALLOWED_ORIGINS = [o.strip() for o in _origins_env.split(",") if o.strip()] or [
 from app.routers import (
     knowledge, projects, ideas, tasks, agents,
     copilot, context, notifications, command, launchpad,
-    blueprint, workspace, auth, subscription,
+    blueprint, workspace, auth, subscription, analytics,
 )
 
 @asynccontextmanager
@@ -179,6 +179,7 @@ app.include_router(blueprint.router)
 app.include_router(workspace.router)
 app.include_router(auth.router)
 app.include_router(subscription.router)
+app.include_router(analytics.router)
 
 
 # ─── Health check (deep) ─────────────────────────────────────────────────────

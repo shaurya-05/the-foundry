@@ -89,6 +89,102 @@ async def forge_ideas(req: IdeaForgeRequest, auth: AuthContext = Depends(Require
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
+SWOT_SYSTEM = """You are a strategic analyst evaluating a startup/project idea. Generate a thorough SWOT analysis.
+
+Format:
+## Strengths
+(3-4 internal advantages this idea has)
+
+## Weaknesses
+(3-4 internal limitations or challenges)
+
+## Opportunities
+(3-4 external factors to capitalize on)
+
+## Threats
+(3-4 external risks to watch for)
+
+## Overall Score: X/10
+One-sentence justification for the score.
+
+## Recommended Next Step
+One specific, actionable recommendation.
+
+Be specific to THIS idea. Reference real market dynamics, technologies, and competitive realities. Don't be generic."""
+
+
+@router.post("/{idea_id}/swot")
+async def generate_swot(idea_id: str, auth: AuthContext = Depends(require_auth)):
+    """Stream a SWOT analysis for a saved idea."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        idea = await conn.fetchrow(
+            "SELECT * FROM ideas WHERE id=$1 AND workspace_id=$2",
+            idea_id, auth.workspace_id,
+        )
+    if not idea:
+        raise HTTPException(status_code=404, detail="Idea not found")
+
+    user_prompt = f"Idea domain: {idea['domains']}\n\nIdea content:\n{idea['content'][:4000]}"
+
+    async def stream_and_save():
+        full_output = []
+        async for chunk in stream_sse(SWOT_SYSTEM, user_prompt, max_tokens=1500):
+            full_output.append(chunk)
+            yield chunk
+
+        # Save SWOT to metadata
+        import json as _json
+        text_parts = []
+        for line in full_output:
+            if isinstance(line, str) and line.startswith("data: ") and line != "data: [DONE]":
+                try:
+                    data = _json.loads(line[6:])
+                    if data.get("type") == "text_delta":
+                        text_parts.append(data.get("text", ""))
+                except Exception:
+                    pass
+        swot_text = "".join(text_parts)
+        if swot_text:
+            from datetime import datetime
+            existing_meta = idea["metadata"] if isinstance(idea["metadata"], dict) else {}
+            existing_meta["swot"] = swot_text
+            existing_meta["swot_generated_at"] = datetime.utcnow().isoformat()
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE ideas SET metadata=$2 WHERE id=$1",
+                    idea_id, _json.dumps(existing_meta),
+                )
+                await conn.execute(
+                    """INSERT INTO activity_events (workspace_id, user_id, type, title, entity_type, entity_id)
+                       VALUES ($1, $2, 'swot_generated', $3, 'idea', $4)""",
+                    auth.workspace_id, auth.user_id, f"SWOT analysis: {idea['domains'][:60]}", idea_id,
+                )
+
+    return StreamingResponse(
+        stream_and_save(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.get("/{idea_id}/swot")
+async def get_swot(idea_id: str, auth: AuthContext = Depends(require_auth)):
+    """Return cached SWOT analysis if it exists."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        idea = await conn.fetchrow(
+            "SELECT metadata FROM ideas WHERE id=$1 AND workspace_id=$2",
+            idea_id, auth.workspace_id,
+        )
+    if not idea:
+        raise HTTPException(status_code=404, detail="Idea not found")
+    meta = idea["metadata"] if isinstance(idea["metadata"], dict) else {}
+    if "swot" not in meta:
+        raise HTTPException(status_code=404, detail="No SWOT analysis yet")
+    return {"swot": meta["swot"], "swot_generated_at": meta.get("swot_generated_at")}
+
+
 def _row_to_idea(row) -> Idea:
     return Idea(
         id=str(row["id"]),

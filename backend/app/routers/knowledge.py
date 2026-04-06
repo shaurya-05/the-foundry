@@ -110,6 +110,40 @@ async def query_knowledge(item_id: str, req: KnowledgeQueryRequest, auth: AuthCo
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
+@router.get("/semantic-search")
+async def semantic_search(q: str, limit: int = 10, auth: AuthContext = Depends(require_auth)):
+    """Semantic similarity search using pgvector embeddings."""
+    if not q.strip():
+        return []
+    from app.services.embeddings import embed_text
+    query_embedding = await embed_text(q)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT id, title, summary, type, tags, source_url, content, created_at,
+                      1 - (embedding <=> $2::vector) AS similarity
+               FROM knowledge_items
+               WHERE workspace_id=$1 AND embedding IS NOT NULL
+                 AND 1 - (embedding <=> $2::vector) > 0.3
+               ORDER BY embedding <=> $2::vector
+               LIMIT $3""",
+            auth.workspace_id, str(query_embedding), min(limit, 20)
+        )
+    return [
+        {
+            "id": str(r["id"]),
+            "title": r["title"],
+            "summary": r["summary"],
+            "type": r["type"],
+            "tags": r["tags"],
+            "excerpt": (r["content"] or "")[:200],
+            "similarity": round(float(r["similarity"]), 3),
+            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+        }
+        for r in rows
+    ]
+
+
 @router.get("/search")
 async def search_knowledge(q: str = "", type: str = "", auth: AuthContext = Depends(require_auth)):
     pool = await get_pool()
