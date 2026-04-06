@@ -25,11 +25,12 @@ async def get_workspace_plan(workspace_id: str) -> dict:
             workspace_id,
         )
     if not row:
-        # Default to spark if no subscription exists
-        result = {"plan_id": "spark", "plan_name": "Spark", "limits": {
-            "copilot_messages": 25, "agent_runs": 10, "forge_operations": 3,
-            "pipeline_runs": 0, "projects": 3, "knowledge_items": 50,
-            "team_members": 1, "workspaces": 1,
+        # Early access: all users get unlimited access (no limits enforced)
+        # When ready to monetize, change -1 values back to Spark limits
+        result = {"plan_id": "early_access", "plan_name": "Early Access", "limits": {
+            "copilot_messages": -1, "agent_runs": -1, "forge_operations": -1,
+            "pipeline_runs": -1, "projects": -1, "knowledge_items": -1,
+            "team_members": 25, "workspaces": -1,
         }, "status": "active"}
     else:
         limits = row["limits"] if isinstance(row["limits"], dict) else json.loads(row["limits"])

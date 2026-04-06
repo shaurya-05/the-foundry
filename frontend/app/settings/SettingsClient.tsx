@@ -685,8 +685,9 @@ function SubscriptionSection() {
   const plan = sub.plan || {}
   const usage = sub.usage || {}
   const limits = plan.limits || {}
-  const planName = plan.name || 'Spark'
-  const isPaid = plan.id !== 'spark'
+  const planName = plan.name || 'Early Access'
+  const isEarlyAccess = plan.id === 'early_access'
+  const isPaid = plan.id !== 'spark' || isEarlyAccess
 
   const usageItems = [
     { label: 'Copilot Messages', used: usage.copilot_messages || 0, limit: limits.copilot_messages || 0 },
@@ -713,7 +714,16 @@ function SubscriptionSection() {
             {isPaid ? `$${(plan.price_monthly / 100).toFixed(0)}/mo` : 'Free'}
           </span>
         </div>
-        {isPaid ? (
+        {isEarlyAccess ? (
+          <span style={{
+            padding: '6px 14px', borderRadius: 6,
+            background: 'rgba(45,204,114,0.1)', color: '#16A34A',
+            fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-barlow-condensed)',
+            letterSpacing: '0.08em', textTransform: 'uppercase',
+          }}>
+            All Features Unlocked
+          </span>
+        ) : isPaid ? (
           <button onClick={handleManageBilling} style={{
             padding: '6px 14px', background: 'none', border: '1px solid var(--border)',
             borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600,

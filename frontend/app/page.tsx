@@ -56,6 +56,7 @@ export default function LandingPage() {
           </span>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
+          {/* Pricing button hidden during early access — uncomment when ready to monetize
           <button onClick={() => router.push('/pricing')} style={{
             padding: '8px 16px', background: 'none', border: '1px solid var(--border, rgba(0,0,0,0.1))',
             borderRadius: 7, cursor: 'pointer', fontFamily: 'var(--font-barlow-condensed)',
@@ -64,6 +65,7 @@ export default function LandingPage() {
           }}>
             Pricing
           </button>
+          */}
           <button onClick={() => router.push('/login')} style={{
             padding: '8px 16px', background: 'linear-gradient(135deg, #E8231F, #C81E1C)',
             border: 'none', borderRadius: 7, cursor: 'pointer', color: '#fff',
@@ -114,7 +116,7 @@ export default function LandingPage() {
             fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600, fontSize: 14,
             letterSpacing: '0.06em', textTransform: 'uppercase',
           }}>
-            See Pricing
+            Learn More
           </button>
         </div>
       </section>
