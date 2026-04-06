@@ -413,6 +413,9 @@ export default function SettingsClient() {
         </Field>
       </Section>
 
+      {/* ─── Subscription ─────────────────────────────────────────── */}
+      <SubscriptionSection />
+
       {/* ─── Privacy ────────────────────────────────────────────────── */}
       <Section title="Privacy" accent="#7C3AED">
         <Field label="Default Project Visibility">
@@ -623,6 +626,181 @@ export default function SettingsClient() {
         </button>
       </div>
     </div>
+  )
+}
+
+// ─── Subscription Section ────────────────────────────────────────────────────
+
+function SubscriptionSection() {
+  const [sub, setSub] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [upgrading, setUpgrading] = useState('')
+
+  useEffect(() => {
+    const token = localStorage.getItem('foundry_token')
+    const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    fetch(`${API}/api/subscription`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => { setSub(d); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [])
+
+  async function handleUpgrade(planId: string, cycle: string) {
+    setUpgrading(planId)
+    try {
+      const token = localStorage.getItem('foundry_token')
+      const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const res = await fetch(`${API}/api/subscription/checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ plan_id: planId, billing_cycle: cycle }),
+      })
+      const data = await res.json()
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url
+      } else {
+        alert(data.detail || 'Could not create checkout')
+      }
+    } catch { alert('Checkout unavailable') }
+    setUpgrading('')
+  }
+
+  async function handleManageBilling() {
+    try {
+      const token = localStorage.getItem('foundry_token')
+      const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const res = await fetch(`${API}/api/subscription/portal`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json()
+      if (data.portal_url) window.location.href = data.portal_url
+      else alert(data.detail || 'Billing portal unavailable')
+    } catch { alert('Portal unavailable') }
+  }
+
+  if (loading) return <Section title="Plan & Usage" accent="#F59E0B"><div style={{ padding: '0 20px 16px', color: 'var(--text-muted)' }}>Loading...</div></Section>
+  if (!sub) return null
+
+  const plan = sub.plan || {}
+  const usage = sub.usage || {}
+  const limits = plan.limits || {}
+  const planName = plan.name || 'Spark'
+  const isPaid = plan.id !== 'spark'
+
+  const usageItems = [
+    { label: 'Copilot Messages', used: usage.copilot_messages || 0, limit: limits.copilot_messages || 0 },
+    { label: 'Agent Runs', used: usage.agent_runs || 0, limit: limits.agent_runs || 0 },
+    { label: 'Forge Operations', used: usage.forge_operations || 0, limit: limits.forge_operations || 0 },
+    { label: 'Pipeline Runs', used: usage.pipeline_runs || 0, limit: limits.pipeline_runs || 0 },
+  ]
+
+  return (
+    <Section title="Plan & Usage" accent="#F59E0B">
+      {/* Current plan badge */}
+      <div style={{ padding: '0 0 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{
+            padding: '4px 12px', borderRadius: 6,
+            background: isPaid ? 'rgba(14,165,233,0.1)' : 'rgba(0,0,0,0.05)',
+            color: isPaid ? '#0EA5E9' : 'var(--text-muted)',
+            fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-barlow-condensed)',
+            letterSpacing: '0.08em', textTransform: 'uppercase',
+          }}>
+            {planName}
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)' }}>
+            {isPaid ? `$${(plan.price_monthly / 100).toFixed(0)}/mo` : 'Free'}
+          </span>
+        </div>
+        {isPaid ? (
+          <button onClick={handleManageBilling} style={{
+            padding: '6px 14px', background: 'none', border: '1px solid var(--border)',
+            borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600,
+            fontFamily: 'var(--font-barlow-condensed)', letterSpacing: '0.06em',
+            textTransform: 'uppercase', color: 'var(--text-secondary)',
+          }}>
+            Manage Billing
+          </button>
+        ) : (
+          <button onClick={() => handleUpgrade('pro', 'monthly')} disabled={!!upgrading} style={{
+            padding: '6px 14px',
+            background: upgrading ? '#E5E7EB' : 'linear-gradient(135deg, #0EA5E9, #0284C7)',
+            color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer',
+            fontSize: 11, fontWeight: 600, fontFamily: 'var(--font-barlow-condensed)',
+            letterSpacing: '0.06em', textTransform: 'uppercase',
+          }}>
+            {upgrading ? '...' : 'Upgrade to Pro'}
+          </button>
+        )}
+      </div>
+
+      {/* Usage bars */}
+      <Field label="This Month's Usage">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {usageItems.map(item => {
+            const pct = item.limit === -1 ? 0 : item.limit > 0 ? Math.min((item.used / item.limit) * 100, 100) : 0
+            const isUnlimited = item.limit === -1
+            const isNearLimit = pct >= 80
+            const isAtLimit = pct >= 100
+            return (
+              <div key={item.label}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-barlow)' }}>
+                    {item.label}
+                  </span>
+                  <span style={{
+                    fontSize: 11, fontFamily: 'var(--font-ibm-plex-mono)',
+                    color: isAtLimit ? '#DC2626' : isNearLimit ? '#F59E0B' : 'var(--text-muted)',
+                  }}>
+                    {item.used}{isUnlimited ? ' / ∞' : ` / ${item.limit}`}
+                  </span>
+                </div>
+                <div style={{
+                  height: 6, borderRadius: 3, background: 'var(--border, rgba(0,0,0,0.08))',
+                  overflow: 'hidden',
+                }}>
+                  <div style={{
+                    height: '100%', borderRadius: 3,
+                    width: isUnlimited ? '0%' : `${pct}%`,
+                    background: isAtLimit ? '#DC2626' : isNearLimit ? '#F59E0B' : '#0EA5E9',
+                    transition: 'width 0.3s ease',
+                  }} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </Field>
+
+      {/* Upgrade CTA for free users */}
+      {!isPaid && (
+        <div style={{
+          padding: '12px 16px', borderRadius: 8,
+          background: 'linear-gradient(135deg, rgba(14,165,233,0.05), rgba(124,58,237,0.05))',
+          border: '1px solid rgba(14,165,233,0.15)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          marginBottom: 8,
+        }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-barlow)' }}>
+              Unlock unlimited projects & 500 copilot messages
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)', marginTop: 2 }}>
+              Pro plan — $16/mo or $12/mo billed annually
+            </div>
+          </div>
+          <button onClick={() => window.location.href = '/pricing'} style={{
+            padding: '8px 16px', background: 'linear-gradient(135deg, #0EA5E9, #0284C7)',
+            color: '#fff', border: 'none', borderRadius: 7, cursor: 'pointer',
+            fontSize: 11, fontWeight: 600, fontFamily: 'var(--font-barlow-condensed)',
+            letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+          }}>
+            See Plans
+          </button>
+        </div>
+      )}
+    </Section>
   )
 }
 

@@ -39,10 +39,76 @@ const PIPELINE_COMMANDS = [
 export default function ForgeCommand({ onClose }: ForgeCommandProps) {
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(0)
+  const [searchResults, setSearchResults] = useState<CommandItem[]>([])
+  const [searching, setSearching] = useState(false)
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
 
   useEffect(() => { inputRef.current?.focus() }, [])
+
+  // Live search across all content when query is 2+ chars
+  useEffect(() => {
+    if (query.length < 2) { setSearchResults([]); return }
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true)
+      try {
+        const [projects, tasks, knowledge, ideas] = await Promise.all([
+          api.projects.list().catch(() => []),
+          api.tasks.list().catch(() => []),
+          api.knowledge.list().catch(() => []),
+          api.ideas.list().catch(() => []),
+        ])
+        const q = query.toLowerCase()
+        const results: CommandItem[] = []
+
+        // Search projects
+        for (const p of (projects as any[])) {
+          if (p.title?.toLowerCase().includes(q)) {
+            results.push({
+              id: `proj-${p.id}`, label: p.title, description: `Project · ${p.status || 'active'}`,
+              category: 'project', accent: '#E8231F',
+              action: () => { router.push(`/projects`); onClose() },
+            })
+          }
+        }
+        // Search tasks
+        for (const t of (tasks as any[])) {
+          if (t.title?.toLowerCase().includes(q)) {
+            results.push({
+              id: `task-${t.id}`, label: t.title, description: `Task · ${t.status || 'backlog'}`,
+              category: 'task', accent: '#0891B2',
+              action: () => { router.push('/tasks'); onClose() },
+            })
+          }
+        }
+        // Search knowledge
+        for (const k of (knowledge as any[])) {
+          if (k.title?.toLowerCase().includes(q) || k.content?.toLowerCase().includes(q)) {
+            results.push({
+              id: `know-${k.id}`, label: k.title || 'Untitled', description: `Knowledge · ${k.type || 'note'}`,
+              category: 'knowledge', accent: '#0A85FF',
+              action: () => { router.push('/knowledge'); onClose() },
+            })
+          }
+        }
+        // Search ideas
+        for (const i of (ideas as any[])) {
+          if (i.domains?.toLowerCase().includes(q) || i.content?.toLowerCase().includes(q)) {
+            results.push({
+              id: `idea-${i.id}`, label: i.domains || 'Idea', description: `Idea · ${(i.content || '').slice(0, 60)}`,
+              category: 'idea', accent: '#F06A00',
+              action: () => { router.push('/ideas'); onClose() },
+            })
+          }
+        }
+        setSearchResults(results.slice(0, 10))
+      } catch { setSearchResults([]) }
+      setSearching(false)
+    }, 250)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [query, router, onClose])
 
   function buildCommands(): CommandItem[] {
     const cmds: CommandItem[] = [
@@ -63,6 +129,15 @@ export default function ForgeCommand({ onClose }: ForgeCommandProps) {
         action: () => { router.push(c.path); onClose() },
       })),
     ]
+
+    // If searching, show search results first
+    if (searchResults.length > 0) {
+      return [...searchResults, ...cmds.filter(c => {
+        const q = query.toLowerCase()
+        return c.label.toLowerCase().includes(q) || c.description.toLowerCase().includes(q)
+      })]
+    }
+
     if (!query) return cmds.slice(0, 8)
     const q = query.toLowerCase()
     return cmds.filter(c => c.label.toLowerCase().includes(q) || c.description.toLowerCase().includes(q))

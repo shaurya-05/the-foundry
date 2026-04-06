@@ -1,8 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+from typing import Optional
 from app.dependencies import AuthContext, require_auth
 from app.services.usage import get_workspace_plan, get_current_usage
 
 router = APIRouter(prefix="/api/subscription", tags=["subscription"])
+
+
+class CheckoutRequest(BaseModel):
+    plan_id: str  # "pro" or "forge_team"
+    billing_cycle: str = "monthly"  # "monthly" or "yearly"
 
 
 @router.get("")
@@ -41,3 +48,46 @@ async def list_plans():
             }
             for r in rows
         ]
+
+
+@router.post("/checkout")
+async def create_checkout(req: CheckoutRequest, auth: AuthContext = Depends(require_auth)):
+    """Create a Stripe checkout session for plan upgrade."""
+    if req.plan_id not in ("pro", "forge_team"):
+        raise HTTPException(status_code=400, detail="Invalid plan")
+    if req.billing_cycle not in ("monthly", "yearly"):
+        raise HTTPException(status_code=400, detail="Invalid billing cycle")
+
+    try:
+        from app.services.stripe_service import create_checkout_session
+        url = await create_checkout_session(
+            auth.workspace_id, auth.email, req.plan_id, req.billing_cycle,
+        )
+        return {"checkout_url": url}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/portal")
+async def create_portal(auth: AuthContext = Depends(require_auth)):
+    """Create a Stripe customer portal session for managing billing."""
+    try:
+        from app.services.stripe_service import create_portal_session
+        url = await create_portal_session(auth.workspace_id)
+        return {"portal_url": url}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/webhook")
+async def stripe_webhook(request: Request):
+    """Handle Stripe webhook events."""
+    payload = await request.body()
+    sig = request.headers.get("Stripe-Signature", "")
+
+    try:
+        from app.services.stripe_service import handle_webhook
+        await handle_webhook(payload, sig)
+        return {"ok": True}
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid webhook")
