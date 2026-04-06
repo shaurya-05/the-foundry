@@ -73,6 +73,20 @@ async def list_projects(auth: AuthContext = Depends(require_auth)):
         await cache_set(cache_key, result, ttl=300)
         return result
 
+@router.get("/{project_id}", response_model=Project)
+async def get_project(project_id: str, auth: AuthContext = Depends(require_auth)):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """SELECT id, workspace_id, user_id, title, status, plan, notes,
+                      visibility, clearance_level, metadata, created_at
+               FROM projects WHERE id=$1 AND workspace_id=$2""",
+            project_id, auth.workspace_id
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Not found")
+        return _row_to_project(row)
+
 @router.patch("/{project_id}", response_model=Project)
 async def update_project(project_id: str, req: ProjectUpdate, auth: AuthContext = Depends(require_auth)):
     pool = await get_pool()

@@ -93,7 +93,12 @@
       "Bash(curl -s -X POST https://the-foundry-production-1482.up.railway.app/api/projects -H \"Content-Type: application/json\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3YjRjYzJlYS0zM2YyLTRlMjYtODY0Zi02YjdlY2U5ODBiZjQiLCJ3b3Jrc3BhY2VfaWQiOiI4ZDNmM2NhMy0yODY0LTRiYjgtOTE2Yi0zY2QwNDEzYjUzN2IiLCJlbWFpbCI6ImN1cmx0ZXN0QGZvdW5kM3J5LmNvbSIsImV4cCI6MTc3NTQxNDQ5MCwidHlwZSI6ImFjY2VzcyJ9.zDh9kOfmFf95BIcPmmKRS0tHuc6g5gMGCGhAAMtBVBM\" -d '{\"\"title\"\":\"\"Test Project\"\"}')",
       "Bash(curl -s https://the-foundry-production-1482.up.railway.app/api/projects -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3YjRjYzJlYS0zM2YyLTRlMjYtODY0Zi02YjdlY2U5ODBiZjQiLCJ3b3Jrc3BhY2VfaWQiOiI4ZDNmM2NhMy0yODY0LTRiYjgtOTE2Yi0zY2QwNDEzYjUzN2IiLCJlbWFpbCI6ImN1cmx0ZXN0QGZvdW5kM3J5LmNvbSIsImV4cCI6MTc3NTQxNDQ5MCwidHlwZSI6ImFjY2VzcyJ9.zDh9kOfmFf95BIcPmmKRS0tHuc6g5gMGCGhAAMtBVBM\")",
       "Bash(curl -s -X POST https://the-foundry-production-1482.up.railway.app/api/auth/login -H \"Content-Type: application/json\" -d '{\"\"\"\"email\"\"\"\":\"\"\"\"curltest@found3ry.com\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"testpass123\"\"\"\"}')",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\(''''access_token'''',''''ERROR''''\\)[:50]+''''...''''\\); print\\(''''user_id:'''', d.get\\(''''user_id''''\\)\\); print\\(''''workspace_id:'''', d.get\\(''''workspace_id''''\\)\\)\")"
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\(''''access_token'''',''''ERROR''''\\)[:50]+''''...''''\\); print\\(''''user_id:'''', d.get\\(''''user_id''''\\)\\); print\\(''''workspace_id:'''', d.get\\(''''workspace_id''''\\)\\)\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://the-foundry-production-1482.up.railway.app/health)",
+      "Bash(curl -sL -o /dev/null -w \"%{http_code}\" https://found3ry.com)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/health)",
+      "Bash(python3 -c \"import aiohttp; import asyncio; print\\(''aiohttp available''\\)\")",
+      "Bash(python3 tests/stress_test.py)"
     ]
   }
 }
