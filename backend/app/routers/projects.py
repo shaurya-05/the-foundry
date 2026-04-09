@@ -27,7 +27,14 @@ Include:
 ## Success Criteria
 (measurable outcomes)
 
-Be specific, practical, and actionable."""
+## Tasks
+Generate 5-10 specific, actionable tasks to execute this plan. Each task on its own line starting with "- [ ] " followed by the task title. Optionally add priority in brackets [critical], [high], [medium], or [low].
+Example:
+- [ ] [high] Set up project repository and CI/CD pipeline
+- [ ] [critical] Design core system architecture
+- [ ] [medium] Create user research survey
+
+Be specific, practical, and actionable. Tasks should be concrete enough to assign to someone."""
 
 @router.post("", response_model=Project)
 async def create_project(req: ProjectCreate, auth: AuthContext = Depends(require_auth)):
@@ -174,22 +181,60 @@ async def forge_project_plan(project_id: str, auth: AuthContext = Depends(requir
                 except Exception:
                     pass
         if plan_text:
+            import re
             async with pool.acquire() as conn:
                 await conn.execute(
                     "UPDATE projects SET plan=$1 WHERE id=$2",
                     plan_text, project_id
                 )
-                lines = plan_text.split("\n")
-                for line in lines:
+
+                # Smart task extraction from plan
+                task_count = 0
+                for line in plan_text.split("\n"):
                     stripped = line.strip()
-                    if stripped.startswith("- ") or stripped.startswith("* "):
-                        task_title = stripped[2:].strip()
-                        if task_title and len(task_title) > 5:
+
+                    # Parse "- [ ] [priority] task title" format
+                    checkbox_match = re.match(r'^-\s*\[[ x]\]\s*(?:\[(critical|high|medium|low)\]\s*)?(.+)', stripped)
+                    if checkbox_match:
+                        priority = checkbox_match.group(1) or "medium"
+                        task_title = checkbox_match.group(2).strip()
+                        if task_title and len(task_title) > 5 and task_count < 15:
                             await conn.execute(
-                                """INSERT INTO tasks (workspace_id, user_id, title, project_id, source)
-                                   VALUES ($1, $2, $3, $4, 'copilot')""",
-                                auth.workspace_id, auth.user_id, task_title[:200], project_id
+                                """INSERT INTO tasks (workspace_id, user_id, title, project_id, priority, source)
+                                   VALUES ($1, $2, $3, $4, $5, 'forge')""",
+                                auth.workspace_id, auth.user_id, task_title[:200], project_id, priority,
                             )
+                            task_count += 1
+                            continue
+
+                    # Fallback: catch "- " and "* " bullet points in Tasks/Milestones sections
+                    if (stripped.startswith("- ") or stripped.startswith("* ")) and not stripped.startswith("- ["):
+                        task_title = re.sub(r'^[-*]\s+', '', stripped)
+                        # Skip short or header-like lines
+                        if task_title and len(task_title) > 8 and task_count < 15 and not task_title.startswith("#"):
+                            await conn.execute(
+                                """INSERT INTO tasks (workspace_id, user_id, title, project_id, priority, source)
+                                   VALUES ($1, $2, $3, $4, 'medium', 'forge')""",
+                                auth.workspace_id, auth.user_id, task_title[:200], project_id,
+                            )
+                            task_count += 1
+
+                # Log activity
+                if task_count > 0:
+                    await conn.execute(
+                        """INSERT INTO activity_events (workspace_id, user_id, type, title, entity_type, entity_id)
+                           VALUES ($1, $2, 'tasks_generated', $3, 'project', $4)""",
+                        auth.workspace_id, auth.user_id,
+                        f"{task_count} tasks auto-generated for {row['title']}", project_id,
+                    )
+
+                # Invalidate caches
+                from app.db.cache import cache_invalidate
+                await cache_invalidate(
+                    f"projects_list:{auth.workspace_id}",
+                    f"ws_summary:{auth.workspace_id}",
+                    f"tasks_list:{auth.workspace_id}",
+                )
 
     return StreamingResponse(
         save_plan_and_stream(),
