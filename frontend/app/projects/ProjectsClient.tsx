@@ -74,9 +74,26 @@ export default function ProjectsClient() {
     key_metrics: false,
     funding: false,
   })
-  // Brief-from-concept (folded in from Launchpad)
+  // Brief-from-concept
   const [briefMode, setBriefMode] = useState(false)
+  const [showConceptModal, setShowConceptModal] = useState(false)
   const [concept, setConcept] = useState('')
+  const [conceptSections, setConceptSections] = useState<Record<string, boolean>>({
+    overview: false,
+    objectives: false,
+    milestones: false,
+    technical: false,
+    success_criteria: false,
+    tasks: true,
+    pitch: true,
+    problem: true,
+    solution: true,
+    target_market: true,
+    mvp: true,
+    go_to_market: true,
+    key_metrics: true,
+    funding: true,
+  })
   const [brief, setBrief] = useState('')
   const [briefStreaming, setBriefStreaming] = useState(false)
 
@@ -169,30 +186,38 @@ export default function ProjectsClient() {
     setProjects(prev => prev.map(p => p.id === id ? { ...p, clearance_level: next } : p))
   }
 
-  async function forgeBrief() {
-    if (!concept.trim() || briefStreaming) return
-    setBrief('')
-    setBriefStreaming(true)
-    try {
-      for await (const chunk of streamSSE('/api/launchpad/forge-brief', { concept })) {
-        if (chunk.type === 'text_delta') setBrief(b => b + chunk.text)
-      }
-    } finally { setBriefStreaming(false) }
+  function openConceptModal() {
+    setShowConceptModal(true)
   }
 
-  async function createFromBrief() {
-    if (!concept.trim() || !brief) return
+  function toggleConceptSection(key: string) {
+    setConceptSections(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  async function forgeFromConcept() {
+    if (!concept.trim()) return
+    setShowConceptModal(false)
+    setBriefMode(false)
     setCreating(true)
+    const selected = Object.entries(conceptSections).filter(([, v]) => v).map(([k]) => k)
+    const sectionsParam = selected.join(',')
     try {
       const p = await api.projects.create({ title: concept })
-      await api.projects.update(p.id, { plan: brief })
-      setProjects(prev => [{ ...p, plan: brief }, ...prev])
-      setBriefMode(false)
+      setProjects(prev => [p, ...prev])
       setConcept('')
-      setBrief('')
       setExpanded(p.id)
+      // Stream forge with selected sections
+      setPlanning(p.id)
+      setStreamingPlan(true)
+      setPlanText(prev => ({ ...prev, [p.id]: '' }))
+      for await (const chunk of streamSSE(`/api/projects/${p.id}/forge-plan?sections=${sectionsParam}`, {})) {
+        if (chunk.type === 'text_delta') {
+          setPlanText(prev => ({ ...prev, [p.id]: (prev[p.id] || '') + chunk.text }))
+        }
+      }
+      await load()
     } catch (e) { console.error(e) }
-    finally { setCreating(false) }
+    finally { setCreating(false); setPlanning(null); setStreamingPlan(false) }
   }
 
   function getProjectTasks(projectId: string) {
@@ -336,117 +361,164 @@ export default function ProjectsClient() {
         </div>
       )}
 
-      {/* Create Form */}
-      <GlassCard accent="#E8231F" accentTop accentGlow style={{ padding: '16px 20px', marginBottom: 20 }}>
-        {!briefMode ? (
-          <div style={{ display: 'flex', gap: 10 }}>
-            <input
-              className="forge-input"
-              placeholder="Name your next build..."
-              value={newTitle}
-              onChange={e => setNewTitle(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && openCreateModal()}
-              style={{ flex: 1 }}
-            />
-            <button onClick={openCreateModal} disabled={creating || !newTitle.trim()} className="btn btn-primary">
-              {creating ? 'FORGING...' : '+ NEW PROJECT'}
-            </button>
-            <button
-              onClick={() => setBriefMode(true)}
-              className="btn btn-ghost btn-sm"
-              style={{ color: '#E8231F', borderColor: 'rgba(255,45,45,0.22)', whiteSpace: 'nowrap', fontSize: 10 }}
-              title="Generate a full project brief from a concept"
-            >
-              GENERATE FROM CONCEPT
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'rgba(232,35,31,0.8)', letterSpacing: '0.10em', textTransform: 'uppercase' }}>
-                Project Brief Generator
-              </span>
-              <button onClick={() => { setBriefMode(false); setConcept(''); setBrief('') }} className="btn btn-ghost btn-sm" style={{ fontSize: 10 }}>
-                CANCEL
-              </button>
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
+      {/* Concept Modal */}
+      {showConceptModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 999, backdropFilter: 'blur(4px)',
+        }} onClick={() => setShowConceptModal(false)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'var(--bg-surface, #fff)', borderRadius: 16,
+            border: '1px solid var(--border)', width: '100%', maxWidth: 560,
+            maxHeight: '80vh', overflow: 'auto',
+            boxShadow: '0 16px 48px rgba(0,0,0,0.2)',
+          }}>
+            <div style={{ padding: '24px 28px', borderBottom: '1px solid var(--border)' }}>
+              <h3 style={{
+                fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 18,
+                letterSpacing: '0.04em', color: 'var(--text-primary)', marginBottom: 8,
+              }}>
+                Generate From Concept
+              </h3>
               <input
                 className="forge-input"
                 placeholder="Describe your concept, product idea, or problem to solve..."
                 value={concept}
                 onChange={e => setConcept(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && forgeBrief()}
-                style={{ flex: 1 }}
+                onKeyDown={e => e.key === 'Enter' && concept.trim() && forgeFromConcept()}
+                style={{ width: '100%' }}
                 autoFocus
               />
-              <button onClick={forgeBrief} disabled={briefStreaming || !concept.trim()} className="btn btn-primary">
-                {briefStreaming ? 'GENERATING...' : 'GENERATE BRIEF'}
-              </button>
             </div>
 
-            {/* Streaming raw output while generating */}
-            {briefStreaming && (
-              <div style={{ background: 'var(--bg-mid)', border: '1px solid rgba(255,45,45,0.15)', borderRadius: 8, padding: '14px 16px' }}>
-                <Markdown content={brief} streaming={briefStreaming} />
-              </div>
-            )}
-
-            {/* Structured brief output once complete */}
-            {!briefStreaming && brief && (() => {
-              const sections = parseBrief(brief)
-              const pitch = sections.find(s => s.title === 'The Pitch')
-              const rest = sections.filter(s => s.title !== 'The Pitch')
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {/* Pitch card — hero treatment */}
-                  {pitch && (
-                    <div style={{
-                      background: 'rgba(255,45,45,0.06)',
-                      border: '1px solid rgba(255,45,45,0.25)',
-                      borderRadius: 10,
-                      padding: '18px 20px',
-                    }}>
-                      <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 8.5, color: '#FF2D2D', letterSpacing: '0.10em', textTransform: 'uppercase', marginBottom: 8 }}>
-                        THE PITCH
-                      </div>
-                      <div style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600, fontSize: 17, color: 'var(--text-primary)', lineHeight: 1.4, letterSpacing: '0.02em' }}>
-                        {pitch.content}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Remaining sections — 2 column grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    {rest.map(section => {
-                      const color = BRIEF_COLORS[section.title] || '#6B7280'
-                      return (
-                        <div key={section.title} style={{
-                          background: `${color}05`,
-                          border: `1px solid ${color}20`,
-                          borderLeft: `2px solid ${color}`,
-                          borderRadius: 8,
-                          padding: '12px 14px',
-                        }}>
-                          <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 8, color, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>
-                            {section.title}
-                          </div>
-                          <div style={{ fontFamily: 'var(--font-barlow)', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                            {section.content}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  <button onClick={createFromBrief} disabled={creating} className="btn btn-primary" style={{ alignSelf: 'flex-start' }}>
-                    {creating ? 'SAVING...' : '+ CREATE PROJECT FROM BRIEF'}
-                  </button>
+            <div style={{ padding: '20px 28px' }}>
+              {/* Launch Brief sections */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <span style={{
+                    fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 11,
+                    letterSpacing: '0.08em', textTransform: 'uppercase', color: '#0A85FF',
+                  }}>Launch Brief</span>
+                  <button onClick={() => setConceptSections(prev => ({ ...prev, pitch: true, problem: true, solution: true, target_market: true, mvp: true, go_to_market: true, key_metrics: true, funding: true }))} style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)',
+                    textDecoration: 'underline',
+                  }}>Select all</button>
                 </div>
-              )
-            })()}
+                {[
+                  { key: 'pitch', label: 'The Pitch', desc: 'One-paragraph elevator pitch' },
+                  { key: 'problem', label: 'The Problem', desc: 'Market pain points and data' },
+                  { key: 'solution', label: 'The Solution', desc: 'How your product solves it' },
+                  { key: 'target_market', label: 'Target Market', desc: 'TAM, segments, and sizing' },
+                  { key: 'mvp', label: 'MVP Feature Set', desc: 'Minimum viable product scope' },
+                  { key: 'go_to_market', label: 'Go-To-Market Strategy', desc: '90-day launch plan' },
+                  { key: 'key_metrics', label: 'Key Metrics', desc: '30/60/90 day targets' },
+                  { key: 'funding', label: 'Funding Path', desc: 'Raise strategy and investor profile' },
+                ].map(item => (
+                  <label key={item.key} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 12px',
+                    borderRadius: 8, marginBottom: 4, cursor: 'pointer',
+                    background: conceptSections[item.key] ? 'rgba(10,133,255,0.04)' : 'transparent',
+                    border: `1px solid ${conceptSections[item.key] ? 'rgba(10,133,255,0.15)' : 'transparent'}`,
+                  }}>
+                    <input type="checkbox" checked={conceptSections[item.key]} onChange={() => toggleConceptSection(item.key)}
+                      style={{ marginTop: 2, accentColor: '#0A85FF' }} />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-barlow)' }}>{item.label}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)' }}>{item.desc}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              {/* Project Plan sections */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <span style={{
+                    fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 11,
+                    letterSpacing: '0.08em', textTransform: 'uppercase', color: '#E8231F',
+                  }}>Project Plan</span>
+                  <button onClick={() => setConceptSections(prev => ({ ...prev, overview: true, objectives: true, milestones: true, technical: true, success_criteria: true, tasks: true }))} style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)',
+                    textDecoration: 'underline',
+                  }}>Select all</button>
+                </div>
+                {[
+                  { key: 'overview', label: 'Overview', desc: 'Project description and scope' },
+                  { key: 'objectives', label: 'Core Objectives', desc: '3-5 specific goals' },
+                  { key: 'milestones', label: 'Key Milestones', desc: 'Timeline with phases' },
+                  { key: 'technical', label: 'Technical Requirements', desc: 'Stack, constraints, architecture' },
+                  { key: 'success_criteria', label: 'Success Criteria', desc: 'Measurable outcomes' },
+                  { key: 'tasks', label: 'Auto-Generate Tasks', desc: '5-10 actionable tasks added to your board' },
+                ].map(item => (
+                  <label key={item.key} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 12px',
+                    borderRadius: 8, marginBottom: 4, cursor: 'pointer',
+                    background: conceptSections[item.key] ? 'rgba(232,35,31,0.04)' : 'transparent',
+                    border: `1px solid ${conceptSections[item.key] ? 'rgba(232,35,31,0.15)' : 'transparent'}`,
+                  }}>
+                    <input type="checkbox" checked={conceptSections[item.key]} onChange={() => toggleConceptSection(item.key)}
+                      style={{ marginTop: 2, accentColor: '#E8231F' }} />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-barlow)' }}>{item.label}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)' }}>{item.desc}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: '16px 28px', borderTop: '1px solid var(--border)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <button onClick={() => setConceptSections(Object.fromEntries(Object.keys(conceptSections).map(k => [k, true])))} style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 11, color: '#E8231F', fontFamily: 'var(--font-barlow-condensed)',
+                fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
+              }}>
+                SELECT ALL
+              </button>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setShowConceptModal(false)} className="btn btn-ghost btn-sm">
+                  CANCEL
+                </button>
+                <button onClick={forgeFromConcept} className="btn btn-primary"
+                  disabled={!concept.trim() || !Object.values(conceptSections).some(v => v)}>
+                  FORGE FROM CONCEPT
+                </button>
+              </div>
+            </div>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* Create Form */}
+      <GlassCard accent="#E8231F" accentTop accentGlow style={{ padding: '16px 20px', marginBottom: 20 }}>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <input
+            className="forge-input"
+            placeholder="Name your next build..."
+            value={newTitle}
+            onChange={e => setNewTitle(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && openCreateModal()}
+            style={{ flex: 1 }}
+          />
+          <button onClick={openCreateModal} disabled={creating || !newTitle.trim()} className="btn btn-primary">
+            {creating ? 'FORGING...' : '+ NEW PROJECT'}
+          </button>
+          <button
+            onClick={openConceptModal}
+            className="btn btn-ghost btn-sm"
+            style={{ color: '#E8231F', borderColor: 'rgba(255,45,45,0.22)', whiteSpace: 'nowrap', fontSize: 10 }}
+            title="Generate a full project brief from a concept"
+          >
+            GENERATE FROM CONCEPT
+          </button>
+        </div>
       </GlassCard>
 
       {loading ? (
