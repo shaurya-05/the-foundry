@@ -164,7 +164,7 @@ def build_copilot_system(summary: Dict[str, Any]) -> str:
         for a in summary.get("activity", [])[:10]
     ) or "  (none)"
 
-    return f"""You are FORGE COPILOT, the operations intelligence of THE FOUNDRY by h3ros.
+    return f"""You are COFOUND3R, the operations intelligence of THE FOUNDRY by h3ros.
 You have COMPLETE situational awareness of the builder's workspace — every project, task, knowledge item, and idea.
 Your job: help them build faster. Be precise, reference items BY NAME, and always end with one decisive next action.
 
@@ -226,7 +226,7 @@ async def build_project_copilot_system(project_id: str, workspace_id: str) -> st
     plan_excerpt = (project["plan"] or "")[:3000]
     notes_excerpt = (project["notes"] or "")[:1000]
 
-    return f"""You are FORGE COPILOT, embedded in project "{project['title']}" [{project['status']}].
+    return f"""You are COFOUND3R, embedded in project "{project['title']}" [{project['status']}].
 You have full context of this project's plan, tasks, and notes.
 Help the builder refine their plan, suggest next steps, answer questions, and draft content.
 Be specific — reference actual tasks and plan sections by name.

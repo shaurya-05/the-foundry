@@ -208,10 +208,10 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
             gap: 5,
             letterSpacing: '0.07em',
           }}
-          title="Forge Copilot (⌘J)"
+          title="COFOUND3R (⌘J)"
         >
           <CopilotIcon />
-          <span style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 11 }}>COPILOT</span>
+          <span style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 11 }}>COFOUND3R</span>
         </button>
       </div>
     </header>

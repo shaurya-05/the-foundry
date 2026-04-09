@@ -8,7 +8,7 @@ const FEATURES = [
   { icon: '📚', title: 'Knowledge Base', desc: 'Upload research, docs, and data. AI summarizes and connects everything.' },
   { icon: '🔨', title: 'Project Forge', desc: 'Create a project and Claude generates a full plan with auto-created tasks.' },
   { icon: '✅', title: 'Task Board', desc: 'Kanban-style task management with AI-generated subtasks from your plans.' },
-  { icon: '🤖', title: 'AI Copilot', desc: 'Context-aware AI assistant that knows your entire workspace.' },
+  { icon: '🤖', title: 'COFOUND3R', desc: 'AI co-founder that knows your entire workspace and helps you build.' },
   { icon: '🧠', title: 'Agent Crew', desc: '4 specialized AI agents: Field Analyst, Systems Architect, Market Scout, Launch Strategist.' },
   { icon: '🚀', title: 'Launchpad', desc: 'Generate investor-ready launch briefs from a single concept.' },
 ]
@@ -16,7 +16,7 @@ const FEATURES = [
 const STEPS = [
   { label: 'SOURCE', desc: 'Add knowledge, research, and ideas', color: '#0A85FF' },
   { label: 'FORGE', desc: 'AI generates plans, tasks, and insights', color: '#E8231F' },
-  { label: 'CAST', desc: 'Refine with copilot and agent crew', color: '#7C3AED' },
+  { label: 'CAST', desc: 'Refine with COFOUND3R and agent crew', color: '#7C3AED' },
   { label: 'SHIP', desc: 'Launch with confidence', color: '#16A34A' },
 ]
 

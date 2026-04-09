@@ -125,7 +125,7 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
                 color: 'var(--text-primary)',
               }}
             >
-              FORGE COPILOT
+              COFOUND3R
             </span>
             <span
               className="badge"
@@ -210,7 +210,7 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKey}
-                placeholder="Ask the Copilot anything..."
+                placeholder="Ask COFOUND3R anything..."
                 rows={1}
                 style={{
                   flex: 1,
@@ -389,7 +389,7 @@ function StarterPrompts({ onSelect }: { onSelect: (p: string) => void }) {
           textAlign: 'center',
         }}
       >
-        Forge Copilot is online
+        COFOUND3R is online
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {STARTER_PROMPTS.map(p => (

@@ -149,7 +149,7 @@ export default function Sidebar({ onCopilot }: { onCopilot: () => void }) {
           }}
         >
           <CopilotIcon />
-          FORGE COPILOT
+          COFOUND3R
           <span className="badge" style={{ marginLeft: 'auto', background: 'rgba(155,123,255,0.12)', color: 'rgba(155,123,255,0.8)', fontSize: 8 }}>
             ⌘J
           </span>

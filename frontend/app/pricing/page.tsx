@@ -15,7 +15,7 @@ const PLANS = [
       '1 workspace, 1 member',
       '3 projects',
       '50 knowledge items',
-      '25 Copilot messages/mo',
+      '25 COFOUND3R messages/mo',
       '10 agent runs/mo',
       '3 forge operations/mo',
       'Community support',
@@ -33,7 +33,7 @@ const PLANS = [
     features: [
       'Unlimited projects',
       '500 knowledge items',
-      '500 Copilot messages/mo',
+      '500 COFOUND3R messages/mo',
       '100 agent runs/mo',
       '50 forge operations/mo',
       '20 pipeline runs/mo',

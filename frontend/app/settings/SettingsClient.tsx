@@ -690,7 +690,7 @@ function SubscriptionSection() {
   const isPaid = plan.id !== 'spark' || isEarlyAccess
 
   const usageItems = [
-    { label: 'Copilot Messages', used: usage.copilot_messages || 0, limit: limits.copilot_messages || 0 },
+    { label: 'COFOUND3R Messages', used: usage.copilot_messages || 0, limit: limits.copilot_messages || 0 },
     { label: 'Agent Runs', used: usage.agent_runs || 0, limit: limits.agent_runs || 0 },
     { label: 'Forge Operations', used: usage.forge_operations || 0, limit: limits.forge_operations || 0 },
     { label: 'Pipeline Runs', used: usage.pipeline_runs || 0, limit: limits.pipeline_runs || 0 },
@@ -794,7 +794,7 @@ function SubscriptionSection() {
         }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-barlow)' }}>
-              Unlock unlimited projects & 500 copilot messages
+              Unlock unlimited projects & 500 COFOUND3R messages
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)', marginTop: 2 }}>
               Pro plan — $16/mo or $12/mo billed annually

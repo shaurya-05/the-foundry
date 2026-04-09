@@ -599,7 +599,7 @@ function ProjectExpandedView({
           <div style={{ flex: 1, overflow: 'auto', marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
             {chatMessages.length === 0 && !chatStreaming && (
               <span style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--font-ibm-plex-mono)', padding: 12 }}>
-                Ask the copilot about this project — it has full context of the plan, tasks, and notes.
+                Ask COFOUND3R about this project — it has full context of the plan, tasks, and notes.
               </span>
             )}
             {chatMessages.map(m => (
