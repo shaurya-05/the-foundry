@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
-import { useTheme } from '@/lib/theme'
+// Light theme only — no theme toggle needed
 
 const AVATAR_COLORS = [
   '#E8231F', '#0A85FF', '#16A34A', '#F06A00',
@@ -19,7 +19,7 @@ const VISIBILITY_OPTIONS = [
 export default function SettingsClient() {
   const router = useRouter()
   const { user, loading, logout, updateProfile, refreshUser } = useAuth()
-  const { theme, setTheme } = useTheme()
+  // theme removed — light only
 
   const [displayName, setDisplayName]       = useState('')
   const [avatarColor, setAvatarColor]       = useState('#E8231F')
@@ -245,33 +245,7 @@ export default function SettingsClient() {
         </Field>
       </Section>
 
-      {/* ─── Appearance ──────────────────────────────────────────────── */}
-      <Section title="Appearance" accent="#F06A00">
-        <Field label="Theme">
-          <div style={{ display: 'flex', gap: 8 }}>
-            {(['light', 'dark', 'system'] as const).map(t => (
-              <button
-                key={t}
-                onClick={() => {
-                  setTheme(t)
-                  updateProfile({ preferences: { ...(user?.preferences || {}), theme: t } })
-                }}
-                style={{
-                  flex: 1, padding: '10px 14px', borderRadius: 8, cursor: 'pointer',
-                  border: `1px solid ${theme === t ? '#F06A00' : 'var(--border)'}`,
-                  background: theme === t ? 'rgba(240,106,0,0.06)' : 'var(--bg-surface)',
-                  color: theme === t ? '#F06A00' : 'var(--text-secondary)',
-                  fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600,
-                  fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase',
-                  transition: 'border-color 0.15s',
-                }}
-              >
-                {t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'System'}
-              </button>
-            ))}
-          </div>
-        </Field>
-      </Section>
+      {/* Appearance section removed — light theme only */}
 
       {/* ─── Workspace ──────────────────────────────────────────────── */}
       <Section title="Workspace" accent="#0A85FF">
