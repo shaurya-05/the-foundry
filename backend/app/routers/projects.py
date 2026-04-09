@@ -10,31 +10,40 @@ from app.dependencies import AuthContext, require_auth
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
-PLAN_SYSTEM = """You are a senior project architect. Create a structured project plan for the given title.
-Include:
-## Overview
-(2-3 sentences describing the project)
-
-## Core Objectives
-(3-5 specific bullet points)
-
-## Key Milestones
-(4-6 milestones with rough timeline)
-
-## Technical Requirements
-(key technologies and constraints)
-
-## Success Criteria
-(measurable outcomes)
-
-## Tasks
-Generate 5-10 specific, actionable tasks to execute this plan. Each task on its own line starting with "- [ ] " followed by the task title. Optionally add priority in brackets [critical], [high], [medium], or [low].
+SECTION_PROMPTS = {
+    # Project Plan sections
+    'overview': '## Overview\n(2-3 sentences describing the project scope and vision)',
+    'objectives': '## Core Objectives\n(3-5 specific, measurable bullet points)',
+    'milestones': '## Key Milestones\n(4-6 milestones with rough timeline — Month 1-2, Month 3-4, etc.)',
+    'technical': '## Technical Requirements\n(key technologies, architecture decisions, and constraints)',
+    'success_criteria': '## Success Criteria\n(measurable outcomes that define success)',
+    'tasks': """## Tasks
+Generate 5-10 specific, actionable tasks. Each on its own line starting with "- [ ] " followed by the task title. Add priority in brackets [critical], [high], [medium], or [low].
 Example:
 - [ ] [high] Set up project repository and CI/CD pipeline
-- [ ] [critical] Design core system architecture
-- [ ] [medium] Create user research survey
+- [ ] [critical] Design core system architecture""",
+    # Launch Brief sections
+    'pitch': '## The Pitch\n(One compelling paragraph — the elevator pitch for this project)',
+    'problem': '## The Problem\n(What pain exists? Include data points, market size of the problem, why current solutions fail)',
+    'solution': '## The Solution\n(How this project solves it — key differentiation, technical approach, unique insight)',
+    'target_market': '## Target Market\n(TAM/SAM/SOM breakdown, primary and secondary segments with sizing)',
+    'mvp': '## MVP Feature Set\n(Minimum viable product — what ships first, what waits. Hardware AND software if applicable)',
+    'go_to_market': '## Go-To-Market Strategy\n(Days 1-30, 31-60, 61-90 plan with specific channels, targets, and tactics)',
+    'key_metrics': '## Key Metrics\n(30-day, 60-day, 90-day targets. Include a North Star metric)',
+    'funding': '## Funding Path\n(Pre-seed/seed strategy, ideal investor profile, bootstrapping risk assessment, stage triggers)',
+}
 
-Be specific, practical, and actionable. Tasks should be concrete enough to assign to someone."""
+def build_plan_system(sections: list[str]) -> str:
+    selected = [SECTION_PROMPTS[s] for s in sections if s in SECTION_PROMPTS]
+    if not selected:
+        selected = list(SECTION_PROMPTS.values())
+
+    return f"""You are a senior project architect and startup strategist. Create a comprehensive project document for the given title.
+
+Include the following sections:
+{chr(10).join(selected)}
+
+Be specific, practical, and actionable. Reference real technologies, real market dynamics, and real numbers where possible. Tasks should be concrete enough to assign to someone."""
 
 @router.post("", response_model=Project)
 async def create_project(req: ProjectCreate, auth: AuthContext = Depends(require_auth)):
@@ -155,7 +164,7 @@ async def export_project(project_id: str, auth: AuthContext = Depends(require_au
 
 
 @router.post("/{project_id}/forge-plan")
-async def forge_project_plan(project_id: str, auth: AuthContext = Depends(require_auth)):
+async def forge_project_plan(project_id: str, sections: str = "", auth: AuthContext = Depends(require_auth)):
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -165,9 +174,14 @@ async def forge_project_plan(project_id: str, auth: AuthContext = Depends(requir
     if not row:
         raise HTTPException(status_code=404, detail="Not found")
 
+    section_list = [s.strip() for s in sections.split(',') if s.strip()] if sections else list(SECTION_PROMPTS.keys())
+    system_prompt = build_plan_system(section_list)
+    # More sections = more tokens needed
+    max_tok = min(800 + len(section_list) * 200, 4000)
+
     async def save_plan_and_stream():
         full_output = []
-        async for chunk in stream_sse(PLAN_SYSTEM, f"Project: {row['title']}", max_tokens=1500):
+        async for chunk in stream_sse(system_prompt, f"Project: {row['title']}", max_tokens=max_tok):
             full_output.append(chunk)
             yield chunk
         import json

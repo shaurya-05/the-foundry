@@ -56,6 +56,24 @@ export default function ProjectsClient() {
   const [planning, setPlanning] = useState<string | null>(null)
   const [planText, setPlanText] = useState<Record<string, string>>({})
   const [streamingPlan, setStreamingPlan] = useState(false)
+  // Project creation modal
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createSections, setCreateSections] = useState<Record<string, boolean>>({
+    overview: true,
+    objectives: true,
+    milestones: true,
+    technical: true,
+    success_criteria: true,
+    tasks: true,
+    pitch: false,
+    problem: false,
+    solution: false,
+    target_market: false,
+    mvp: false,
+    go_to_market: false,
+    key_metrics: false,
+    funding: false,
+  })
   // Brief-from-concept (folded in from Launchpad)
   const [briefMode, setBriefMode] = useState(false)
   const [concept, setConcept] = useState('')
@@ -73,17 +91,48 @@ export default function ProjectsClient() {
     finally { setLoading(false) }
   }
 
+  function openCreateModal() {
+    if (!newTitle.trim()) return
+    setShowCreateModal(true)
+  }
+
+  function toggleSection(key: string) {
+    setCreateSections(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  function selectAllPlan() {
+    setCreateSections(prev => ({ ...prev, overview: true, objectives: true, milestones: true, technical: true, success_criteria: true, tasks: true }))
+  }
+
+  function selectAllBrief() {
+    setCreateSections(prev => ({ ...prev, pitch: true, problem: true, solution: true, target_market: true, mvp: true, go_to_market: true, key_metrics: true, funding: true }))
+  }
+
+  function selectAll() { selectAllPlan(); selectAllBrief() }
+
   async function create() {
     if (!newTitle.trim()) return
+    setShowCreateModal(false)
     setCreating(true)
+    const selected = Object.entries(createSections).filter(([, v]) => v).map(([k]) => k)
     try {
       const p = await api.projects.create({ title: newTitle })
       setProjects(prev => [p, ...prev])
       setNewTitle('')
-      // Auto-forge plan
-      await forgePlan(p.id)
+      setExpanded(p.id)
+      // Stream the forge with selected sections
+      setPlanning(p.id)
+      setStreamingPlan(true)
+      setPlanText(prev => ({ ...prev, [p.id]: '' }))
+      const sectionsParam = selected.join(',')
+      for await (const chunk of streamSSE(`/api/projects/${p.id}/forge-plan?sections=${sectionsParam}`, {})) {
+        if (chunk.type === 'text_delta') {
+          setPlanText(prev => ({ ...prev, [p.id]: (prev[p.id] || '') + chunk.text }))
+        }
+      }
+      await load()
     } catch (e) { console.error(e) }
-    finally { setCreating(false) }
+    finally { setCreating(false); setPlanning(null); setStreamingPlan(false) }
   }
 
   async function forgePlan(id: string) {
@@ -158,6 +207,135 @@ export default function ProjectsClient() {
         </span>
       </SectionHeader>
 
+      {/* Create Modal */}
+      {showCreateModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 999, backdropFilter: 'blur(4px)',
+        }} onClick={() => setShowCreateModal(false)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'var(--bg-surface, #fff)', borderRadius: 16,
+            border: '1px solid var(--border)', width: '100%', maxWidth: 560,
+            maxHeight: '80vh', overflow: 'auto',
+            boxShadow: '0 16px 48px rgba(0,0,0,0.2)',
+          }}>
+            <div style={{ padding: '24px 28px', borderBottom: '1px solid var(--border)' }}>
+              <h3 style={{
+                fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 18,
+                letterSpacing: '0.04em', color: 'var(--text-primary)', marginBottom: 4,
+              }}>
+                Configure Your Build
+              </h3>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)' }}>
+                &quot;{newTitle}&quot; — select what the AI should generate
+              </p>
+            </div>
+
+            <div style={{ padding: '20px 28px' }}>
+              {/* Project Plan sections */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <span style={{
+                    fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 11,
+                    letterSpacing: '0.08em', textTransform: 'uppercase', color: '#E8231F',
+                  }}>Project Plan</span>
+                  <button onClick={selectAllPlan} style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)',
+                    textDecoration: 'underline',
+                  }}>Select all</button>
+                </div>
+                {[
+                  { key: 'overview', label: 'Overview', desc: 'Project description and scope' },
+                  { key: 'objectives', label: 'Core Objectives', desc: '3-5 specific goals' },
+                  { key: 'milestones', label: 'Key Milestones', desc: 'Timeline with phases' },
+                  { key: 'technical', label: 'Technical Requirements', desc: 'Stack, constraints, architecture' },
+                  { key: 'success_criteria', label: 'Success Criteria', desc: 'Measurable outcomes' },
+                  { key: 'tasks', label: 'Auto-Generate Tasks', desc: '5-10 actionable tasks added to your board' },
+                ].map(item => (
+                  <label key={item.key} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 12px',
+                    borderRadius: 8, marginBottom: 4, cursor: 'pointer',
+                    background: createSections[item.key] ? 'rgba(232,35,31,0.04)' : 'transparent',
+                    border: `1px solid ${createSections[item.key] ? 'rgba(232,35,31,0.15)' : 'transparent'}`,
+                  }}>
+                    <input type="checkbox" checked={createSections[item.key]} onChange={() => toggleSection(item.key)}
+                      style={{ marginTop: 2, accentColor: '#E8231F' }} />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-barlow)' }}>{item.label}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)' }}>{item.desc}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              {/* Launch Brief sections */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <span style={{
+                    fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 11,
+                    letterSpacing: '0.08em', textTransform: 'uppercase', color: '#0A85FF',
+                  }}>Launch Brief</span>
+                  <button onClick={selectAllBrief} style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)',
+                    textDecoration: 'underline',
+                  }}>Select all</button>
+                </div>
+                {[
+                  { key: 'pitch', label: 'The Pitch', desc: 'One-paragraph elevator pitch' },
+                  { key: 'problem', label: 'The Problem', desc: 'Market pain points and data' },
+                  { key: 'solution', label: 'The Solution', desc: 'How your product solves it' },
+                  { key: 'target_market', label: 'Target Market', desc: 'TAM, segments, and sizing' },
+                  { key: 'mvp', label: 'MVP Feature Set', desc: 'Minimum viable product scope' },
+                  { key: 'go_to_market', label: 'Go-To-Market Strategy', desc: '90-day launch plan' },
+                  { key: 'key_metrics', label: 'Key Metrics', desc: '30/60/90 day targets' },
+                  { key: 'funding', label: 'Funding Path', desc: 'Raise strategy and investor profile' },
+                ].map(item => (
+                  <label key={item.key} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 12px',
+                    borderRadius: 8, marginBottom: 4, cursor: 'pointer',
+                    background: createSections[item.key] ? 'rgba(10,133,255,0.04)' : 'transparent',
+                    border: `1px solid ${createSections[item.key] ? 'rgba(10,133,255,0.15)' : 'transparent'}`,
+                  }}>
+                    <input type="checkbox" checked={createSections[item.key]} onChange={() => toggleSection(item.key)}
+                      style={{ marginTop: 2, accentColor: '#0A85FF' }} />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-barlow)' }}>{item.label}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)' }}>{item.desc}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: '16px 28px', borderTop: '1px solid var(--border)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <button onClick={selectAll} style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 11, color: '#E8231F', fontFamily: 'var(--font-barlow-condensed)',
+                fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
+              }}>
+                SELECT ALL
+              </button>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setShowCreateModal(false)} className="btn btn-ghost btn-sm">
+                  CANCEL
+                </button>
+                <button onClick={create} className="btn btn-primary"
+                  disabled={!Object.values(createSections).some(v => v)}>
+                  FORGE PROJECT
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Create Form */}
       <GlassCard accent="#E8231F" accentTop accentGlow style={{ padding: '16px 20px', marginBottom: 20 }}>
         {!briefMode ? (
@@ -167,11 +345,11 @@ export default function ProjectsClient() {
               placeholder="Name your next build..."
               value={newTitle}
               onChange={e => setNewTitle(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && create()}
+              onKeyDown={e => e.key === 'Enter' && openCreateModal()}
               style={{ flex: 1 }}
             />
-            <button onClick={create} disabled={creating || !newTitle.trim()} className="btn btn-primary">
-              {creating ? 'CREATING...' : '+ NEW PROJECT'}
+            <button onClick={openCreateModal} disabled={creating || !newTitle.trim()} className="btn btn-primary">
+              {creating ? 'FORGING...' : '+ NEW PROJECT'}
             </button>
             <button
               onClick={() => setBriefMode(true)}
