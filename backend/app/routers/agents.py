@@ -3,6 +3,7 @@ from fastapi.responses import StreamingResponse
 from app.models.schemas import AgentRunRequest, PipelineRunRequest
 from app.db.postgres import get_pool
 from app.services.claude import stream_sse
+from app.services.context_engine import get_workspace_summary
 from app.dependencies import AuthContext, require_auth
 import uuid, json
 
@@ -54,6 +55,14 @@ Use ## headers for each section.""",
     },
 }
 
+# Task-to-agent mapping for "Run with Agent" suggestions
+AGENT_TASK_KEYWORDS = {
+    "field_analyst": ["research", "analyze", "investigate", "study", "explore", "review", "assess", "survey", "evaluate data", "literature"],
+    "systems_architect": ["design", "architect", "build", "implement", "develop", "integrate", "database", "api", "infrastructure", "technical", "system", "stack", "backend", "frontend"],
+    "market_scout": ["market", "competitor", "customer", "pricing", "segment", "positioning", "tam", "opportunity", "demand", "audience", "user research"],
+    "launch_strategist": ["launch", "go-to-market", "gtm", "pitch", "funding", "strategy", "mvp", "metrics", "kpi", "growth", "acquisition", "campaign", "pre-seed", "investor"],
+}
+
 PIPELINES = {
     "deep_recon": {
         "name": "Deep Recon",
@@ -91,15 +100,88 @@ PIPELINES = {
     },
 }
 
+
+async def _build_agent_context(workspace_id: str, user_context: str) -> str:
+    """Enrich user-provided context with workspace data so agents have full awareness."""
+    summary = await get_workspace_summary(workspace_id)
+
+    projects_ctx = "\n".join(
+        f"  - {p['title']} [{p['status']}]" +
+        (f": {p.get('plan_excerpt', '')[:150]}" if p.get('plan_excerpt') else "")
+        for p in summary.get("projects", [])
+    ) or "  (none)"
+
+    tasks_ctx = "\n".join(
+        f"  - [{t.get('priority', 'medium')}] {t['title']} ({t['status']})" +
+        (f" [project: {t['project']}]" if t.get('project') else "")
+        for t in summary.get("open_tasks", [])[:10]
+    ) or "  (none)"
+
+    knowledge_ctx = "\n".join(
+        f"  - {k['title']}: {(k.get('summary') or k.get('excerpt') or '')[:80]}"
+        for k in summary.get("knowledge", [])[:8]
+    ) or "  (none)"
+
+    ideas_ctx = "\n".join(
+        f"  - {i['domains']}: {(i.get('excerpt') or '')[:100]}"
+        for i in summary.get("ideas", [])[:5]
+    ) or "  (none)"
+
+    return f"""═══ WORKSPACE CONTEXT ═══
+
+PROJECTS:
+{projects_ctx}
+
+OPEN TASKS:
+{tasks_ctx}
+
+KNOWLEDGE BASE ({summary.get('knowledge_count', 0)} items):
+{knowledge_ctx}
+
+IDEAS:
+{ideas_ctx}
+
+═══ USER REQUEST ═══
+
+{user_context}"""
+
+
+@router.get("/suggest")
+async def suggest_agent(task_title: str, task_description: str = "", auth: AuthContext = Depends(require_auth)):
+    """Suggest the best agent for a given task based on keywords."""
+    text = (task_title + " " + task_description).lower()
+    scores = {}
+    for agent_id, keywords in AGENT_TASK_KEYWORDS.items():
+        score = sum(1 for kw in keywords if kw in text)
+        if score > 0:
+            scores[agent_id] = score
+
+    if not scores:
+        # Default to field_analyst for generic tasks
+        return {"suggested_agent": "field_analyst", "confidence": "low", "all_scores": {}}
+
+    best = max(scores, key=scores.get)
+    confidence = "high" if scores[best] >= 3 else "medium" if scores[best] >= 2 else "low"
+    return {
+        "suggested_agent": best,
+        "suggested_agent_name": AGENTS[best]["name"],
+        "confidence": confidence,
+        "all_scores": {k: {"agent_name": AGENTS[k]["name"], "score": v} for k, v in sorted(scores.items(), key=lambda x: -x[1])},
+    }
+
+
 @router.post("/run")
 async def run_agent(req: AgentRunRequest, auth: AuthContext = Depends(require_auth)):
     agent = AGENTS.get(req.agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail=f"Agent '{req.agent_id}' not found")
 
+    # Enrich context with workspace data
+    enriched_context = await _build_agent_context(auth.workspace_id, req.context)
+
     async def stream_and_save():
         full_output = []
-        async for chunk in stream_sse(agent["system"], req.context, max_tokens=1500):
+        async for chunk in stream_sse(agent["system"], enriched_context, max_tokens=1500):
             full_output.append(chunk)
             yield chunk
         output_text = ""
@@ -123,6 +205,15 @@ async def run_agent(req: AgentRunRequest, auth: AuthContext = Depends(require_au
                    VALUES ($1, $2, 'agent_run', $3)""",
                 auth.workspace_id, auth.user_id, f"{agent['name']} ran"
             )
+        # Send notification
+        try:
+            from app.services.notifications import create_notification
+            await create_notification(
+                auth.workspace_id, auth.user_id,
+                "agent_run_complete", f"{agent['name']} analysis complete",
+            )
+        except Exception:
+            pass
 
     return StreamingResponse(
         stream_and_save(),
@@ -138,6 +229,10 @@ async def run_pipeline(req: PipelineRunRequest, auth: AuthContext = Depends(requ
 
     run_id = str(uuid.uuid4())
     pool = await get_pool()
+
+    # Enrich the initial context with workspace data
+    enriched_context = await _build_agent_context(auth.workspace_id, req.context)
+
     async with pool.acquire() as conn:
         await conn.execute(
             """INSERT INTO pipeline_runs (id, workspace_id, pipeline_id, status, input)
@@ -149,7 +244,8 @@ async def run_pipeline(req: PipelineRunRequest, auth: AuthContext = Depends(requ
         step_outputs = []
         for i, step in enumerate(pipeline["steps"]):
             agent = AGENTS[step["agent"]]
-            input_text = req.context if step["input"] == "user" else step_outputs[-1] if step_outputs else req.context
+            # First step uses enriched context, subsequent steps use previous output
+            input_text = enriched_context if step["input"] == "user" else step_outputs[-1] if step_outputs else enriched_context
 
             yield f"data: {json.dumps({'type': 'step_start', 'step': i, 'agent': step['agent'], 'agent_name': agent['name']})}\n\n"
 
@@ -187,6 +283,16 @@ async def run_pipeline(req: PipelineRunRequest, auth: AuthContext = Depends(requ
                    VALUES ($1, $2, 'pipeline_run', $3)""",
                 auth.workspace_id, auth.user_id, f"Pipeline: {pipeline['name']}"
             )
+        # Send notification
+        try:
+            from app.services.notifications import create_notification
+            await create_notification(
+                auth.workspace_id, auth.user_id,
+                "pipeline_complete", f"Pipeline complete: {pipeline['name']}",
+            )
+        except Exception:
+            pass
+
         yield f"data: {json.dumps({'type': 'pipeline_complete', 'run_id': run_id})}\n\n"
 
     return StreamingResponse(

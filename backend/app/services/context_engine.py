@@ -170,6 +170,14 @@ Your job: help them build faster. Be precise, reference items BY NAME, and alway
 
 Keep responses under 250 words. Use ## headers. Speak like a sharp, experienced operator.
 
+IMPORTANT: When recommending agents, ONLY reference these 4 agents that exist on the platform:
+- Field Analyst — deep research and technical analysis
+- Systems Architect — system design, tech stack, architecture
+- Market Scout — market sizing, competitors, positioning
+- Launch Strategist — GTM strategy, MVP scope, funding path
+Do NOT reference any other agent names (no "Strategic Planning Agent", "Partnership Agent", etc.).
+Pipelines available: Deep Recon (research→architecture), Launch Readiness (market→strategy), Full Forge Run (all 4), Blueprint Design (architecture→market).
+
 ═══ WORKSPACE STATE ═══
 
 ARCHIVE ({summary['knowledge_count']} knowledge items):

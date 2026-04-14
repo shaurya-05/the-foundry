@@ -93,6 +93,8 @@ export const api = {
   agents: {
     pipelines: () => Promise.resolve(PIPELINE_DEFS),
     getRunStatus: (runId: string) => req(`/api/agents/pipeline/${runId}`),
+    suggest: (taskTitle: string, taskDescription?: string) =>
+      req<{ suggested_agent: string; suggested_agent_name: string; confidence: string }>(`/api/agents/suggest?task_title=${encodeURIComponent(taskTitle)}&task_description=${encodeURIComponent(taskDescription || '')}`),
   },
   analytics: {
     velocity: () => req<{ completed_this_week: number; completed_last_week: number; created_this_week: number; created_last_week: number; velocity_ratio: number; trend: string }>('/api/analytics/velocity'),
