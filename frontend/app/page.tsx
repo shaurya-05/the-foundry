@@ -4,20 +4,42 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 
-const FEATURES = [
-  { icon: '📚', title: 'Knowledge Base', desc: 'Upload research, docs, and data. AI summarizes and connects everything.' },
-  { icon: '🔨', title: 'Project Forge', desc: 'Create a project and Claude generates a full plan with auto-created tasks.' },
-  { icon: '✅', title: 'Task Board', desc: 'Kanban-style task management with AI-generated subtasks from your plans.' },
-  { icon: '🤖', title: 'COFOUND3R', desc: 'AI co-founder that knows your entire workspace and helps you build.' },
-  { icon: '🧠', title: 'Agent Crew', desc: '4 specialized AI agents: Field Analyst, Systems Architect, Market Scout, Launch Strategist.' },
-  { icon: '🚀', title: 'Launchpad', desc: 'Generate investor-ready launch briefs from a single concept.' },
+const PERSONAS = [
+  {
+    title: 'Solo Founders',
+    desc: 'Turn 2am ideas into plans by morning. Stop losing your best thinking to scattered notes.',
+  },
+  {
+    title: 'Multi-Venture Operators',
+    desc: 'Running more than one thing? Keep every project moving without dropping the threads.',
+  },
+  {
+    title: 'Product Builders',
+    desc: 'From first sketch to launch brief. AI that understands how you actually build.',
+  },
+  {
+    title: 'Early-Stage Teams',
+    desc: 'Get aligned fast. Everyone sees the plan, the tasks, and the research — in one place.',
+  },
 ]
 
-const STEPS = [
-  { label: 'SOURCE', desc: 'Add knowledge, research, and ideas', color: '#0A85FF' },
-  { label: 'FORGE', desc: 'AI generates plans, tasks, and insights', color: '#E8231F' },
-  { label: 'CAST', desc: 'Refine with COFOUND3R and agent crew', color: '#7C3AED' },
-  { label: 'SHIP', desc: 'Launch with confidence', color: '#16A34A' },
+const OUTCOMES = [
+  {
+    title: 'Complete project plans in minutes',
+    desc: 'Not months. Type a name, get the plan, the tasks, the milestones, and the success metrics — all generated and ready to execute.',
+  },
+  {
+    title: 'An AI that actually knows your work',
+    desc: 'COFOUND3R has full context of every project, task, and idea you\'ve saved. Ask "what should I work on next?" and it answers by name, by priority, by deadline.',
+  },
+  {
+    title: 'Investor-ready briefs on demand',
+    desc: 'Enter a concept, get back the pitch, the market sizing, the MVP scope, the GTM strategy, and the funding path.',
+  },
+  {
+    title: 'Four specialists, always on',
+    desc: 'Field Analyst. Systems Architect. Market Scout. Launch Strategist. Chain them together. Let them work while you sleep.',
+  },
 ]
 
 export default function LandingPage() {
@@ -28,7 +50,6 @@ export default function LandingPage() {
     if (!loading && user) router.replace('/dashboard')
   }, [user, loading, router])
 
-  // Show landing page immediately — redirect happens in background if logged in
   if (!loading && user) return null
 
   return (
@@ -37,7 +58,7 @@ export default function LandingPage() {
       {/* Nav */}
       <nav style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '16px 32px', maxWidth: 1200, margin: '0 auto',
+        padding: '18px 32px', maxWidth: 1200, margin: '0 auto',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
@@ -55,17 +76,15 @@ export default function LandingPage() {
             <span style={{ color: '#5B93ED', fontWeight: 600 }}>The </span><span style={{ color: '#D12D1F' }}>FOUND</span><span style={{ color: '#D4A017' }}>3</span><span style={{ color: '#D12D1F' }}>RY</span>
           </span>
         </div>
-        <div style={{ display: 'flex', gap: 12 }}>
-          {/* Pricing button hidden during early access — uncomment when ready to monetize
-          <button onClick={() => router.push('/pricing')} style={{
-            padding: '8px 16px', background: 'none', border: '1px solid var(--border, rgba(0,0,0,0.1))',
-            borderRadius: 7, cursor: 'pointer', fontFamily: 'var(--font-barlow-condensed)',
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <button onClick={() => router.push('/about')} style={{
+            padding: '8px 14px', background: 'none', border: 'none',
+            cursor: 'pointer', fontFamily: 'var(--font-barlow-condensed)',
             fontWeight: 600, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase',
             color: 'var(--text-secondary, #374151)',
           }}>
-            Pricing
+            About
           </button>
-          */}
           <button onClick={() => router.push('/login')} style={{
             padding: '8px 16px', background: 'linear-gradient(135deg, #E8231F, #C81E1C)',
             border: 'none', borderRadius: 7, cursor: 'pointer', color: '#fff',
@@ -77,155 +96,303 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* Hero */}
-      <section style={{ textAlign: 'center', padding: '60px 24px 32px', maxWidth: 800, margin: '0 auto' }}>
+      {/* HERO — founder-led, story-first */}
+      <section style={{ padding: '80px 24px 48px', maxWidth: 960, margin: '0 auto', textAlign: 'center' }}>
         <div style={{
-          fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: '#E8231F',
-          letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16,
+          display: 'inline-block',
+          padding: '6px 14px',
+          background: 'rgba(232,35,31,0.08)',
+          border: '1px solid rgba(232,35,31,0.2)',
+          borderRadius: 20,
+          fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11,
+          color: '#C81E1C', letterSpacing: '0.12em', textTransform: 'uppercase',
+          marginBottom: 24,
         }}>
-          AI-Powered Builder OS
+          Built by a founder, for founders
         </div>
+
         <h1 style={{
           fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700,
-          fontSize: 'clamp(36px, 7vw, 64px)', letterSpacing: '0.04em',
-          textTransform: 'uppercase', color: 'var(--text-primary, #0A0C12)',
-          lineHeight: 1.05, marginBottom: 20,
+          fontSize: 'clamp(40px, 7vw, 72px)', letterSpacing: '0.02em',
+          color: 'var(--text-primary, #0A0C12)',
+          lineHeight: 1.02, marginBottom: 24,
         }}>
-          Your ideas,<br />forged.
+          The AI co-founder<br />that never sleeps.
         </h1>
+
         <p style={{
-          fontSize: 17, color: 'var(--text-secondary, #374151)', maxWidth: 520,
-          margin: '0 auto 36px', lineHeight: 1.6,
+          fontSize: 19, color: 'var(--text-secondary, #374151)', maxWidth: 640,
+          margin: '0 auto 20px', lineHeight: 1.5, fontWeight: 500,
         }}>
-          From raw concept to launch-ready product. THE FOUND3RY is your AI-powered workspace that plans, builds, and ships — with you.
+          For founders juggling multiple ventures, half-finished docs, and 2am ideas that never make it past the notes app.
         </p>
-        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+
+        <p style={{
+          fontSize: 15, color: 'var(--text-muted, #6B7280)', maxWidth: 560,
+          margin: '0 auto 40px', lineHeight: 1.6,
+        }}>
+          The FOUND3RY turns raw ideas into complete project plans, investor-ready briefs, and prioritized task boards — with an AI that knows your entire workspace by name.
+        </p>
+
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
           <button onClick={() => router.push('/login')} style={{
-            padding: '13px 32px', background: 'linear-gradient(135deg, #E8231F, #C81E1C)',
+            padding: '14px 32px', background: 'linear-gradient(135deg, #E8231F, #C81E1C)',
             border: 'none', borderRadius: 8, cursor: 'pointer', color: '#fff',
             fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600, fontSize: 14,
             letterSpacing: '0.06em', textTransform: 'uppercase',
             boxShadow: '0 4px 16px rgba(232,35,31,0.3)',
           }}>
-            Get Started Free
+            Start Building Free
           </button>
-          <button onClick={() => router.push('/pricing')} style={{
-            padding: '13px 32px', background: 'none',
+          <button onClick={() => router.push('/about')} style={{
+            padding: '14px 32px', background: 'none',
             border: '1px solid var(--border, rgba(0,0,0,0.12))', borderRadius: 8, cursor: 'pointer',
             color: 'var(--text-secondary, #374151)',
             fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600, fontSize: 14,
             letterSpacing: '0.06em', textTransform: 'uppercase',
           }}>
-            Learn More
+            Read the Story
           </button>
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--text-subtle, #9CA3AF)', fontFamily: 'var(--font-ibm-plex-mono)', letterSpacing: '0.06em' }}>
+          Free during early access · No credit card · No limits
+        </p>
+      </section>
+
+      {/* THE WHY — founder story */}
+      <section style={{
+        padding: '64px 24px',
+        background: 'var(--bg-surface, #fff)',
+        borderTop: '1px solid var(--border, rgba(0,0,0,0.06))',
+        borderBottom: '1px solid var(--border, rgba(0,0,0,0.06))',
+      }}>
+        <div style={{ maxWidth: 720, margin: '0 auto' }}>
+          <div style={{
+            fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: '#E8231F',
+            letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 16,
+            textAlign: 'center',
+          }}>
+            The Why
+          </div>
+          <h2 style={{
+            fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 32,
+            letterSpacing: '0.02em', textAlign: 'center',
+            color: 'var(--text-primary, #0A0C12)', marginBottom: 32, lineHeight: 1.15,
+          }}>
+            Every founder knows the feeling.
+          </h2>
+          <p style={{
+            fontSize: 17, lineHeight: 1.7, color: 'var(--text-secondary, #374151)',
+            marginBottom: 20,
+          }}>
+            The idea hits you suddenly. By the next day, it's scattered across notes apps, browser tabs, half-finished docs, and group chats that nobody reads. The gap between vision and execution is where most ideas go to die.
+          </p>
+          <p style={{
+            fontSize: 17, lineHeight: 1.7, color: 'var(--text-secondary, #374151)',
+            marginBottom: 20,
+          }}>
+            Our founder, <strong>Shaurya</strong>, built The FOUND3RY from experience — running multiple ventures across hardware, software, and design, he saw firsthand how many good ideas stall because the tools weren't built for how founders actually think and work.
+          </p>
+          <p style={{
+            fontSize: 17, lineHeight: 1.7, color: 'var(--text-secondary, #374151)',
+            marginBottom: 28,
+          }}>
+            So he built the tool he wished he had.
+          </p>
+          <div style={{ textAlign: 'center' }}>
+            <button onClick={() => router.push('/about')} style={{
+              padding: '10px 24px', background: 'none',
+              border: '1px solid var(--border, rgba(0,0,0,0.15))', borderRadius: 7, cursor: 'pointer',
+              color: 'var(--text-secondary, #374151)',
+              fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600, fontSize: 12,
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+            }}>
+              Read the full story →
+            </button>
+          </div>
         </div>
       </section>
 
-      {/* Features */}
-      <section style={{ padding: '24px 24px 48px', maxWidth: 1100, margin: '0 auto' }}>
-        <h2 style={{
-          fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 24,
-          letterSpacing: '0.06em', textTransform: 'uppercase', textAlign: 'center',
-          color: 'var(--text-primary, #0A0C12)', marginBottom: 32,
-        }}>
-          Everything you need to build
-        </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
-          {FEATURES.map(f => (
-            <div key={f.title} style={{
-              background: 'var(--bg-surface, #fff)', border: '1px solid var(--border, rgba(0,0,0,0.07))',
-              borderRadius: 12, padding: '24px 20px',
-              boxShadow: '0 2px 8px var(--shadow, rgba(0,0,0,0.04))',
+      {/* THE OUTCOMES — reframed from features to results */}
+      <section style={{ padding: '72px 24px', maxWidth: 1040, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: 48 }}>
+          <div style={{
+            fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: '#E8231F',
+            letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 12,
+          }}>
+            The Solution
+          </div>
+          <h2 style={{
+            fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 32,
+            letterSpacing: '0.02em',
+            color: 'var(--text-primary, #0A0C12)', lineHeight: 1.15,
+          }}>
+            From chaos to clarity — in minutes.
+          </h2>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 20 }}>
+          {OUTCOMES.map((o, i) => (
+            <div key={o.title} style={{
+              background: 'var(--bg-surface, #fff)',
+              border: '1px solid var(--border, rgba(0,0,0,0.07))',
+              borderRadius: 14, padding: '28px 26px',
+              boxShadow: '0 2px 10px var(--shadow, rgba(0,0,0,0.04))',
             }}>
-              <div style={{ fontSize: 28, marginBottom: 12 }}>{f.icon}</div>
-              <h3 style={{
-                fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 14,
-                letterSpacing: '0.06em', textTransform: 'uppercase',
-                color: 'var(--text-primary, #0A0C12)', marginBottom: 6,
+              <div style={{
+                fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 13,
+                color: '#E8231F', letterSpacing: '0.10em', textTransform: 'uppercase',
+                marginBottom: 12,
               }}>
-                {f.title}
+                0{i + 1}
+              </div>
+              <h3 style={{
+                fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700,
+                fontSize: 20, letterSpacing: '0.01em',
+                color: 'var(--text-primary, #0A0C12)', marginBottom: 10, lineHeight: 1.25,
+              }}>
+                {o.title}
               </h3>
-              <p style={{ fontSize: 13, color: 'var(--text-muted, #6B7280)', lineHeight: 1.5 }}>
-                {f.desc}
+              <p style={{ fontSize: 14, color: 'var(--text-muted, #6B7280)', lineHeight: 1.6 }}>
+                {o.desc}
               </p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* How it works */}
-      <section style={{ padding: '24px 24px 48px', maxWidth: 900, margin: '0 auto' }}>
-        <h2 style={{
-          fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 24,
-          letterSpacing: '0.06em', textTransform: 'uppercase', textAlign: 'center',
-          color: 'var(--text-primary, #0A0C12)', marginBottom: 32,
-        }}>
-          The Forge Pipeline
-        </h2>
-        <div style={{ display: 'flex', gap: 0, justifyContent: 'center', flexWrap: 'wrap' }}>
-          {STEPS.map((s, i) => (
-            <div key={s.label} style={{ display: 'flex', alignItems: 'center' }}>
-              <div style={{ textAlign: 'center', padding: '0 20px' }}>
-                <div style={{
-                  width: 48, height: 48, borderRadius: 12, margin: '0 auto 10px',
-                  background: `${s.color}15`, border: `2px solid ${s.color}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700,
-                  fontSize: 16, color: s.color,
+      {/* WHO IT'S FOR */}
+      <section style={{
+        padding: '72px 24px',
+        background: 'var(--bg-surface, #fff)',
+        borderTop: '1px solid var(--border, rgba(0,0,0,0.06))',
+        borderBottom: '1px solid var(--border, rgba(0,0,0,0.06))',
+      }}>
+        <div style={{ maxWidth: 1040, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 40 }}>
+            <div style={{
+              fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: '#E8231F',
+              letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 12,
+            }}>
+              Who it's for
+            </div>
+            <h2 style={{
+              fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 32,
+              letterSpacing: '0.02em',
+              color: 'var(--text-primary, #0A0C12)', lineHeight: 1.15,
+            }}>
+              Built for builders.
+            </h2>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+            {PERSONAS.map(p => (
+              <div key={p.title} style={{
+                padding: '20px 22px',
+                background: 'var(--bg, #F9FAFB)',
+                border: '1px solid var(--border, rgba(0,0,0,0.06))',
+                borderRadius: 10,
+              }}>
+                <h3 style={{
+                  fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 15,
+                  letterSpacing: '0.04em', textTransform: 'uppercase',
+                  color: 'var(--text-primary, #0A0C12)', marginBottom: 8,
                 }}>
-                  {i + 1}
-                </div>
-                <div style={{
-                  fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700,
-                  fontSize: 12, letterSpacing: '0.10em', textTransform: 'uppercase',
-                  color: s.color, marginBottom: 4,
-                }}>
-                  {s.label}
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted, #6B7280)', maxWidth: 140 }}>
-                  {s.desc}
-                </div>
+                  {p.title}
+                </h3>
+                <p style={{ fontSize: 13, color: 'var(--text-muted, #6B7280)', lineHeight: 1.55 }}>
+                  {p.desc}
+                </p>
               </div>
-              {i < STEPS.length - 1 && (
-                <div style={{ color: 'var(--text-subtle, #9CA3AF)', fontSize: 18, padding: '0 4px' }}>→</div>
-              )}
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* UNDER THE HOOD — the 4 agents + COFOUND3R */}
+      <section style={{ padding: '72px 24px', maxWidth: 960, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: 48 }}>
+          <div style={{
+            fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: '#E8231F',
+            letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 12,
+          }}>
+            Under the hood
+          </div>
+          <h2 style={{
+            fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 32,
+            letterSpacing: '0.02em',
+            color: 'var(--text-primary, #0A0C12)', lineHeight: 1.15, marginBottom: 16,
+          }}>
+            Four specialists. One co-founder. All yours.
+          </h2>
+          <p style={{ fontSize: 15, color: 'var(--text-muted, #6B7280)', maxWidth: 560, margin: '0 auto', lineHeight: 1.6 }}>
+            Every agent is trained for a specific stage of building. Run them individually, or chain them into pipelines for multi-step analysis.
+          </p>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+          {[
+            { name: 'Field Analyst', role: 'Deep research', color: '#0A85FF' },
+            { name: 'Systems Architect', role: 'Technical design', color: '#E8231F' },
+            { name: 'Market Scout', role: 'Opportunity sizing', color: '#7C3AED' },
+            { name: 'Launch Strategist', role: 'Go-to-market', color: '#16A34A' },
+          ].map(a => (
+            <div key={a.name} style={{
+              padding: '20px 18px',
+              background: 'var(--bg-surface, #fff)',
+              border: `1px solid ${a.color}30`,
+              borderRadius: 10,
+              borderLeft: `3px solid ${a.color}`,
+            }}>
+              <div style={{
+                fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10,
+                color: a.color, letterSpacing: '0.10em', textTransform: 'uppercase',
+                marginBottom: 6,
+              }}>
+                {a.role}
+              </div>
+              <div style={{
+                fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700,
+                fontSize: 16, letterSpacing: '0.03em',
+                color: 'var(--text-primary, #0A0C12)',
+              }}>
+                {a.name}
+              </div>
             </div>
           ))}
         </div>
       </section>
 
       {/* CTA */}
-      <section style={{
-        textAlign: 'center', padding: '32px 24px 40px', maxWidth: 600, margin: '0 auto',
-      }}>
+      <section style={{ padding: '80px 24px', textAlign: 'center', maxWidth: 640, margin: '0 auto' }}>
         <h2 style={{
-          fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 28,
-          letterSpacing: '0.04em', textTransform: 'uppercase',
-          color: 'var(--text-primary, #0A0C12)', marginBottom: 16,
+          fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700,
+          fontSize: 'clamp(28px, 5vw, 40px)', letterSpacing: '0.02em',
+          color: 'var(--text-primary, #0A0C12)', marginBottom: 12, lineHeight: 1.15,
         }}>
-          Start building today
+          Your ideas deserve<br />more than a notes app.
         </h2>
-        <p style={{ fontSize: 15, color: 'var(--text-muted, #6B7280)', marginBottom: 24 }}>
-          Free to start. No credit card required.
+        <p style={{ fontSize: 16, color: 'var(--text-muted, #6B7280)', marginBottom: 28, lineHeight: 1.5 }}>
+          Free during early access. No limits. No credit card. Just build.
         </p>
         <button onClick={() => router.push('/login')} style={{
-          padding: '14px 40px', background: 'linear-gradient(135deg, #E8231F, #C81E1C)',
+          padding: '15px 40px', background: 'linear-gradient(135deg, #E8231F, #C81E1C)',
           border: 'none', borderRadius: 8, cursor: 'pointer', color: '#fff',
           fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600, fontSize: 15,
           letterSpacing: '0.06em', textTransform: 'uppercase',
           boxShadow: '0 4px 16px rgba(232,35,31,0.3)',
         }}>
-          Get Started Free
+          Start Building
         </button>
       </section>
 
       {/* Footer */}
       <footer style={{
-        textAlign: 'center', padding: '24px', borderTop: '1px solid var(--border, rgba(0,0,0,0.07))',
+        textAlign: 'center', padding: '28px 24px', borderTop: '1px solid var(--border, rgba(0,0,0,0.07))',
         maxWidth: 1200, margin: '0 auto',
       }}>
         <span style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--text-subtle, #9CA3AF)', letterSpacing: '0.06em' }}>
-          <span style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}><span style={{ color: '#5B93ED', fontWeight: 600 }}>The </span><span style={{ color: '#D12D1F' }}>FOUND</span><span style={{ color: '#D4A017' }}>3</span><span style={{ color: '#D12D1F' }}>RY</span></span> by <span style={{ fontWeight: 700 }}><span style={{ color: '#2563EB' }}>h</span><span style={{ color: '#F97316' }}>3</span><span style={{ color: '#2563EB' }}>ros</span></span> · AI-powered builder OS
+          <span style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}><span style={{ color: '#5B93ED', fontWeight: 600 }}>The </span><span style={{ color: '#D12D1F' }}>FOUND</span><span style={{ color: '#D4A017' }}>3</span><span style={{ color: '#D12D1F' }}>RY</span></span> by <span style={{ fontWeight: 700 }}><span style={{ color: '#2563EB' }}>h</span><span style={{ color: '#F97316' }}>3</span><span style={{ color: '#2563EB' }}>ros</span></span> · AI co-founder for builders
         </span>
       </footer>
     </div>
