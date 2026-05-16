@@ -2,24 +2,25 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { sectionAccents } from '@/styles/design-system'
 import { useAuth } from '@/lib/auth'
+import Found3ryWordmark from '@/components/brand/Found3ryWordmark'
+import H3rosWordmark from '@/components/brand/H3rosWordmark'
+import Glyph3 from '@/components/brand/Glyph3'
 
 interface NavItem {
   href: string
   label: string
   sublabel: string
   icon: React.ReactNode
-  accent: string
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { href: '/dashboard',  label: 'DASHBOARD',  sublabel: 'Overview',        accent: sectionAccents.dashboard,  icon: <DashIcon /> },
-  { href: '/knowledge',  label: 'KNOWLEDGE',  sublabel: 'Research & docs',  accent: sectionAccents.knowledge,  icon: <ArchiveIcon /> },
-  { href: '/projects',   label: 'PROJECTS',   sublabel: 'Build tracker',    accent: sectionAccents.projects,   icon: <WorkshopIcon /> },
-  { href: '/tasks',      label: 'TASKS',      sublabel: 'Task board',       accent: sectionAccents.tasks,      icon: <TaskIcon /> },
-  { href: '/agents',     label: 'AGENTS',     sublabel: 'AI analysis',      accent: sectionAccents.agents,     icon: <AgentsIcon /> },
-  { href: '/insights',   label: 'INSIGHTS',   sublabel: 'Cross-entity scan', accent: sectionAccents.context,   icon: <InsightsIcon /> },
+  { href: '/dashboard', label: 'Dashboard', sublabel: 'Overview',         icon: <DashIcon /> },
+  { href: '/knowledge', label: 'Knowledge', sublabel: 'Research and docs', icon: <ArchiveIcon /> },
+  { href: '/projects',  label: 'Projects',  sublabel: 'Build tracker',    icon: <WorkshopIcon /> },
+  { href: '/tasks',     label: 'Tasks',     sublabel: 'Task board',       icon: <TaskIcon /> },
+  { href: '/agents',    label: 'Agents',    sublabel: 'AI analysis',      icon: <AgentsIcon /> },
+  { href: '/insights',  label: 'Insights',  sublabel: 'Cross-entity scan', icon: <InsightsIcon /> },
 ]
 
 export default function Sidebar({ onCopilot }: { onCopilot: () => void }) {
@@ -33,52 +34,40 @@ export default function Sidebar({ onCopilot }: { onCopilot: () => void }) {
 
   return (
     <aside
-      className="gl3 flex flex-col"
+      className="flex flex-col"
       style={{
         width: 210,
         minWidth: 210,
         height: '100vh',
-        borderRight: '1px solid var(--border)',
+        background: 'var(--color-vellum)',
+        borderRight: '1px solid var(--color-n200)',
         borderRadius: 0,
         zIndex: 40,
         flexShrink: 0,
       }}
     >
-      {/* Logo */}
-      <div style={{ padding: '18px 16px 14px', borderBottom: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}>
-        <div style={{
-          position: 'absolute', top: -20, left: -20,
-          width: 80, height: 80,
-          background: 'radial-gradient(circle, rgba(232,35,31,0.08) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        }} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
-          <div style={{
-            width: 30, height: 30,
-            background: 'linear-gradient(135deg, #D12D1F 0%, #D4A017 100%)',
-            borderRadius: 7,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-            boxShadow: '0 0 14px rgba(255,45,45,0.30), 0 2px 8px rgba(0,0,0,0.5)',
+      {/* Wordmark */}
+      <div style={{
+        padding: '20px 16px 18px',
+        borderBottom: '1px solid var(--color-n200)',
+      }}>
+        <Found3ryWordmark size="sm" />
+        <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 6 }}>
+          <span style={{
+            fontFamily: 'var(--font-plex-mono), monospace',
+            fontSize: 10,
+            color: 'var(--color-n600)',
+            letterSpacing: '0.10em',
+            textTransform: 'uppercase',
           }}>
-            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-              <path d="M7.5 1L14 4.5V10.5L7.5 14L1 10.5V4.5L7.5 1Z" stroke="white" strokeWidth="1.4" fill="none" />
-              <path d="M7.5 1L7.5 14M1 4.5L14 10.5M14 4.5L1 10.5" stroke="white" strokeWidth="0.7" opacity="0.45" />
-            </svg>
-          </div>
-          <div>
-            <div style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 14, letterSpacing: '0.10em', lineHeight: 1.1 }}>
-              <span style={{ color: '#5B93ED', fontWeight: 600 }}>The </span><span style={{ color: '#D12D1F' }}>FOUND</span><span style={{ color: '#D4A017' }}>3</span><span style={{ color: '#D12D1F' }}>RY</span>
-            </div>
-            <div style={{ fontFamily: 'var(--font-barlow-condensed)', fontSize: 10, letterSpacing: '0.10em', fontWeight: 600, marginTop: 2 }}>
-              <span style={{ color: 'var(--text-muted)' }}>by </span><span style={{ color: '#2563EB', fontWeight: 700 }}>h</span><span style={{ color: '#F97316', fontWeight: 700 }}>3</span><span style={{ color: '#2563EB', fontWeight: 700 }}>ros</span>
-            </div>
-          </div>
+            by
+          </span>
+          <H3rosWordmark size="xs" />
         </div>
       </div>
 
       {/* Nav */}
-      <nav style={{ padding: '10px 7px', flex: 1, overflow: 'auto' }}>
+      <nav style={{ padding: '12px 8px', flex: 1, overflow: 'auto' }}>
         {NAV_ITEMS.map(item => (
           <NavLink key={item.href} item={item} active={
             item.href === '/insights'
@@ -89,40 +78,49 @@ export default function Sidebar({ onCopilot }: { onCopilot: () => void }) {
       </nav>
 
       {/* User avatar */}
-      <div style={{ padding: '8px 7px 0', borderTop: '1px solid var(--border)' }}>
+      <div style={{ padding: '8px 8px 0', borderTop: '1px solid var(--color-n200)' }}>
         <Link
           href="/settings"
           style={{
-            display: 'flex', alignItems: 'center', gap: 9,
-            padding: '7px 10px',
-            borderRadius: 7,
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '8px 10px',
+            borderRadius: 0,
             textDecoration: 'none',
-            background: pathname === '/settings' ? 'rgba(0,0,0,0.04)' : 'transparent',
-            transition: 'background 0.15s',
+            background: pathname === '/settings' ? 'var(--color-off-white)' : 'transparent',
+            borderLeft: pathname === '/settings' ? '2px solid var(--color-arc-cyan)' : '2px solid transparent',
+            transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
+          }}
+          onMouseEnter={(e) => {
+            if (pathname !== '/settings') e.currentTarget.style.backgroundColor = 'var(--color-off-white)'
+          }}
+          onMouseLeave={(e) => {
+            if (pathname !== '/settings') e.currentTarget.style.backgroundColor = 'transparent'
           }}
         >
           <div style={{
-            width: 26, height: 26, borderRadius: 7, flexShrink: 0,
-            background: user?.avatar_color || '#E8231F',
+            width: 26, height: 26, borderRadius: 2, flexShrink: 0,
+            background: 'var(--color-ink)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'var(--font-barlow-condensed)',
-            fontWeight: 700, fontSize: 11, color: '#fff', letterSpacing: '0.04em',
+            fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+            fontWeight: 700, fontSize: 11, color: 'var(--color-off-white)',
+            letterSpacing: '0.04em',
           }}>
             {initials}
           </div>
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{
-              fontSize: 11, fontWeight: 600,
-              color: 'var(--text-primary)',
-              fontFamily: 'var(--font-barlow-condensed)',
-              letterSpacing: '0.04em',
+              fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+              fontSize: 12, fontWeight: 700,
+              color: 'var(--color-ink)',
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {user?.display_name || 'Sign in'}
             </div>
             <div style={{
-              fontSize: 9, color: 'var(--text-subtle)',
-              fontFamily: 'var(--font-ibm-plex-mono)',
+              fontFamily: 'var(--font-plex-mono), monospace',
+              fontSize: 9,
+              color: 'var(--color-n600)',
+              letterSpacing: '0.04em',
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {user ? user.workspace_name : 'Not signed in'}
@@ -132,27 +130,52 @@ export default function Sidebar({ onCopilot }: { onCopilot: () => void }) {
         </Link>
       </div>
 
-      {/* Copilot button */}
-      <div style={{ padding: '6px 7px 14px' }}>
+      {/* COFOUND3R button */}
+      <div style={{ padding: '8px 8px 16px' }}>
         <button
           onClick={onCopilot}
-          className="btn btn-ghost"
           style={{
             width: '100%',
+            display: 'flex',
+            alignItems: 'center',
             justifyContent: 'flex-start',
             gap: 8,
-            color: '#7C3AED',
-            borderColor: 'rgba(124,58,237,0.18)',
-            fontSize: 11,
-            letterSpacing: '0.07em',
-            background: 'rgba(124,58,237,0.06)',
+            padding: '9px 12px',
+            border: '1px solid var(--color-ink)',
+            borderRadius: 2,
+            background: 'transparent',
+            color: 'var(--color-ink)',
+            cursor: 'pointer',
+            fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+            fontWeight: 700,
+            fontSize: 12,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out), color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'var(--color-ink)'
+            e.currentTarget.style.color = 'var(--color-off-white)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent'
+            e.currentTarget.style.color = 'var(--color-ink)'
           }}
         >
           <CopilotIcon />
-          COFOUND3R
-          <span className="badge" style={{ marginLeft: 'auto', background: 'rgba(155,123,255,0.12)', color: 'rgba(155,123,255,0.8)', fontSize: 8 }}>
-            ⌘J
+          <span style={{ display: 'inline-flex', alignItems: 'baseline' }}>
+            COFOUND
+            <Glyph3 size="0.72em" style={{ marginLeft: 1, marginRight: 1, transform: 'translateY(-0.01em)' }} />
+            R
           </span>
+          <span style={{
+            marginLeft: 'auto',
+            fontFamily: 'var(--font-plex-mono), monospace',
+            fontWeight: 500,
+            fontSize: 9,
+            letterSpacing: '0.05em',
+            opacity: 0.6,
+          }}>⌘J</span>
         </button>
       </div>
     </aside>
@@ -167,50 +190,43 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
         display: 'flex',
         alignItems: 'center',
         gap: 10,
-        padding: '6px 10px 6px 13px',
-        borderRadius: 7,
-        position: 'relative',
+        padding: '8px 10px 8px 12px',
+        borderLeft: active ? '2px solid var(--color-arc-cyan)' : '2px solid transparent',
+        background: active ? 'var(--color-off-white)' : 'transparent',
         textDecoration: 'none',
-        background: active ? `linear-gradient(135deg, ${item.accent}14 0%, ${item.accent}08 100%)` : 'transparent',
         marginBottom: 2,
-        transition: 'background 0.15s ease',
-        borderLeft: active ? `2px solid ${item.accent}` : '2px solid transparent',
+        transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
+      }}
+      onMouseEnter={(e) => {
+        if (!active) e.currentTarget.style.backgroundColor = 'var(--color-off-white)'
+      }}
+      onMouseLeave={(e) => {
+        if (!active) e.currentTarget.style.backgroundColor = 'transparent'
       }}
     >
-      {active && (
-        <div style={{
-          position: 'absolute', left: 0, top: 0, bottom: 0, width: 2,
-          background: item.accent,
-          borderRadius: '0 1px 1px 0',
-          boxShadow: `0 0 10px ${item.accent}80`,
-        }} />
-      )}
       <span style={{
-        color: active ? item.accent : 'var(--text-muted)',
+        color: active ? 'var(--color-ink)' : 'var(--color-n600)',
         flexShrink: 0,
-        transition: 'color 0.15s ease',
-        filter: active ? `drop-shadow(0 0 4px ${item.accent}60)` : 'none',
       }}>
         {item.icon}
       </span>
       <div>
         <div style={{
-          fontFamily: 'var(--font-barlow-condensed)',
-          fontWeight: 600,
-          fontSize: 11.5,
+          fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+          fontWeight: 700,
+          fontSize: 12,
           letterSpacing: '0.08em',
-          color: active ? 'var(--text-primary)' : 'var(--text-muted)',
           textTransform: 'uppercase',
-          transition: 'color 0.15s ease',
+          color: active ? 'var(--color-ink)' : 'var(--color-n600)',
         }}>
           {item.label}
         </div>
         <div style={{
-          fontFamily: 'var(--font-ibm-plex-mono)',
-          fontSize: 8.5,
-          color: active ? `${item.accent}CC` : 'var(--text-subtle)',
+          fontFamily: 'var(--font-plex-mono), monospace',
+          fontWeight: 500,
+          fontSize: 9,
           letterSpacing: '0.05em',
-          transition: 'color 0.15s ease',
+          color: active ? 'var(--color-n600)' : 'var(--color-n400)',
         }}>
           {item.sublabel}
         </div>
@@ -219,7 +235,7 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
   )
 }
 
-// ─── Icons ────────────────────────────────────────────────────────────────────
+// ─── Icons (unchanged from prior; outline stroke, currentColor) ─────────────
 function DashIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -249,30 +265,11 @@ function WorkshopIcon() {
     </svg>
   )
 }
-function CrucibleIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M7 1v4M7 5l2.5-2.5M7 5L4.5 2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-      <circle cx="7" cy="9.5" r="3.5" stroke="currentColor" strokeWidth="1.2" />
-    </svg>
-  )
-}
 function TaskIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
       <path d="M2 4h10M2 7.5h7M2 11h5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
       <circle cx="12" cy="10.5" r="2" stroke="currentColor" strokeWidth="1.1" />
-    </svg>
-  )
-}
-function CanvasIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <rect x="1" y="1" width="12" height="12" rx="1" stroke="currentColor" strokeWidth="1.2" />
-      <rect x="3" y="3" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1" />
-      <rect x="8" y="3" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1" />
-      <rect x="3" y="8" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1" />
-      <path d="M9.5 8.5L11.5 10.5M11.5 8.5L9.5 10.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
     </svg>
   )
 }
@@ -305,7 +302,7 @@ function CopilotIcon() {
 }
 function SettingsIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ marginLeft: 'auto', flexShrink: 0, color: 'var(--text-subtle)' }}>
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ marginLeft: 'auto', flexShrink: 0, color: 'var(--color-n400)' }}>
       <circle cx="6" cy="6" r="2" stroke="currentColor" strokeWidth="1.1" />
       <path d="M6 1v1.5M6 9.5V11M1 6h1.5M9.5 6H11M2.6 2.6l1.1 1.1M8.3 8.3l1.1 1.1M9.4 2.6L8.3 3.7M3.7 8.3L2.6 9.4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
     </svg>

@@ -1,8 +1,10 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { sectionLabels, sectionAccents } from '@/styles/design-system'
+import { sectionLabels } from '@/styles/design-system'
 import { useEffect, useState } from 'react'
+import H3rosStamp from '@/components/brand/H3rosStamp'
+import Glyph3 from '@/components/brand/Glyph3'
 
 interface HeaderProps {
   onCommand: () => void
@@ -15,7 +17,6 @@ interface HeaderProps {
 export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0, onMenuToggle }: HeaderProps) {
   const pathname = usePathname()
   const section = pathname.split('/')[1] || 'dashboard'
-  const accent = sectionAccents[section] || '#FF2D2D'
   const sectionName = sectionLabels[section] || 'The FOUND3RY'
 
   const [time, setTime] = useState('')
@@ -33,10 +34,10 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
 
   return (
     <header
-      className="gl3"
       style={{
         height: 50,
-        borderBottom: '1px solid var(--border)',
+        background: 'var(--color-vellum)',
+        borderBottom: '1px solid var(--color-n200)',
         borderRadius: 0,
         display: 'flex',
         alignItems: 'center',
@@ -54,87 +55,90 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
           style={{
             display: 'none', alignItems: 'center', justifyContent: 'center',
             width: 32, height: 32, background: 'none', border: 'none',
-            cursor: 'pointer', color: 'var(--text-primary)', fontSize: 18,
+            cursor: 'pointer', color: 'var(--color-ink)', fontSize: 18,
           }}
+          aria-label="Toggle menu"
         >
           &#9776;
         </button>
       )}
 
       {/* Section indicator */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-        {/* Accent bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+        {/* Flat 2px Arc Cyan section bar (no gradient, no shadow) */}
         <div style={{
-          width: 3,
+          width: 2,
           height: 26,
-          borderRadius: 2,
-          background: accent,
+          background: 'var(--color-arc-cyan)',
           flexShrink: 0,
-          boxShadow: 'none',
         }} />
         <div>
           <div
             style={{
-              fontFamily: 'var(--font-barlow-condensed)',
+              fontFamily: 'var(--font-archivo), system-ui, sans-serif',
               fontWeight: 700,
-              fontSize: 15,
+              fontSize: 14,
               letterSpacing: '0.10em',
               textTransform: 'uppercase',
-              color: 'var(--text-primary)',
+              color: 'var(--color-ink)',
               lineHeight: 1.1,
             }}
           >
-            {section.toUpperCase()}
+            {section}
           </div>
           <div
             style={{
-              fontFamily: 'var(--font-ibm-plex-mono)',
+              fontFamily: 'var(--font-plex-mono), monospace',
+              fontWeight: 500,
               fontSize: 9,
-              color: `${accent}BB`,
+              color: 'var(--color-n600)',
               letterSpacing: '0.08em',
-              marginTop: 1,
+              marginTop: 2,
+              textTransform: 'uppercase',
             }}
           >
             {sectionName}
           </div>
         </div>
-
       </div>
 
       {/* Right controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        {/* Live clock — mission control style */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {/* Live clock */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 6,
             padding: '4px 10px',
-            borderRadius: 6,
-            background: 'var(--bg-mid)',
-            border: '1px solid var(--border)',
+            background: 'var(--color-off-white)',
+            border: '1px solid var(--color-n200)',
+            borderRadius: 0,
           }}
         >
-          <div style={{
-            width: 5, height: 5, borderRadius: '50%',
-            background: '#2DCC72',
-            boxShadow: '0 0 5px rgba(45,204,114,0.9)',
-            animation: 'pulse-dot 2.4s ease-in-out infinite',
-            flexShrink: 0,
-          }} />
+          <div
+            className="h3ros-pulse"
+            style={{
+              width: 5, height: 5,
+              background: 'var(--color-arc-cyan)',
+              flexShrink: 0,
+            }}
+          />
           <span style={{
-            fontFamily: 'var(--font-ibm-plex-mono)',
+            fontFamily: 'var(--font-plex-mono), monospace',
+            fontWeight: 500,
             fontSize: 10.5,
-            color: 'var(--text-muted)',
+            color: 'var(--color-ink)',
             letterSpacing: '0.08em',
             fontVariantNumeric: 'tabular-nums',
           }}>
             {time}
           </span>
           <span style={{
-            fontFamily: 'var(--font-ibm-plex-mono)',
+            fontFamily: 'var(--font-plex-mono), monospace',
+            fontWeight: 500,
             fontSize: 9,
-            color: 'var(--text-subtle)',
+            color: 'var(--color-n400)',
             letterSpacing: '0.06em',
           }}>
             {date}
@@ -142,23 +146,11 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
         </div>
 
         {/* Command palette */}
-        <button
-          onClick={onCommand}
-          className="btn btn-ghost btn-sm"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            fontSize: 10,
-            letterSpacing: '0.07em',
-            padding: '5px 10px',
-          }}
-          title="Command palette (⌘K)"
-        >
+        <GhostButton onClick={onCommand} title="Command palette (⌘K)">
           <CommandIcon />
-          <span style={{ fontFamily: 'var(--font-barlow-condensed)', fontSize: 11, fontWeight: 700 }}>COMMAND</span>
-          <span style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, opacity: 0.5 }}>⌘K</span>
-        </button>
+          <span style={{ fontFamily: 'var(--font-archivo), system-ui, sans-serif', fontWeight: 700 }}>COMMAND</span>
+          <span style={{ fontFamily: 'var(--font-plex-mono), monospace', fontWeight: 500, fontSize: 9, opacity: 0.6, marginLeft: 4 }}>⌘K</span>
+        </GhostButton>
 
         {/* Signals bell */}
         <button
@@ -167,16 +159,20 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
             position: 'relative',
             width: 32,
             height: 32,
-            borderRadius: 7,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'var(--bg-mid)',
-            border: '1px solid var(--border)',
+            background: 'var(--color-off-white)',
+            border: '1px solid var(--color-n200)',
+            borderRadius: 0,
             cursor: 'pointer',
-            transition: 'all 0.15s ease',
+            color: 'var(--color-ink)',
+            transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
           }}
-          title="Forge Signals"
+          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-vellum)')}
+          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-off-white)')}
+          title="Signals"
+          aria-label="Signals"
         >
           <BellIcon />
           {notifCount > 0 && (
@@ -187,34 +183,73 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
                 right: 5,
                 width: 7,
                 height: 7,
-                borderRadius: '50%',
-                background: '#FF2D2D',
-                border: '1.5px solid var(--bg)',
-                boxShadow: '0 0 6px rgba(255,45,45,0.8)',
+                background: 'var(--color-signal)',
+                border: '1.5px solid var(--color-vellum)',
               }}
             />
           )}
         </button>
 
-        {/* Copilot */}
-        <button
-          onClick={onCopilot}
-          className="btn btn-sm"
-          style={{
-            background: 'rgba(124,58,237,0.08)',
-            color: '#7C3AED',
-            border: '1px solid rgba(124,58,237,0.18)',
-            fontSize: 11,
-            gap: 5,
-            letterSpacing: '0.07em',
-          }}
-          title="COFOUND3R (⌘J)"
-        >
+        {/* COFOUND3R */}
+        <GhostButton onClick={onCopilot} title="COFOUND3R (⌘J)">
           <CopilotIcon />
-          <span style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 11 }}>COFOUND3R</span>
-        </button>
+          <span style={{ fontFamily: 'var(--font-archivo), system-ui, sans-serif', fontWeight: 700, display: 'inline-flex', alignItems: 'baseline' }}>
+            COFOUND
+            <Glyph3 size="0.72em" style={{ marginLeft: 1, marginRight: 1, transform: 'translateY(-0.01em)' }} />
+            R
+          </span>
+        </GhostButton>
+
+        {/* H3ROS parent stamp (Equity Layer 3) */}
+        <div style={{ marginLeft: 4 }}>
+          <H3rosStamp
+            size={14}
+            onClick={() => window.open('https://h3ros.com', '_blank', 'noopener,noreferrer')}
+          />
+        </div>
       </div>
     </header>
+  )
+}
+
+function GhostButton({
+  children,
+  onClick,
+  title,
+}: {
+  children: React.ReactNode
+  onClick: () => void
+  title: string
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '5px 10px',
+        background: 'transparent',
+        border: '1px solid var(--color-ink)',
+        borderRadius: 2,
+        cursor: 'pointer',
+        color: 'var(--color-ink)',
+        fontSize: 11,
+        letterSpacing: '0.07em',
+        transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out), color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = 'var(--color-ink)'
+        e.currentTarget.style.color = 'var(--color-off-white)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = 'transparent'
+        e.currentTarget.style.color = 'var(--color-ink)'
+      }}
+    >
+      {children}
+    </button>
   )
 }
 
@@ -230,8 +265,8 @@ function CommandIcon() {
 function BellIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <path d="M6.5 1a3.5 3.5 0 0 1 3.5 3.5v2.5L11 9H2L3 7V4.5A3.5 3.5 0 0 1 6.5 1Z" stroke="var(--text-muted)" strokeWidth="1.1" />
-      <path d="M5 10.5a1.5 1.5 0 0 0 3 0" stroke="var(--text-muted)" strokeWidth="1.1" />
+      <path d="M6.5 1a3.5 3.5 0 0 1 3.5 3.5v2.5L11 9H2L3 7V4.5A3.5 3.5 0 0 1 6.5 1Z" stroke="currentColor" strokeWidth="1.1" />
+      <path d="M5 10.5a1.5 1.5 0 0 0 3 0" stroke="currentColor" strokeWidth="1.1" />
     </svg>
   )
 }

@@ -3,128 +3,132 @@
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
+import EyebrowLabel from '@/components/brand/EyebrowLabel'
+import Crease from '@/components/brand/Crease'
+import Button from '@/components/ui/Button'
 
-const WALKTHROUGH_STEPS = [
+type Step = {
+  number: string
+  title: string
+  subtitle: string
+  desc: string
+  features: string[]
+  nav?: string | null
+  openCopilot?: boolean
+  isFinal?: boolean
+}
+
+const WALKTHROUGH_STEPS: Step[] = [
   {
-    title: 'Welcome to The FOUND3RY',
-    subtitle: 'Your AI-powered builder OS',
-    desc: 'The FOUND3RY is where ideas become real. Every tool you need to go from concept to launch — powered by AI that actually knows your work.',
-    icon: '🔥',
-    color: '#E8231F',
+    number: '01',
+    title: 'Welcome to The FOUND3RY.',
+    subtitle: 'Builder OS',
+    desc: 'The FOUND3RY is where ideas become real. Every tool you need to go from concept to launch — with an AI co-founder that actually knows your work.',
     features: [
-      'AI-generated project plans with auto-created tasks',
-      'Knowledge base with semantic search',
-      'SWOT analysis for every idea',
-      'Real-time team collaboration',
+      'Project plans generated in minutes with auto-created tasks.',
+      'Knowledge base with semantic search.',
+      'SWOT analysis for every idea.',
+      'Real-time team collaboration.',
     ],
   },
   {
-    title: 'Dashboard',
-    subtitle: 'Your command center',
+    number: '02',
+    title: 'The dashboard is your command center.',
+    subtitle: 'Overview',
     desc: 'See everything at a glance — active projects, open tasks, velocity trends, and items that need your attention. The dashboard gets smarter as you use it.',
-    icon: '📊',
-    color: '#E8231F',
+    features: [
+      'Project health indicators.',
+      'Weekly velocity tracking.',
+      'Attention alerts for overdue and blocked items.',
+      'Quick access to recent activity.',
+    ],
     nav: '/dashboard',
-    features: [
-      'Project health indicators (green/yellow/red)',
-      'Weekly velocity tracking',
-      'Needs attention alerts for overdue & blocked items',
-      'Quick access to recent activity',
-    ],
   },
   {
-    title: 'Knowledge Base',
-    subtitle: 'Your research hub',
+    number: '03',
+    title: 'Knowledge is your research hub.',
+    subtitle: 'Research and docs',
     desc: 'Upload research, docs, notes, and links. The AI summarizes everything and creates semantic embeddings so you can find related content instantly.',
-    icon: '📚',
-    color: '#0A85FF',
+    features: [
+      'Add notes, links, documents, and research.',
+      'Auto-generated summaries.',
+      'Semantic search — find by meaning, not just keywords.',
+      'Knowledge connects to projects and ideas automatically.',
+    ],
     nav: '/knowledge',
-    features: [
-      'Add notes, links, documents, and research',
-      'AI auto-generates summaries',
-      'Semantic search — find by meaning, not just keywords',
-      'Knowledge connects to projects and ideas automatically',
-    ],
   },
   {
-    title: 'Projects',
+    number: '04',
+    title: 'Projects turn raw ideas into plans.',
     subtitle: 'Build tracker',
-    desc: 'Name a project and the AI generates a full plan with milestones, technical requirements, and 5-10 actionable tasks — automatically added to your task board.',
-    icon: '🔨',
-    color: '#E8231F',
+    desc: 'Name a project and the AI generates a full plan with milestones, technical requirements, and actionable tasks — automatically added to your task board.',
+    features: [
+      'One-click project plan generation.',
+      'Auto-created tasks with priorities.',
+      'Per-project COFOUND3R chat.',
+      'Export as a structured document.',
+    ],
     nav: '/projects',
-    features: [
-      'One-click AI project plan generation',
-      'Auto-created tasks with priorities',
-      'Per-project COFOUND3R chat',
-      'Export as structured document',
-    ],
   },
   {
-    title: 'Tasks',
-    subtitle: 'Kanban board',
-    desc: 'Drag-and-drop task board with columns for backlog, todo, in progress, in review, and completed. Tasks auto-populate from project plans.',
-    icon: '✅',
-    color: '#16A34A',
+    number: '05',
+    title: 'Tasks live on a drag-and-drop board.',
+    subtitle: 'Kanban',
+    desc: 'Five columns — backlog, todo, in progress, in review, completed. Tasks auto-populate from project plans.',
+    features: [
+      'Drag-and-drop kanban.',
+      'Filter by project, status, or priority.',
+      'Assign tasks to team members.',
+      'Priority levels: critical, high, medium, low.',
+    ],
     nav: '/tasks',
-    features: [
-      'Kanban board with drag-and-drop',
-      'Filter by project, status, or priority',
-      'Assign tasks to team members',
-      'Priority levels: critical, high, medium, low',
-    ],
   },
   {
-    title: 'Ideas & SWOT',
+    number: '06',
+    title: 'Ideas turn into evaluated strategy.',
     subtitle: 'Innovation lab',
-    desc: 'Describe a problem space and the AI generates 3 distinct startup ideas. Then run a full SWOT analysis on any idea to evaluate it strategically.',
-    icon: '💡',
-    color: '#F06A00',
+    desc: 'Describe a problem space and the AI generates three distinct startup ideas. Then run a full SWOT on any idea to evaluate it strategically.',
+    features: [
+      'Three distinct ideas per domain.',
+      'One-click SWOT — strengths, weaknesses, opportunities, threats.',
+      'Score ideas 1–10 with next-step recommendations.',
+      'Convert ideas to full projects.',
+    ],
     nav: '/ideas',
-    features: [
-      'AI generates 3 ideas per domain',
-      'One-click SWOT analysis (Strengths, Weaknesses, Opportunities, Threats)',
-      'Score ideas 1-10 with next step recommendations',
-      'Convert ideas to full projects',
-    ],
   },
   {
-    title: 'Agents',
-    subtitle: 'Your AI crew',
-    desc: 'Four specialized AI agents work for you: Field Analyst researches markets, Systems Architect designs solutions, Market Scout finds opportunities, and Launch Strategist plans go-to-market.',
-    icon: '🤖',
-    color: '#7C3AED',
+    number: '07',
+    title: 'Four specialists work for you.',
+    subtitle: 'The crew',
+    desc: 'Field Analyst researches markets. Systems Architect designs solutions. Market Scout finds opportunities. Launch Strategist plans go-to-market.',
+    features: [
+      'Field Analyst — market research and competitive analysis.',
+      'Systems Architect — technical design and architecture.',
+      'Market Scout — opportunity identification.',
+      'Launch Strategist — go-to-market planning.',
+    ],
     nav: '/agents',
-    features: [
-      'Field Analyst — market research & competitive analysis',
-      'Systems Architect — technical design & architecture',
-      'Market Scout — opportunity identification',
-      'Launch Strategist — go-to-market planning',
-    ],
   },
   {
-    title: 'COFOUND3R',
-    subtitle: 'Your AI co-founder — ⌘J',
-    desc: 'COFOUND3R knows every project, task, knowledge item, and idea in your workspace. Ask it anything — "what should I work on?", "summarize my HERM3S progress", "draft a pitch for T3RRA".',
-    icon: '🧠',
-    color: '#7C3AED',
-    nav: null,
+    number: '08',
+    title: 'COFOUND3R is your AI co-founder.',
+    subtitle: 'Press ⌘J anywhere',
+    desc: 'COFOUND3R knows every project, task, knowledge item, and idea in your workspace. Ask it anything — "what should I work on?", "summarize my progress", "draft a pitch".',
+    features: [
+      'Full workspace context — knows everything by name.',
+      'Per-project mode with plan and task awareness.',
+      'Streaming responses with markdown formatting.',
+      'Press ⌘J anytime from any page.',
+    ],
     openCopilot: true,
-    features: [
-      'Full workspace context — knows everything by name',
-      'Per-project mode with plan & task awareness',
-      'Streaming responses with markdown formatting',
-      'Press ⌘J anytime from any page',
-    ],
   },
   {
-    title: 'You\'re ready to build!',
+    number: '09',
+    title: 'You\'re ready to build.',
     subtitle: 'Start forging',
     desc: 'Create your first project to see the AI in action. The plan generator, auto-tasks, and COFOUND3R will take it from there.',
-    icon: '🚀',
-    color: '#E8231F',
-    nav: '/projects',
     features: [],
+    nav: '/projects',
     isFinal: true,
   },
 ]
@@ -166,136 +170,186 @@ export default function OnboardingGuide() {
   if (dismissed) return null
 
   return (
-    <div style={{
-      background: 'var(--bg-surface)', border: '1px solid var(--border)',
-      borderRadius: 14, overflow: 'hidden', marginBottom: 20,
-      boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-    }}>
-      {/* Progress bar */}
-      <div style={{ height: 3, background: 'var(--border)' }}>
-        <div style={{
-          height: '100%', background: `linear-gradient(90deg, ${current.color}, ${current.color}CC)`,
-          width: `${progress}%`, transition: 'width 0.3s ease',
-        }} />
+    <div
+      style={{
+        background: 'var(--color-vellum)',
+        border: '1px solid var(--color-n200)',
+        borderRadius: 0,
+        marginBottom: 24,
+        overflow: 'hidden',
+      }}
+    >
+      {/* Flat progress bar — Arc Cyan fill */}
+      <div style={{ height: 2, background: 'var(--color-n200)' }}>
+        <div
+          style={{
+            height: '100%',
+            background: 'var(--color-arc-cyan)',
+            width: `${progress}%`,
+            transition: 'width var(--duration-base, 200ms) var(--ease-out, ease-out)',
+          }}
+        />
       </div>
 
-      <div style={{ padding: '24px 28px' }}>
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+      <div style={{ padding: '28px 32px' }}>
+        {/* Header — eyebrow + step counter */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 16,
+          marginBottom: 16,
+        }}>
+          <EyebrowLabel number={current.number} keyword={current.subtitle} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 28 }}>{current.icon}</span>
-            <div>
-              <h3 style={{
-                fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 18,
-                letterSpacing: '0.04em', color: 'var(--text-primary)', marginBottom: 2,
-              }}>
-                {current.title}
-              </h3>
-              <p style={{
-                fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11,
-                color: current.color, letterSpacing: '0.06em', textTransform: 'uppercase',
-              }}>
-                {current.subtitle}
-              </p>
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{
-              fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10,
-              color: 'var(--text-muted)',
+              fontFamily: 'var(--font-plex-mono), monospace',
+              fontWeight: 500,
+              fontSize: 11,
+              color: 'var(--color-n400)',
+              letterSpacing: '0.10em',
             }}>
               {step + 1}/{WALKTHROUGH_STEPS.length}
             </span>
-            <button onClick={dismiss} style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--text-subtle)', fontSize: 11, padding: '4px 8px',
-              fontFamily: 'var(--font-barlow-condensed)', letterSpacing: '0.06em',
-            }}>
-              SKIP
+            <button
+              onClick={dismiss}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                color: 'var(--color-n600)',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+                fontWeight: 700,
+                fontSize: 11,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                textDecoration: 'underline',
+                textDecorationColor: 'var(--color-n400)',
+                textUnderlineOffset: '0.2em',
+              }}
+            >
+              Skip
             </button>
           </div>
         </div>
 
-        {/* Description */}
+        {/* Title — Archivo Black, sentence case with period */}
+        <h3 style={{
+          fontFamily: 'var(--font-archivo-black), sans-serif',
+          fontWeight: 400,
+          fontSize: 32,
+          lineHeight: 1.1,
+          letterSpacing: '-0.02em',
+          color: 'var(--color-ink)',
+          marginBottom: 16,
+        }}>
+          {current.title}
+        </h3>
+
+        <Crease />
+
+        {/* Description — editorial body */}
         <p style={{
-          fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6,
-          marginBottom: 16, fontFamily: 'var(--font-barlow)', maxWidth: 600,
+          fontFamily: 'var(--font-plex-serif), serif',
+          fontWeight: 500,
+          fontSize: 16,
+          lineHeight: 1.55,
+          color: 'var(--color-n600)',
+          marginTop: 16,
+          marginBottom: 20,
+          maxWidth: '60ch',
         }}>
           {current.desc}
         </p>
 
-        {/* Feature list */}
-        {current.features && current.features.length > 0 && (
-          <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            gap: 8, marginBottom: 20,
+        {/* Feature list — flat vellum-on-vellum with hairlines */}
+        {current.features.length > 0 && (
+          <ul style={{
+            listStyle: 'none',
+            padding: 0,
+            margin: '0 0 24px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gap: 0,
+            borderTop: '1px solid var(--color-n200)',
+            borderLeft: '1px solid var(--color-n200)',
           }}>
             {current.features.map((f, i) => (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'flex-start', gap: 8,
-                padding: '8px 12px', borderRadius: 8,
-                background: `${current.color}06`, border: `1px solid ${current.color}15`,
-              }}>
-                <span style={{ color: current.color, fontSize: 12, marginTop: 1 }}>&#10003;</span>
+              <li
+                key={i}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                  padding: '12px 14px',
+                  background: 'var(--color-off-white)',
+                  borderRight: '1px solid var(--color-n200)',
+                  borderBottom: '1px solid var(--color-n200)',
+                }}
+              >
+                <span aria-hidden="true" style={{
+                  color: 'var(--color-arc-cyan-deep)',
+                  fontFamily: 'var(--font-plex-mono), monospace',
+                  fontWeight: 500,
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                  flexShrink: 0,
+                }}>
+                  —
+                </span>
                 <span style={{
-                  fontSize: 12, color: 'var(--text-secondary)',
-                  fontFamily: 'var(--font-ibm-plex-mono)', lineHeight: 1.4,
+                  fontFamily: 'var(--font-plex-mono), monospace',
+                  fontWeight: 500,
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                  color: 'var(--color-ink)',
                 }}>
                   {f}
                 </span>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
 
-        {/* Navigation buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* Navigation row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           {step > 0 && (
-            <button onClick={prev} style={{
-              padding: '8px 16px', borderRadius: 7, cursor: 'pointer',
-              background: 'none', border: '1px solid var(--border)',
-              color: 'var(--text-muted)', fontFamily: 'var(--font-barlow-condensed)',
-              fontWeight: 600, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase',
-            }}>
-              Back
-            </button>
+            <Button variant="ghost" size="sm" arrow={false} onClick={prev}>Back</Button>
           )}
-
-          {current.nav || current.openCopilot ? (
-            <button onClick={goToPage} style={{
-              padding: '8px 16px', borderRadius: 7, cursor: 'pointer',
-              background: 'none', border: `1px solid ${current.color}40`, color: current.color,
-              fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600,
-              fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase',
-            }}>
-              {current.openCopilot ? 'Open COFOUND3R (⌘J)' : `Go to ${current.title}`}
-            </button>
-          ) : null}
-
-          <button onClick={next} style={{
-            padding: '8px 20px', borderRadius: 7, cursor: 'pointer', marginLeft: 'auto',
-            background: `linear-gradient(135deg, ${current.color}, ${current.color}CC)`,
-            color: '#fff', border: 'none',
-            fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600,
-            fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase',
-          }}>
-            {isLast ? 'Start Building' : 'Next'}
-          </button>
+          {(current.nav || current.openCopilot) && (
+            <Button variant="ghost" size="sm" onClick={goToPage}>
+              {current.openCopilot ? 'Open COFOUND3R (⌘J)' : `Go to ${current.subtitle}`}
+            </Button>
+          )}
+          <div style={{ marginLeft: 'auto' }}>
+            <Button variant="primary" size="sm" onClick={next}>
+              {isLast ? 'Start building' : 'Next'}
+            </Button>
+          </div>
         </div>
 
-        {/* Step dots */}
+        {/* Step dots — flat color, opacity transition only */}
         <div style={{
-          display: 'flex', justifyContent: 'center', gap: 6, marginTop: 16,
+          display: 'flex',
+          justifyContent: 'center',
+          gap: 8,
+          marginTop: 20,
         }}>
           {WALKTHROUGH_STEPS.map((_, i) => (
             <button
               key={i}
               onClick={() => setStep(i)}
+              aria-label={`Step ${i + 1}`}
               style={{
-                width: i === step ? 16 : 6, height: 6, borderRadius: 3,
-                background: i === step ? current.color : 'var(--border)',
-                border: 'none', cursor: 'pointer', padding: 0,
-                transition: 'width 0.2s ease, background 0.2s ease',
+                width: i === step ? 24 : 6,
+                height: 2,
+                background: i === step ? 'var(--color-arc-cyan)' : 'var(--color-n400)',
+                opacity: i === step ? 1 : 0.5,
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                transition: 'opacity var(--duration-fast, 120ms) var(--ease-out, ease-out)',
               }}
             />
           ))}

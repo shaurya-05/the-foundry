@@ -25,31 +25,67 @@ export default function VerificationBanner() {
   }
 
   return (
-    <div style={{
-      padding: '10px 24px',
-      background: 'linear-gradient(90deg, rgba(232,35,31,0.08), rgba(255,122,26,0.08))',
-      borderBottom: '1px solid rgba(232,35,31,0.15)',
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      fontSize: 13, fontFamily: 'var(--font-ibm-plex-mono)', color: '#374151',
-    }}>
-      <span>
+    <div
+      role="status"
+      style={{
+        padding: '10px 24px',
+        background: 'var(--color-vellum)',
+        borderTop: '1px solid var(--color-n200)',
+        borderBottom: '1px solid var(--color-n200)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        gap: 16,
+      }}
+    >
+      <span style={{
+        fontFamily: 'var(--font-plex-serif), serif',
+        fontStyle: 'italic',
+        fontSize: 14,
+        color: 'var(--color-ink)',
+      }}>
         Please verify your email address.{' '}
         {sent ? (
-          <span style={{ color: '#2DCC72' }}>Verification email sent!</span>
+          <span style={{ fontStyle: 'normal', color: 'var(--color-arc-cyan-deep)' }}>Verification email sent.</span>
         ) : (
-          <button onClick={resend} disabled={sending} style={{
-            background: 'none', border: 'none', color: '#E8231F',
-            cursor: 'pointer', textDecoration: 'underline', fontSize: 13,
-            fontFamily: 'var(--font-ibm-plex-mono)',
-          }}>
-            {sending ? 'Sending...' : 'Resend verification email'}
+          <button
+            onClick={resend}
+            disabled={sending}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              color: 'var(--color-ink)',
+              cursor: sending ? 'wait' : 'pointer',
+              fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+              fontWeight: 700,
+              fontStyle: 'normal',
+              fontSize: 14,
+              textDecoration: 'underline',
+              textDecorationColor: 'var(--color-arc-cyan)',
+              textUnderlineOffset: '0.2em',
+              textDecorationThickness: '1px',
+            }}
+          >
+            {sending ? 'Sending…' : 'Resend verification email →'}
           </button>
         )}
       </span>
-      <button onClick={() => setDismissed(true)} style={{
-        background: 'none', border: 'none', cursor: 'pointer',
-        color: '#9CA3AF', fontSize: 16, lineHeight: 1,
-      }}>
+      <button
+        onClick={() => setDismissed(true)}
+        aria-label="Dismiss"
+        style={{
+          background: 'none',
+          border: 'none',
+          padding: 4,
+          cursor: 'pointer',
+          color: 'var(--color-n400)',
+          fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+          fontSize: 18,
+          lineHeight: 1,
+          transition: 'color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-ink)')}
+        onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-n400)')}
+      >
         ×
       </button>
     </div>

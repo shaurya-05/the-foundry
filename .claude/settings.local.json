@@ -108,7 +108,8 @@
       "Bash(node foundry-v1-overview.js)",
       "Bash(npm init:*)",
       "Bash(PROD_DB=\"postgresql://postgres:runDXUbDXemhSAdlRREMfmNNPXziWwZo@junction.proxy.rlwy.net:55292/railway\")",
-      "Bash(psql \"$PROD_DB\" -c \"SELECT id, email, display_name, role, email_verified, created_at FROM users WHERE deleted_at IS NULL ORDER BY created_at;\")"
+      "Bash(psql \"$PROD_DB\" -c \"SELECT id, email, display_name, role, email_verified, created_at FROM users WHERE deleted_at IS NULL ORDER BY created_at;\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8000/health)"
     ]
   }
 }

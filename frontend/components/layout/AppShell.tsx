@@ -60,9 +60,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         display: 'flex',
         height: '100vh',
         overflow: 'hidden',
-        background: 'var(--bg)',
+        background: 'var(--color-off-white)',
       }}
-      className="tech-grid"
     >
       {/* Desktop sidebar */}
       <div className="sidebar-desktop">
@@ -92,8 +91,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             flex: 1,
             overflow: 'auto',
             padding: '24px',
+            background: 'var(--color-off-white)',
           }}
-          className="page-enter"
         >
           {children}
         </main>
