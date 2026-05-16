@@ -4,34 +4,57 @@
 
 /* ─── Theme Tokens — Light mode default ────────────────────────────────────── */
 :root {
+  /* ═══ H3ROS Design Language v1.2 — Core color tokens ════════════════════ */
+  --color-ink:           #141413;  /* Primary type, dark surfaces */
+  --color-off-white:     #F2F2EE;  /* Primary page surface */
+  --color-vellum:        #E8E5DD;  /* Card surfaces, sidebar, table rows */
+  --color-signal:        #E84A0E;  /* Parent-brand accent (h3ros only) */
+  --color-arc-cyan:      #9FDEFA;  /* FOUND3RY signature */
+  --color-arc-cyan-deep: #6BBFD9;  /* Hover/pressed only */
+
+  /* H3ROS neutrals (for body copy hierarchy) */
+  --color-n900: #141413;  /* same as ink */
+  --color-n600: #5F5F5A;
+  --color-n400: #9C9C95;
+  --color-n200: #D1D1CB;
+  --color-n100: #E8E5DD;  /* same as vellum */
+
+  /* H3ROS motion */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 400ms;
+  --ease-out:      cubic-bezier(0.2, 0, 0, 1);
+  --ease-in-out:   cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ═══ Semantic aliases (now point to H3ROS palette) ════════════════════ */
   /* Surfaces */
-  --bg:          #F4F5F7;   /* Page canvas — light gray */
-  --bg-mid:      #ECEEF2;   /* Inset / secondary areas */
-  --bg-surface:  #FFFFFF;   /* Cards, elevated surfaces */
-  --bg-overlay:  rgba(244, 245, 247, 0.92);
+  --bg:          var(--color-off-white);
+  --bg-mid:      var(--color-vellum);
+  --bg-surface:  var(--color-vellum);
+  --bg-overlay:  rgba(242, 242, 238, 0.92);
 
   /* Text */
-  --text-primary:   #0A0C12;
-  --text-secondary: #374151;
-  --text-muted:     #6B7280;
-  --text-subtle:    #9CA3AF;
+  --text-primary:   var(--color-ink);
+  --text-secondary: var(--color-n600);
+  --text-muted:     var(--color-n600);
+  --text-subtle:    var(--color-n400);
 
-  /* Borders */
-  --border:        rgba(0, 0, 0, 0.07);
-  --border-strong: rgba(0, 0, 0, 0.13);
-  --border-accent: rgba(0, 0, 0, 0.20);
+  /* Borders — hairlines */
+  --border:        rgba(20, 20, 19, 0.12);
+  --border-strong: rgba(20, 20, 19, 0.18);
+  --border-accent: rgba(20, 20, 19, 0.24);
 
-  /* Shadows */
-  --shadow:      rgba(0, 0, 0, 0.06);
-  --shadow-deep: rgba(0, 0, 0, 0.13);
+  /* Shadows — Phase 4 will eliminate references; kept low-impact for now */
+  --shadow:      rgba(20, 20, 19, 0.04);
+  --shadow-deep: rgba(20, 20, 19, 0.08);
 
-  /* Card tiers (replace glass in light mode) */
-  --gl0-bg: #FFFFFF;
-  --gl1-bg: #FFFFFF;
-  --gl2-bg: #FFFFFF;
-  --gl3-bg: #F1F3F5;   /* Sidebar */
+  /* Card tiers (consumed by .gl0/.gl1/.gl2/.gl3 — Phase 4 deletes these classes) */
+  --gl0-bg: var(--color-vellum);
+  --gl1-bg: var(--color-vellum);
+  --gl2-bg: var(--color-vellum);
+  --gl3-bg: var(--color-vellum);   /* Sidebar */
 
-  /* Accents */
+  /* ═══ Legacy accent palette (Phase 3 collapses to Arc Cyan) ════════════ */
   --accent-red:    #E8231F;
   --accent-blue:   #0A85FF;
   --accent-orange: #F06A00;

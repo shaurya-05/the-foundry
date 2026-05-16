@@ -10,26 +10,45 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Dark theme
-        'forge-bg': '#070A10',
-        'forge-mid': '#0C1018',
-        // Accents
-        'accent-red': '#FF3B3B',
-        'accent-blue': '#3ABEFF',
+        // ─── H3ROS Design Language v1.2 ─────────────────────────────────
+        ink:           '#141413',
+        'off-white':   '#F2F2EE',
+        vellum:        '#E8E5DD',
+        signal:        '#E84A0E',
+        'arc-cyan': {
+          DEFAULT: '#9FDEFA',
+          deep:    '#6BBFD9',
+        },
+        n: {
+          900: '#141413',
+          600: '#5F5F5A',
+          400: '#9C9C95',
+          200: '#D1D1CB',
+          100: '#E8E5DD',
+        },
+        // ─── Legacy (Phase 4–6 will prune the unused ones) ──────────────
+        // Accents (still consumed by Sidebar/Header per-section colors until Phase 3)
+        'accent-red':    '#FF3B3B',
+        'accent-blue':   '#3ABEFF',
         'accent-orange': '#FF8A2A',
-        'accent-green': '#38D37A',
+        'accent-green':  '#38D37A',
         'accent-purple': '#A78BFA',
-        'accent-teal': '#22D3EE',
-        // Text
-        'text-primary': '#EEF2FF',
+        'accent-teal':   '#22D3EE',
+        // Text aliases (CSS vars carry the real semantics now)
+        'text-primary':   '#EEF2FF',
         'text-secondary': '#B2BCCF',
-        'text-muted': '#637080',
-        'text-subtle': '#303D4E',
+        'text-muted':     '#637080',
+        'text-subtle':    '#303D4E',
       },
       fontFamily: {
+        // ─── H3ROS type stack ───────────────────────────────────────────
+        'display-black': ['var(--font-archivo-black)', 'sans-serif'],
+        editorial:       ['var(--font-plex-serif)', 'serif'],
+        ui:              ['var(--font-archivo)', 'system-ui', 'sans-serif'],
+        // ─── Legacy aliases (kept; Phase 6 drops Barlow) ────────────────
         display: ['var(--font-barlow-condensed)', 'sans-serif'],
-        body: ['var(--font-barlow)', 'sans-serif'],
-        mono: ['var(--font-ibm-plex-mono)', 'monospace'],
+        body:    ['var(--font-barlow)', 'sans-serif'],
+        mono:    ['var(--font-ibm-plex-mono)', 'monospace'],
       },
       backdropBlur: {
         'gl0': '20px',
