@@ -493,3 +493,47 @@ textarea.forge-input { resize: vertical; min-height: 80px; }
   .sidebar-backdrop { display: none; }
   .mobile-hamburger { display: none !important; }
 }
+
+/* ═══ H3ROS Design Language v1.2 — utility classes ═══════════════════════════ */
+
+/* Equity Layer 1: Dot grid substrates */
+.h3ros-dot-grid-light {
+  background-color: var(--color-off-white);
+  background-image: radial-gradient(circle, rgba(20, 20, 19, 0.10) 0.8px, transparent 1px);
+  background-size: 16px 16px;
+}
+.h3ros-dot-grid-dark {
+  background-color: var(--color-ink);
+  background-image: radial-gradient(circle, rgba(242, 242, 238, 0.10) 0.8px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+/* Equity Layer 2: Crease helper (component-form preferred via <Crease/>) */
+.h3ros-crease {
+  width: 100%;
+  height: 1px;
+  background-color: var(--color-arc-cyan);
+  opacity: 0.6;
+  transform-origin: left center;
+  transform: scaleY(0.5);
+}
+
+/* Generic hairline border helpers */
+.h3ros-hairline-top    { border-top:    1px solid var(--color-n200); }
+.h3ros-hairline-bottom { border-bottom: 1px solid var(--color-n200); }
+.h3ros-hairline-left   { border-left:   1px solid var(--color-n200); }
+.h3ros-hairline-right  { border-right:  1px solid var(--color-n200); }
+
+/* Pulse-opacity replacement for legacy pulse-dot. Opacity only, no scale, no shadow. */
+@keyframes h3ros-pulse-opacity {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+.h3ros-pulse {
+  animation: h3ros-pulse-opacity 2.4s ease-in-out infinite;
+}
+
+/* Respect reduced-motion globally for H3ROS animations */
+@media (prefers-reduced-motion: reduce) {
+  .h3ros-pulse { animation: none; }
+}
