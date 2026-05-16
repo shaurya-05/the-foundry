@@ -12,8 +12,8 @@ interface VisibilityBadgeProps {
 
 const CONFIG: Record<Visibility, { icon: string; label: string; color: string; bg: string }> = {
   private: { icon: '⊘', label: 'PRIVATE', color: '#6B7280', bg: '#6B728018' },
-  team:    { icon: '⬡', label: 'TEAM',    color: '#7C3AED', bg: '#7C3AED18' },
-  public:  { icon: '◉', label: 'PUBLIC',  color: '#16A34A', bg: '#16A34A18' },
+  team:    { icon: '⬡', label: 'TEAM',    color: 'var(--color-n600)', bg: '#5F5F5A18' },
+  public:  { icon: '◉', label: 'PUBLIC',  color: 'var(--color-n600)', bg: '#5F5F5A18' },
 }
 
 const CLEARANCE_LABELS: Record<number, string> = {
@@ -25,9 +25,9 @@ const CLEARANCE_LABELS: Record<number, string> = {
 
 const CLEARANCE_COLORS: Record<number, string> = {
   0: '#6B7280',
-  1: '#F06A00',
-  2: '#0A85FF',
-  3: '#16A34A',
+  1: 'var(--color-n600)',
+  2: 'var(--color-arc-cyan-deep)',
+  3: 'var(--color-n600)',
 }
 
 export default function VisibilityBadge({

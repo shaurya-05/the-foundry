@@ -3,6 +3,10 @@
 import { useState, FormEvent } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
+import Found3ryWordmark from '@/components/brand/Found3ryWordmark'
+import H3rosWordmark from '@/components/brand/H3rosWordmark'
+import EyebrowLabel from '@/components/brand/EyebrowLabel'
+import Crease from '@/components/brand/Crease'
 
 type Tab = 'signin' | 'register'
 
@@ -11,14 +15,14 @@ export default function LoginClient() {
   const searchParams = useSearchParams()
   const { login, register } = useAuth()
 
-  const [tab, setTab]                     = useState<Tab>('signin')
-  const [email, setEmail]                 = useState('')
-  const [password, setPassword]           = useState('')
+  const [tab, setTab]                         = useState<Tab>('signin')
+  const [email, setEmail]                     = useState('')
+  const [password, setPassword]               = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [name, setName]                   = useState('')
-  const [termsAccepted, setTermsAccepted] = useState(false)
-  const [error, setError]                 = useState('')
-  const [loading, setLoading]             = useState(false)
+  const [name, setName]                       = useState('')
+  const [termsAccepted, setTermsAccepted]     = useState(false)
+  const [error, setError]                     = useState('')
+  const [loading, setLoading]                 = useState(false)
 
   const redirect = searchParams.get('redirect')
 
@@ -28,11 +32,11 @@ export default function LoginClient() {
 
     if (tab === 'register') {
       if (password !== confirmPassword) {
-        setError('Passwords do not match')
+        setError('Passwords do not match.')
         return
       }
       if (!termsAccepted) {
-        setError('You must accept the Terms of Service')
+        setError('You must accept the Terms of Service.')
         return
       }
     }
@@ -46,63 +50,55 @@ export default function LoginClient() {
       }
       router.push(redirect || '/dashboard')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      setError(err instanceof Error ? err.message : 'Something went wrong.')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: '#F4F5F7',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 24,
-      fontFamily: 'var(--font-barlow)',
-    }}>
-      {/* Logo */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 36 }}>
-        <div style={{
-          width: 34, height: 34,
-          background: 'linear-gradient(135deg, #D12D1F 0%, #D4A017 100%)',
-          borderRadius: 8,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 0 16px rgba(232,35,31,0.25)',
-        }}>
-          <svg width="17" height="17" viewBox="0 0 15 15" fill="none">
-            <path d="M7.5 1L14 4.5V10.5L7.5 14L1 10.5V4.5L7.5 1Z" stroke="white" strokeWidth="1.4" fill="none" />
-            <path d="M7.5 1L7.5 14M1 4.5L14 10.5M14 4.5L1 10.5" stroke="white" strokeWidth="0.7" opacity="0.45" />
-          </svg>
-        </div>
-        <div>
-          <div style={{
-            fontFamily: 'var(--font-barlow-condensed)',
-            fontWeight: 700, fontSize: 18, letterSpacing: '0.10em',
-            lineHeight: 1.1,
-          }}><span style={{ color: '#5B93ED', fontWeight: 600 }}>The </span><span style={{ color: '#D12D1F' }}>FOUND</span><span style={{ color: '#D4A017' }}>3</span><span style={{ color: '#D12D1F' }}>RY</span></div>
-          <div style={{
-            fontFamily: 'var(--font-barlow-condensed)',
-            fontSize: 10, letterSpacing: '0.10em', fontWeight: 600,
-          }}><span style={{ color: 'var(--text-muted, #6B7280)' }}>by </span><span style={{ color: '#2563EB', fontWeight: 700 }}>h</span><span style={{ color: '#F97316', fontWeight: 700 }}>3</span><span style={{ color: '#2563EB', fontWeight: 700 }}>ros</span></div>
+    <div
+      className="h3ros-dot-grid-light"
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+      }}
+    >
+      {/* Wordmark */}
+      <div style={{ marginBottom: 32, textAlign: 'center' }}>
+        <Found3ryWordmark size="md" />
+        <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'baseline', gap: 6 }}>
+          <span style={{
+            fontFamily: 'var(--font-plex-mono), monospace',
+            fontSize: 10,
+            color: 'var(--color-n600)',
+            letterSpacing: '0.10em',
+            textTransform: 'uppercase',
+          }}>
+            by
+          </span>
+          <H3rosWordmark size="xs" />
         </div>
       </div>
 
       {/* Card */}
       <div style={{
-        width: '100%', maxWidth: 400,
-        background: '#FFFFFF',
-        borderRadius: 14,
-        border: '1px solid rgba(0,0,0,0.07)',
-        boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
+        width: '100%',
+        maxWidth: 420,
+        background: 'var(--color-vellum)',
+        border: '1px solid var(--color-ink)',
+        borderRadius: 0,
         overflow: 'hidden',
       }}>
         {/* Tabs */}
         <div style={{
           display: 'flex',
-          borderBottom: '1px solid rgba(0,0,0,0.07)',
+          background: 'var(--color-vellum)',
+          borderBottom: '1px solid var(--color-n200)',
         }}>
           {(['signin', 'register'] as Tab[]).map(t => (
             <button
@@ -113,39 +109,47 @@ export default function LoginClient() {
                 padding: '14px 16px',
                 background: 'none',
                 border: 'none',
+                borderBottom: tab === t ? '2px solid var(--color-arc-cyan)' : '2px solid transparent',
                 cursor: 'pointer',
-                fontFamily: 'var(--font-barlow-condensed)',
-                fontWeight: 600,
+                fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+                fontWeight: 700,
                 fontSize: 12,
-                letterSpacing: '0.08em',
+                letterSpacing: '0.10em',
                 textTransform: 'uppercase',
-                color: tab === t ? '#E8231F' : '#6B7280',
-                borderBottom: tab === t ? '2px solid #E8231F' : '2px solid transparent',
-                transition: 'color 0.15s, border-color 0.15s',
+                color: tab === t ? 'var(--color-ink)' : 'var(--color-n600)',
+                transition: 'color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
               }}
             >
-              {t === 'signin' ? 'Sign In' : 'Create Account'}
+              {t === 'signin' ? 'Sign in' : 'Create account'}
             </button>
           ))}
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} style={{ padding: 28 }}>
+        <form onSubmit={handleSubmit} style={{ padding: 28, background: 'var(--color-off-white)' }}>
+          <EyebrowLabel
+            number={tab === 'signin' ? '01' : '01'}
+            keyword={tab === 'signin' ? 'ACCESS' : 'NEW BUILDER'}
+            style={{ marginBottom: 14 }}
+          />
+          <Crease />
+          <div style={{ height: 20 }} />
+
           {tab === 'register' && (
-            <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>Display Name</label>
+            <Field label="Display Name">
               <input
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
                 placeholder="Your name"
                 style={inputStyle}
+                onFocus={(e) => (e.currentTarget.style.borderBottomColor = 'var(--color-arc-cyan)')}
+                onBlur={(e) => (e.currentTarget.style.borderBottomColor = 'var(--color-n400)')}
               />
-            </div>
+            </Field>
           )}
 
-          <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>Email</label>
+          <Field label="Email">
             <input
               type="email"
               required
@@ -153,11 +157,12 @@ export default function LoginClient() {
               onChange={e => setEmail(e.target.value)}
               placeholder="you@example.com"
               style={inputStyle}
+              onFocus={(e) => (e.currentTarget.style.borderBottomColor = 'var(--color-arc-cyan)')}
+              onBlur={(e) => (e.currentTarget.style.borderBottomColor = 'var(--color-n400)')}
             />
-          </div>
+          </Field>
 
-          <div style={{ marginBottom: tab === 'register' ? 16 : 8 }}>
-            <label style={labelStyle}>Password</label>
+          <Field label="Password">
             <input
               type="password"
               required
@@ -166,24 +171,33 @@ export default function LoginClient() {
               onChange={e => setPassword(e.target.value)}
               placeholder="••••••••"
               style={inputStyle}
+              onFocus={(e) => (e.currentTarget.style.borderBottomColor = 'var(--color-arc-cyan)')}
+              onBlur={(e) => (e.currentTarget.style.borderBottomColor = 'var(--color-n400)')}
             />
             {tab === 'register' && (
-              <div style={{ marginTop: 5, fontSize: 11, color: '#9CA3AF', fontFamily: 'var(--font-ibm-plex-mono)' }}>
-                Minimum 8 characters
-              </div>
+              <div style={hintStyle}>Minimum 8 characters.</div>
             )}
-          </div>
+          </Field>
 
-          {/* Forgot password link (sign in only) */}
           {tab === 'signin' && (
-            <div style={{ marginBottom: 20, textAlign: 'right' }}>
+            <div style={{ marginBottom: 20, marginTop: -10, textAlign: 'right' }}>
               <button
                 type="button"
                 onClick={() => router.push('/forgot-password')}
                 style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  fontSize: 11, color: '#E8231F', fontFamily: 'var(--font-ibm-plex-mono)',
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  color: 'var(--color-ink)',
+                  fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+                  fontWeight: 700,
+                  fontSize: 11,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
                   textDecoration: 'underline',
+                  textDecorationColor: 'var(--color-arc-cyan)',
+                  textUnderlineOffset: '0.2em',
                 }}
               >
                 Forgot password?
@@ -191,10 +205,8 @@ export default function LoginClient() {
             </div>
           )}
 
-          {/* Confirm password (register only) */}
           {tab === 'register' && (
-            <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>Confirm Password</label>
+            <Field label="Confirm Password">
               <input
                 type="password"
                 required
@@ -203,28 +215,37 @@ export default function LoginClient() {
                 onChange={e => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
                 style={inputStyle}
+                onFocus={(e) => (e.currentTarget.style.borderBottomColor = 'var(--color-arc-cyan)')}
+                onBlur={(e) => (e.currentTarget.style.borderBottomColor = 'var(--color-n400)')}
               />
-            </div>
+            </Field>
           )}
 
-          {/* Terms checkbox (register only) */}
           {tab === 'register' && (
             <label style={{
-              display: 'flex', alignItems: 'flex-start', gap: 8,
-              marginBottom: 20, cursor: 'pointer',
-              fontSize: 12, color: '#6B7280', fontFamily: 'var(--font-ibm-plex-mono)',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 10,
+              marginBottom: 20,
+              cursor: 'pointer',
+              fontFamily: 'var(--font-plex-serif), serif',
+              fontWeight: 500,
+              fontStyle: 'italic',
+              fontSize: 13,
+              color: 'var(--color-n600)',
+              lineHeight: 1.5,
             }}>
               <input
                 type="checkbox"
                 checked={termsAccepted}
                 onChange={e => setTermsAccepted(e.target.checked)}
-                style={{ marginTop: 2, accentColor: '#E8231F' }}
+                style={{ marginTop: 3, accentColor: 'var(--color-arc-cyan-deep)' }}
               />
               <span>
                 I agree to the{' '}
-                <span style={{ color: '#E8231F', textDecoration: 'underline' }}>Terms of Service</span>
+                <span style={termsLinkStyle}>Terms of Service</span>
                 {' '}and{' '}
-                <span style={{ color: '#E8231F', textDecoration: 'underline' }}>Privacy Policy</span>
+                <span style={termsLinkStyle}>Privacy Policy</span>.
               </span>
             </label>
           )}
@@ -233,12 +254,15 @@ export default function LoginClient() {
             <div style={{
               marginBottom: 16,
               padding: '10px 14px',
-              background: 'rgba(232,35,31,0.06)',
-              border: '1px solid rgba(232,35,31,0.2)',
-              borderRadius: 8,
-              color: '#C81E1C',
-              fontSize: 13,
-              fontFamily: 'var(--font-ibm-plex-mono)',
+              background: 'var(--color-vellum)',
+              borderLeft: '2px solid var(--color-signal)',
+              borderTop: '1px solid var(--color-n200)',
+              borderRight: '1px solid var(--color-n200)',
+              borderBottom: '1px solid var(--color-n200)',
+              color: 'var(--color-ink)',
+              fontFamily: 'var(--font-plex-mono), monospace',
+              fontSize: 12,
+              letterSpacing: '0.04em',
             }}>
               {error}
             </div>
@@ -249,37 +273,62 @@ export default function LoginClient() {
             disabled={loading}
             style={{
               width: '100%',
-              padding: '11px 20px',
-              background: loading ? '#E5E7EB' : 'linear-gradient(135deg, #E8231F 0%, #C81E1C 100%)',
-              color: loading ? '#9CA3AF' : '#FFFFFF',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              padding: '12px 20px',
+              background: loading ? 'var(--color-n200)' : 'var(--color-arc-cyan)',
+              color: 'var(--color-ink)',
               border: 'none',
-              borderRadius: 8,
+              borderRadius: 2,
               cursor: loading ? 'not-allowed' : 'pointer',
-              fontFamily: 'var(--font-barlow-condensed)',
-              fontWeight: 600,
-              fontSize: 13,
+              fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+              fontWeight: 700,
+              fontSize: 14,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
-              transition: 'opacity 0.15s',
+              transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
             }}
+            onMouseEnter={(e) => { if (!loading) e.currentTarget.style.backgroundColor = 'var(--color-arc-cyan-deep)' }}
+            onMouseLeave={(e) => { if (!loading) e.currentTarget.style.backgroundColor = 'var(--color-arc-cyan)' }}
           >
-            {loading
-              ? (tab === 'signin' ? 'Signing in…' : 'Creating account…')
-              : (tab === 'signin' ? 'Sign In' : 'Create Account')}
+            <span>
+              {loading
+                ? (tab === 'signin' ? 'Signing in…' : 'Creating account…')
+                : (tab === 'signin' ? 'Sign in' : 'Create account')}
+            </span>
+            {!loading && <span aria-hidden="true">→</span>}
           </button>
 
           {tab === 'signin' && (
-            <div style={{ marginTop: 16, textAlign: 'center' }}>
+            <div style={{ marginTop: 20, textAlign: 'center' }}>
               <button
                 type="button"
                 onClick={() => setTab('register')}
                 style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  fontSize: 12, color: '#6B7280', fontFamily: 'var(--font-ibm-plex-mono)',
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-plex-serif), serif',
+                  fontWeight: 500,
+                  fontStyle: 'italic',
+                  fontSize: 13,
+                  color: 'var(--color-n600)',
                 }}
               >
                 No account?{' '}
-                <span style={{ color: '#E8231F', textDecoration: 'underline' }}>Create one →</span>
+                <span style={{
+                  fontStyle: 'normal',
+                  color: 'var(--color-ink)',
+                  textDecoration: 'underline',
+                  textDecorationColor: 'var(--color-arc-cyan)',
+                  textUnderlineOffset: '0.2em',
+                  fontWeight: 700,
+                }}>
+                  Create one →
+                </span>
               </button>
             </div>
           )}
@@ -287,36 +336,71 @@ export default function LoginClient() {
       </div>
 
       <div style={{
-        marginTop: 24, fontSize: 11,
-        color: '#9CA3AF', fontFamily: 'var(--font-ibm-plex-mono)',
-        letterSpacing: '0.06em',
+        marginTop: 28,
+        fontFamily: 'var(--font-plex-mono), monospace',
+        fontWeight: 500,
+        fontSize: 10,
+        color: 'var(--color-n600)',
+        letterSpacing: '0.10em',
+        textTransform: 'uppercase',
+        textAlign: 'center',
       }}>
-        AI-powered builder OS · Your ideas, forged.
+        Builder OS · Source · Forge · Cast · Ship
       </div>
     </div>
   )
 }
 
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  marginBottom: 6,
-  fontSize: 11,
-  fontWeight: 600,
-  letterSpacing: '0.07em',
-  textTransform: 'uppercase',
-  color: '#374151',
-  fontFamily: 'var(--font-barlow-condensed)',
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{
+        fontFamily: 'var(--font-plex-mono), monospace',
+        fontWeight: 500,
+        fontSize: 11,
+        color: 'var(--color-n600)',
+        letterSpacing: '0.18em',
+        textTransform: 'uppercase',
+        marginBottom: 6,
+      }}>
+        {label}
+      </div>
+      {children}
+    </div>
+  )
 }
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  padding: '9px 12px',
-  background: '#F9FAFB',
-  border: '1px solid rgba(0,0,0,0.10)',
-  borderRadius: 7,
-  fontSize: 14,
-  color: '#0A0C12',
-  fontFamily: 'var(--font-barlow)',
+  background: 'transparent',
+  border: 'none',
+  borderBottom: '1px solid var(--color-n400)',
+  borderRadius: 0,
+  padding: '8px 0',
+  fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+  fontWeight: 400,
+  fontSize: 15,
+  lineHeight: 1.3,
+  color: 'var(--color-ink)',
   outline: 'none',
+  transition: 'border-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
   boxSizing: 'border-box',
+}
+
+const hintStyle: React.CSSProperties = {
+  marginTop: 6,
+  fontFamily: 'var(--font-plex-mono), monospace',
+  fontWeight: 500,
+  fontSize: 10,
+  color: 'var(--color-n400)',
+  letterSpacing: '0.06em',
+}
+
+const termsLinkStyle: React.CSSProperties = {
+  fontStyle: 'normal',
+  color: 'var(--color-ink)',
+  textDecoration: 'underline',
+  textDecorationColor: 'var(--color-arc-cyan)',
+  textUnderlineOffset: '0.2em',
+  fontWeight: 700,
 }

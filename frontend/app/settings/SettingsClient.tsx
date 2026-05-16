@@ -6,8 +6,8 @@ import { useAuth } from '@/lib/auth'
 // Light theme only — no theme toggle needed
 
 const AVATAR_COLORS = [
-  '#E8231F', '#0A85FF', '#16A34A', '#F06A00',
-  '#7C3AED', '#0891B2', '#374151', '#B45309',
+  'var(--color-ink)', 'var(--color-arc-cyan-deep)', 'var(--color-n600)', 'var(--color-n600)',
+  'var(--color-n600)', 'var(--color-arc-cyan-deep)', '#374151', '#B45309',
 ]
 
 const VISIBILITY_OPTIONS = [
@@ -22,7 +22,7 @@ export default function SettingsClient() {
   // theme removed — light only
 
   const [displayName, setDisplayName]       = useState('')
-  const [avatarColor, setAvatarColor]       = useState('#E8231F')
+  const [avatarColor, setAvatarColor]       = useState('var(--color-ink)')
   const [workspaceName, setWorkspaceName]   = useState('')
   const [defaultVis, setDefaultVis]         = useState('private')
   const [inviteEmail, setInviteEmail]       = useState('')
@@ -174,7 +174,7 @@ export default function SettingsClient() {
       </div>
 
       {/* ─── Profile ─────────────────────────────────────────────────── */}
-      <Section title="Profile" accent="#E8231F">
+      <Section title="Profile" accent="var(--color-ink)">
         {/* Avatar preview */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
           <div style={{
@@ -199,7 +199,7 @@ export default function SettingsClient() {
               display: 'inline-block', marginTop: 4,
               padding: '2px 8px', borderRadius: 4,
               background: 'rgba(232,35,31,0.08)',
-              color: '#E8231F', fontSize: 10,
+              color: 'var(--color-ink)', fontSize: 10,
               fontFamily: 'var(--font-barlow-condensed)', letterSpacing: '0.08em', textTransform: 'uppercase',
             }}>
               {user.role}
@@ -248,7 +248,7 @@ export default function SettingsClient() {
       {/* Appearance section removed — light theme only */}
 
       {/* ─── Workspace ──────────────────────────────────────────────── */}
-      <Section title="Workspace" accent="#0A85FF">
+      <Section title="Workspace" accent="var(--color-arc-cyan-deep)">
         <Field label="Workspace Name">
           <input
             type="text"
@@ -275,7 +275,7 @@ export default function SettingsClient() {
               }}>
                 <div style={{
                   width: 28, height: 28, borderRadius: 7,
-                  background: m.avatar_color || '#E8231F',
+                  background: m.avatar_color || 'var(--color-ink)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 11, fontWeight: 700, color: '#fff',
                   fontFamily: 'var(--font-barlow-condensed)',
@@ -323,7 +323,7 @@ export default function SettingsClient() {
                   <span style={{
                     padding: '2px 7px', borderRadius: 4,
                     background: m.role === 'owner' ? 'rgba(232,35,31,0.08)' : 'rgba(0,0,0,0.05)',
-                    color: m.role === 'owner' ? '#E8231F' : 'var(--text-muted)',
+                    color: m.role === 'owner' ? 'var(--color-ink)' : 'var(--text-muted)',
                     fontSize: 10,
                     fontFamily: 'var(--font-barlow-condensed)', letterSpacing: '0.07em', textTransform: 'uppercase',
                   }}>
@@ -373,14 +373,14 @@ export default function SettingsClient() {
               background: 'rgba(22,163,74,0.06)',
               border: '1px solid rgba(22,163,74,0.2)',
               borderRadius: 7, fontSize: 11,
-              fontFamily: 'var(--font-ibm-plex-mono)', color: '#16A34A',
+              fontFamily: 'var(--font-ibm-plex-mono)', color: 'var(--color-n600)',
             }}>
               Invite link (share this):<br />
               <span style={{ wordBreak: 'break-all', userSelect: 'all' }}>{inviteLink}</span>
             </div>
           )}
           {inviteErr && (
-            <div style={{ marginTop: 8, fontSize: 12, color: '#E8231F', fontFamily: 'var(--font-ibm-plex-mono)' }}>
+            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-ink)', fontFamily: 'var(--font-ibm-plex-mono)' }}>
               {inviteErr}
             </div>
           )}
@@ -391,7 +391,7 @@ export default function SettingsClient() {
       <SubscriptionSection />
 
       {/* ─── Privacy ────────────────────────────────────────────────── */}
-      <Section title="Privacy" accent="#7C3AED">
+      <Section title="Privacy" accent="var(--color-n600)">
         <Field label="Default Project Visibility">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {VISIBILITY_OPTIONS.map(opt => (
@@ -401,7 +401,7 @@ export default function SettingsClient() {
                   display: 'flex', alignItems: 'center', gap: 10,
                   padding: '10px 14px',
                   borderRadius: 8,
-                  border: `1px solid ${defaultVis === opt.value ? '#7C3AED' : 'var(--border)'}`,
+                  border: `1px solid ${defaultVis === opt.value ? 'var(--color-n600)' : 'var(--border)'}`,
                   background: defaultVis === opt.value ? 'rgba(124,58,237,0.05)' : '#FAFAFA',
                   cursor: 'pointer',
                   transition: 'border-color 0.15s',
@@ -413,7 +413,7 @@ export default function SettingsClient() {
                   value={opt.value}
                   checked={defaultVis === opt.value}
                   onChange={() => setDefaultVis(opt.value)}
-                  style={{ accentColor: '#7C3AED' }}
+                  style={{ accentColor: 'var(--color-n600)' }}
                 />
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-barlow)' }}>
@@ -430,7 +430,7 @@ export default function SettingsClient() {
       </Section>
 
       {/* ─── Notifications ────────────────────────────────────────────── */}
-      <Section title="Notifications" accent="#0891B2">
+      <Section title="Notifications" accent="var(--color-arc-cyan-deep)">
         <Field label="Email Notifications">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[
@@ -445,7 +445,7 @@ export default function SettingsClient() {
                 <input
                   type="checkbox"
                   defaultChecked={true}
-                  style={{ accentColor: '#0891B2' }}
+                  style={{ accentColor: 'var(--color-arc-cyan-deep)' }}
                   onChange={e => {
                     updateProfile({
                       preferences: {
@@ -574,7 +574,7 @@ export default function SettingsClient() {
           disabled={saving}
           style={{
             padding: '10px 24px',
-            background: saving ? '#E5E7EB' : 'linear-gradient(135deg, #E8231F 0%, #C81E1C 100%)',
+            background: saving ? '#E5E7EB' : 'linear-gradient(135deg, #141413 0%, #141413 100%)',
             color: saving ? '#9CA3AF' : '#fff',
             border: 'none', borderRadius: 8, cursor: saving ? 'not-allowed' : 'pointer',
             fontFamily: 'var(--font-barlow-condensed)',
@@ -691,7 +691,7 @@ function SubscriptionSection() {
         {isEarlyAccess ? (
           <span style={{
             padding: '6px 14px', borderRadius: 6,
-            background: 'rgba(45,204,114,0.1)', color: '#16A34A',
+            background: 'rgba(45,204,114,0.1)', color: 'var(--color-n600)',
             fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-barlow-condensed)',
             letterSpacing: '0.08em', textTransform: 'uppercase',
           }}>

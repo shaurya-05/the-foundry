@@ -13,10 +13,10 @@ type Visibility = 'private' | 'team' | 'public'
 const VIS_ORDER: Visibility[] = ['private', 'team', 'public']
 
 const TYPE_COLORS: Record<string, string> = {
-  text: '#0A85FF',
-  url: '#F06A00',
-  pdf: '#E8231F',
-  note: '#16A34A',
+  text: 'var(--color-arc-cyan-deep)',
+  url: 'var(--color-n600)',
+  pdf: 'var(--color-ink)',
+  note: 'var(--color-n600)',
 }
 
 export default function KnowledgeClient() {
@@ -80,8 +80,8 @@ export default function KnowledgeClient() {
 
   return (
     <div className="page-enter" style={{ maxWidth: 1100 }}>
-      <SectionHeader title="Knowledge" sublabel="Research & docs" accent="#0A85FF">
-        <span className="badge" style={{ background: 'rgba(42,184,255,0.10)', color: '#0A85FF', border: '1px solid rgba(42,184,255,0.20)' }}>
+      <SectionHeader title="Knowledge" sublabel="Research & docs" accent="var(--color-arc-cyan-deep)">
+        <span className="badge" style={{ background: 'rgba(42,184,255,0.10)', color: 'var(--color-arc-cyan-deep)', border: '1px solid rgba(42,184,255,0.20)' }}>
           {items.length} ENTRIES
         </span>
       </SectionHeader>
@@ -89,8 +89,8 @@ export default function KnowledgeClient() {
       <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 16 }}>
         {/* Ingest Form */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <GlassCard accent="#0A85FF" accentTop style={{ padding: '18px 20px' }}>
-            <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: '#0A85FF', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 14 }}>
+          <GlassCard accent="var(--color-arc-cyan-deep)" accentTop style={{ padding: '18px 20px' }}>
+            <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--color-arc-cyan-deep)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 14 }}>
               Ingest Knowledge
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -143,9 +143,9 @@ export default function KnowledgeClient() {
 
           {/* Query Panel */}
           {queryItem && (
-            <GlassCard accent="#7C3AED" accentTop style={{ padding: '18px 20px' }}>
+            <GlassCard accent="var(--color-n600)" accentTop style={{ padding: '18px 20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: '#7C3AED', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--color-n600)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                   Querying: {queryItem.title.slice(0, 30)}
                 </div>
                 <button onClick={() => { setQueryItem(null); setAnswer('') }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>×</button>
@@ -161,7 +161,7 @@ export default function KnowledgeClient() {
                 onClick={query}
                 disabled={streaming || !question.trim()}
                 className="btn btn-primary"
-                style={{ width: '100%', justifyContent: 'center', marginTop: 8, background: '#7C3AED' }}
+                style={{ width: '100%', justifyContent: 'center', marginTop: 8, background: 'var(--color-n600)' }}
               >
                 {streaming ? 'ANALYZING...' : 'QUERY ARCHIVE'}
               </button>
@@ -191,7 +191,7 @@ export default function KnowledgeClient() {
               icon={<span style={{ fontSize: 24 }}>▣</span>}
               title="Archive is empty"
               subtitle="Ingest research papers, articles, notes, and URLs to build your knowledge base."
-              accent="#0A85FF"
+              accent="var(--color-arc-cyan-deep)"
             />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -258,14 +258,14 @@ export default function KnowledgeClient() {
                       <button
                         onClick={() => { setQueryItem(item); setAnswer('') }}
                         className="btn btn-ghost btn-sm"
-                        style={{ fontSize: 10, color: '#0A85FF', borderColor: 'rgba(58,190,255,0.2)' }}
+                        style={{ fontSize: 10, color: 'var(--color-arc-cyan-deep)', borderColor: 'rgba(58,190,255,0.2)' }}
                       >
                         QUERY
                       </button>
                       <button
                         onClick={() => remove(item.id)}
                         className="btn btn-ghost btn-sm"
-                        style={{ fontSize: 10, color: '#E8231F', borderColor: 'rgba(255,59,59,0.2)' }}
+                        style={{ fontSize: 10, color: 'var(--color-ink)', borderColor: 'rgba(255,59,59,0.2)' }}
                       >
                         DEL
                       </button>

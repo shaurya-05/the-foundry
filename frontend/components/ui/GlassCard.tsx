@@ -1,73 +1,56 @@
-import { CSSProperties, ReactNode } from 'react'
-import { clsx } from 'clsx'
+/**
+ * GlassCard — DEPRECATED legacy wrapper.
+ *
+ * Now a thin adapter over <Card/> from the H3ROS Design Language. Old
+ * props that don't map (tier, accentTop, accentGlow) are ignored to avoid
+ * forcing 10 page-client rewrites. The visual output is the new H3ROS
+ * Vellum-surface + hairline-border + no-shadow + zero-radius card.
+ *
+ * Phase 6 will rename remaining consumers from GlassCard to Card and
+ * delete this file.
+ */
+import { CSSProperties, ReactNode, MouseEvent } from 'react'
+import Card from './Card'
 
 interface GlassCardProps {
   children: ReactNode
+  /** @deprecated kept for API compatibility; ignored. */
   tier?: 0 | 1 | 2 | 3
   className?: string
   style?: CSSProperties
+  /** Accent color — only used to set Arc Cyan top/left bar. */
   accent?: string
+  /** Render accent on top edge (true) or left edge (false). */
   accentTop?: boolean
+  /** @deprecated glows are forbidden in H3ROS; ignored. */
   accentGlow?: boolean
-  onClick?: (e?: React.MouseEvent) => void
+  onClick?: (e?: MouseEvent<HTMLDivElement>) => void
   hover?: boolean
 }
 
 export default function GlassCard({
   children,
-  tier = 1,
   className,
   style,
   accent,
   accentTop = false,
-  accentGlow = false,
   onClick,
   hover = false,
 }: GlassCardProps) {
+  // Map legacy accent (any color) into H3ROS Arc Cyan accent bar.
+  // The original allowed arbitrary accent colors; H3ROS reserves color
+  // distinction for the wordmark glyph + Arc Cyan signature only.
+  const accentVariant = accent ? (accentTop ? 'top' : 'left') : undefined
   return (
-    <div
-      className={clsx(`gl${tier}`, hover && 'lift', className)}
+    <Card
+      accent={accentVariant}
+      hover={hover}
+      padding="none"
+      className={className}
+      style={style}
       onClick={onClick}
-      style={{
-        position: 'relative',
-        ...(accentGlow && accent ? {
-          boxShadow: `0 0 0 1px ${accent}22, 0 2px 12px ${accent}10, 0 4px 16px rgba(0,0,0,0.06)`,
-        } : {}),
-        ...style,
-        cursor: onClick ? 'pointer' : style?.cursor,
-      }}
     >
-      {/* Top accent bar with glow */}
-      {accent && accentTop && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 2,
-            background: `linear-gradient(90deg, transparent 0%, ${accent} 20%, ${accent} 80%, transparent 100%)`,
-            borderRadius: '10px 10px 0 0',
-            ...(accentGlow ? { boxShadow: `0 0 12px ${accent}80, 0 0 4px ${accent}60` } : {}),
-          }}
-        />
-      )}
-      {/* Left accent bar with glow */}
-      {accent && !accentTop && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 4,
-            left: 0,
-            bottom: 4,
-            width: 2,
-            background: `linear-gradient(180deg, transparent 0%, ${accent} 15%, ${accent} 85%, transparent 100%)`,
-            borderRadius: '10px 0 0 10px',
-            ...(accentGlow ? { boxShadow: `0 0 10px ${accent}60` } : {}),
-          }}
-        />
-      )}
       {children}
-    </div>
+    </Card>
   )
 }

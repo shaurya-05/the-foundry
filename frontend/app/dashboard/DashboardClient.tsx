@@ -9,26 +9,26 @@ import { useAuth } from '@/lib/auth'
 import Link from 'next/link'
 
 const STATUS_COLORS: Record<string, string> = {
-  active: '#16A34A',
-  paused: '#F06A00',
-  completed: '#0A85FF',
+  active: 'var(--color-n600)',
+  paused: 'var(--color-n600)',
+  completed: 'var(--color-arc-cyan-deep)',
 }
 
 const EVENT_COLORS: Record<string, string> = {
-  knowledge_added: '#0A85FF',
-  project_created: '#E8231F',
-  idea_generated: '#F06A00',
-  task_created: '#0891B2',
-  task_completed: '#16A34A',
-  agent_run: '#7C3AED',
-  pipeline_run: '#E8231F',
-  insight_discovered: '#F06A00',
+  knowledge_added: 'var(--color-arc-cyan-deep)',
+  project_created: 'var(--color-ink)',
+  idea_generated: 'var(--color-n600)',
+  task_created: 'var(--color-arc-cyan-deep)',
+  task_completed: 'var(--color-n600)',
+  agent_run: 'var(--color-n600)',
+  pipeline_run: 'var(--color-ink)',
+  insight_discovered: 'var(--color-n600)',
 }
 
 const ROLE_COLORS: Record<string, string> = {
-  owner: '#E8231F',
-  admin: '#F06A00',
-  member: '#7C3AED',
+  owner: 'var(--color-ink)',
+  admin: 'var(--color-n600)',
+  member: 'var(--color-n600)',
   viewer: '#4A5A72',
 }
 
@@ -88,17 +88,26 @@ export default function DashboardClient() {
   }).slice(0, 6)
 
   const PRIORITY_COLORS: Record<string, string> = {
-    critical: '#E8231F',
-    high: '#F06A00',
+    critical: 'var(--color-ink)',
+    high: 'var(--color-n600)',
     medium: '#FFD600',
     low: '#4A5A72',
   }
 
   return (
     <div className="page-enter" style={{ maxWidth: 1200 }}>
-      <SectionHeader title="Overview" sublabel="Dashboard" accent="#E8231F">
-        <span className="badge" style={{ background: 'rgba(255,45,45,0.10)', color: '#E8231F', border: '1px solid rgba(255,45,45,0.20)' }}>
-          <span style={{ display: 'inline-block', width: 5, height: 5, borderRadius: '50%', background: '#E8231F', boxShadow: '0 0 5px rgba(255,45,45,0.9)', animation: 'pulse-dot 2.4s ease-in-out infinite', marginRight: 5 }} />
+      <SectionHeader title="Overview" sublabel="Dashboard" accent="var(--color-ink)">
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '3px 8px',
+          background: 'var(--color-vellum)',
+          border: '1px solid var(--color-n200)',
+          borderRadius: 0,
+          fontFamily: 'var(--font-plex-mono), monospace',
+          fontWeight: 500, fontSize: 10, letterSpacing: '0.10em',
+          textTransform: 'uppercase', color: 'var(--color-ink)',
+        }}>
+          <span className="h3ros-pulse" style={{ display: 'inline-block', width: 5, height: 5, background: 'var(--color-arc-cyan)' }} />
           LIVE
         </span>
       </SectionHeader>
@@ -109,11 +118,11 @@ export default function DashboardClient() {
       {/* Top stats row */}
       <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 20 }}>
         {[
-          { label: 'Active Projects', value: activeProjects.length, color: '#E8231F', href: '/projects' },
-          { label: 'Open Tasks', value: activeTasks.length, color: '#0891B2', href: '/tasks' },
-          { label: 'Blocked', value: blockedTasks.length, color: '#F06A00', href: '/tasks' },
-          { label: 'Knowledge', value: knowledge.length, color: '#0A85FF', href: '/knowledge' },
-          { label: 'Ideas', value: ideas.length, color: '#F06A00', href: '/ideas' },
+          { label: 'Active Projects', value: activeProjects.length, color: 'var(--color-ink)', href: '/projects' },
+          { label: 'Open Tasks', value: activeTasks.length, color: 'var(--color-arc-cyan-deep)', href: '/tasks' },
+          { label: 'Blocked', value: blockedTasks.length, color: 'var(--color-n600)', href: '/tasks' },
+          { label: 'Knowledge', value: knowledge.length, color: 'var(--color-arc-cyan-deep)', href: '/knowledge' },
+          { label: 'Ideas', value: ideas.length, color: 'var(--color-n600)', href: '/ideas' },
         ].map(stat => (
           <Link key={stat.label} href={stat.href} style={{ textDecoration: 'none' }}>
             <GlassCard hover style={{ padding: '14px 16px' }}>
@@ -144,7 +153,7 @@ export default function DashboardClient() {
               <div style={{ color: 'var(--text-subtle)', fontSize: 12 }}>Loading...</div>
             ) : recentProjects.length === 0 ? (
               <div style={{ color: 'var(--text-subtle)', fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, textAlign: 'center', padding: '20px 0' }}>
-                No projects yet. <Link href="/projects" style={{ color: '#E8231F' }}>Create one →</Link>
+                No projects yet. <Link href="/projects" style={{ color: 'var(--color-ink)' }}>Create one →</Link>
               </div>
             ) : recentProjects.map(p => {
               const ptasks = tasks.filter(t => t.project_id === p.id)
@@ -202,7 +211,7 @@ export default function DashboardClient() {
               <div style={{ color: 'var(--text-subtle)', fontSize: 12 }}>Loading...</div>
             ) : urgentTasks.length === 0 ? (
               <div style={{ color: 'var(--text-subtle)', fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, textAlign: 'center', padding: '20px 0' }}>
-                No open tasks. <Link href="/tasks" style={{ color: '#0891B2' }}>Add one →</Link>
+                No open tasks. <Link href="/tasks" style={{ color: 'var(--color-arc-cyan-deep)' }}>Add one →</Link>
               </div>
             ) : urgentTasks.map(t => {
               const pc = PRIORITY_COLORS[t.priority] || '#4A5A72'
@@ -248,7 +257,7 @@ export default function DashboardClient() {
             <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 8.5, color: 'var(--text-subtle)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
               Activity
             </div>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#16A34A', boxShadow: '0 0 5px rgba(45,204,114,0.8)', animation: 'pulse-dot 2.4s ease-in-out infinite' }} />
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-n600)', boxShadow: '0 0 5px rgba(45,204,114,0.8)', animation: 'pulse-dot 2.4s ease-in-out infinite' }} />
           </div>
           <div style={{ flex: 1, overflow: 'auto' }}>
             {events.length === 0 ? (
@@ -303,8 +312,8 @@ export default function DashboardClient() {
           <div style={{ display: 'flex', gap: 16 }}>
             {[
               { label: 'Private', value: projects.filter(p => p.visibility === 'private').length, color: '#4A5A72' },
-              { label: 'Team', value: projects.filter(p => p.visibility === 'team').length, color: '#7C3AED' },
-              { label: 'Public', value: projects.filter(p => p.visibility === 'public').length, color: '#16A34A' },
+              { label: 'Team', value: projects.filter(p => p.visibility === 'team').length, color: 'var(--color-n600)' },
+              { label: 'Public', value: projects.filter(p => p.visibility === 'public').length, color: 'var(--color-n600)' },
             ].map(s => (
               <div key={s.label} style={{ textAlign: 'center' }}>
                 <div className="stat-number" style={{ fontSize: 18, color: s.color }}>{loading ? '—' : s.value}</div>
@@ -358,13 +367,13 @@ export default function DashboardClient() {
                 onClick={sendInvite}
                 disabled={inviting || !inviteEmail.trim()}
                 className="btn btn-ghost btn-sm"
-                style={{ color: '#7C3AED', borderColor: 'rgba(155,123,255,0.25)', whiteSpace: 'nowrap' }}
+                style={{ color: 'var(--color-n600)', borderColor: 'rgba(155,123,255,0.25)', whiteSpace: 'nowrap' }}
               >
                 {inviting ? '...' : 'INVITE'}
               </button>
             </div>
             {inviteResult && (
-              <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: inviteResult.startsWith('Invite') ? '#16A34A' : '#E8231F', marginTop: 8, wordBreak: 'break-all', lineHeight: 1.5 }}>
+              <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: inviteResult.startsWith('Invite') ? 'var(--color-n600)' : 'var(--color-ink)', marginTop: 8, wordBreak: 'break-all', lineHeight: 1.5 }}>
                 {inviteResult}
               </div>
             )}

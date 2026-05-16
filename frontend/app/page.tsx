@@ -63,7 +63,7 @@ export default function LandingPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
             width: 30, height: 30, borderRadius: 7,
-            background: 'linear-gradient(135deg, #D12D1F, #D4A017)',
+            background: 'linear-gradient(135deg, #141413, #5F5F5A)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 0 12px rgba(232,35,31,0.25)',
           }}>
@@ -73,7 +73,7 @@ export default function LandingPage() {
             </svg>
           </div>
           <span style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 16, letterSpacing: '0.08em' }}>
-            <span style={{ color: '#5B93ED', fontWeight: 600 }}>The </span><span style={{ color: '#D12D1F' }}>FOUND</span><span style={{ color: '#D4A017' }}>3</span><span style={{ color: '#D12D1F' }}>RY</span>
+            <span style={{ color: '#5B93ED', fontWeight: 600 }}>The </span><span style={{ color: 'var(--color-ink)' }}>FOUND</span><span style={{ color: 'var(--color-n600)' }}>3</span><span style={{ color: 'var(--color-ink)' }}>RY</span>
           </span>
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -86,7 +86,7 @@ export default function LandingPage() {
             About
           </button>
           <button onClick={() => router.push('/login')} style={{
-            padding: '8px 16px', background: 'linear-gradient(135deg, #E8231F, #C81E1C)',
+            padding: '8px 16px', background: 'linear-gradient(135deg, #141413, #141413)',
             border: 'none', borderRadius: 7, cursor: 'pointer', color: '#fff',
             fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600, fontSize: 11,
             letterSpacing: '0.06em', textTransform: 'uppercase',
@@ -105,7 +105,7 @@ export default function LandingPage() {
           border: '1px solid rgba(232,35,31,0.2)',
           borderRadius: 20,
           fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11,
-          color: '#C81E1C', letterSpacing: '0.12em', textTransform: 'uppercase',
+          color: 'var(--color-ink)', letterSpacing: '0.12em', textTransform: 'uppercase',
           marginBottom: 24,
         }}>
           Built by a founder, for founders
@@ -136,7 +136,7 @@ export default function LandingPage() {
 
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
           <button onClick={() => router.push('/login')} style={{
-            padding: '14px 32px', background: 'linear-gradient(135deg, #E8231F, #C81E1C)',
+            padding: '14px 32px', background: 'linear-gradient(135deg, #141413, #141413)',
             border: 'none', borderRadius: 8, cursor: 'pointer', color: '#fff',
             fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600, fontSize: 14,
             letterSpacing: '0.06em', textTransform: 'uppercase',
@@ -168,7 +168,7 @@ export default function LandingPage() {
       }}>
         <div style={{ maxWidth: 720, margin: '0 auto' }}>
           <div style={{
-            fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: '#E8231F',
+            fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--color-ink)',
             letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 16,
             textAlign: 'center',
           }}>
@@ -217,7 +217,7 @@ export default function LandingPage() {
       <section style={{ padding: '72px 24px', maxWidth: 1040, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
           <div style={{
-            fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: '#E8231F',
+            fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--color-ink)',
             letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 12,
           }}>
             The Solution
@@ -241,7 +241,7 @@ export default function LandingPage() {
             }}>
               <div style={{
                 fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 13,
-                color: '#E8231F', letterSpacing: '0.10em', textTransform: 'uppercase',
+                color: 'var(--color-ink)', letterSpacing: '0.10em', textTransform: 'uppercase',
                 marginBottom: 12,
               }}>
                 0{i + 1}
@@ -271,7 +271,7 @@ export default function LandingPage() {
         <div style={{ maxWidth: 1040, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 40 }}>
             <div style={{
-              fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: '#E8231F',
+              fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--color-ink)',
               letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 12,
             }}>
               Who it's for
@@ -313,7 +313,7 @@ export default function LandingPage() {
       <section style={{ padding: '72px 24px', maxWidth: 960, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
           <div style={{
-            fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: '#E8231F',
+            fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--color-ink)',
             letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 12,
           }}>
             Under the hood
@@ -332,10 +332,10 @@ export default function LandingPage() {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
           {[
-            { name: 'Field Analyst', role: 'Deep research', color: '#0A85FF' },
-            { name: 'Systems Architect', role: 'Technical design', color: '#E8231F' },
-            { name: 'Market Scout', role: 'Opportunity sizing', color: '#7C3AED' },
-            { name: 'Launch Strategist', role: 'Go-to-market', color: '#16A34A' },
+            { name: 'Field Analyst', role: 'Deep research', color: 'var(--color-arc-cyan-deep)' },
+            { name: 'Systems Architect', role: 'Technical design', color: 'var(--color-ink)' },
+            { name: 'Market Scout', role: 'Opportunity sizing', color: 'var(--color-n600)' },
+            { name: 'Launch Strategist', role: 'Go-to-market', color: 'var(--color-n600)' },
           ].map(a => (
             <div key={a.name} style={{
               padding: '20px 18px',
@@ -376,7 +376,7 @@ export default function LandingPage() {
           Free during early access. No limits. No credit card. Just build.
         </p>
         <button onClick={() => router.push('/login')} style={{
-          padding: '15px 40px', background: 'linear-gradient(135deg, #E8231F, #C81E1C)',
+          padding: '15px 40px', background: 'linear-gradient(135deg, #141413, #141413)',
           border: 'none', borderRadius: 8, cursor: 'pointer', color: '#fff',
           fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600, fontSize: 15,
           letterSpacing: '0.06em', textTransform: 'uppercase',
@@ -392,7 +392,7 @@ export default function LandingPage() {
         maxWidth: 1200, margin: '0 auto',
       }}>
         <span style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--text-subtle, #9CA3AF)', letterSpacing: '0.06em' }}>
-          <span style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}><span style={{ color: '#5B93ED', fontWeight: 600 }}>The </span><span style={{ color: '#D12D1F' }}>FOUND</span><span style={{ color: '#D4A017' }}>3</span><span style={{ color: '#D12D1F' }}>RY</span></span> by <span style={{ fontWeight: 700 }}><span style={{ color: '#2563EB' }}>h</span><span style={{ color: '#F97316' }}>3</span><span style={{ color: '#2563EB' }}>ros</span></span> · AI co-founder for builders
+          <span style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}><span style={{ color: '#5B93ED', fontWeight: 600 }}>The </span><span style={{ color: 'var(--color-ink)' }}>FOUND</span><span style={{ color: 'var(--color-n600)' }}>3</span><span style={{ color: 'var(--color-ink)' }}>RY</span></span> by <span style={{ fontWeight: 700 }}><span style={{ color: '#2563EB' }}>h</span><span style={{ color: '#F97316' }}>3</span><span style={{ color: '#2563EB' }}>ros</span></span> · AI co-founder for builders
         </span>
       </footer>
     </div>

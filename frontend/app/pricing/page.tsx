@@ -28,7 +28,7 @@ const PLANS = [
     tagline: 'For serious builders shipping fast',
     monthlyPrice: 16,
     yearlyPrice: 12,
-    accent: '#0A85FF',
+    accent: 'var(--color-arc-cyan-deep)',
     recommended: true,
     features: [
       'Unlimited projects',
@@ -49,7 +49,7 @@ const PLANS = [
     monthlyPrice: 28,
     yearlyPrice: 22,
     perSeat: true,
-    accent: '#7C3AED',
+    accent: 'var(--color-n600)',
     features: [
       'Everything in Pro',
       'Unlimited workspaces & knowledge',
@@ -100,7 +100,7 @@ export default function PricingPage() {
                 onClick={() => setAnnual(i === 1)}
                 style={{
                   padding: '8px 20px', border: 'none', cursor: 'pointer',
-                  background: (i === 0 ? !annual : annual) ? '#E8231F' : 'var(--bg-surface, #fff)',
+                  background: (i === 0 ? !annual : annual) ? 'var(--color-ink)' : 'var(--bg-surface, #fff)',
                   color: (i === 0 ? !annual : annual) ? '#fff' : 'var(--text-muted, #6B7280)',
                   fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600,
                   fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase',

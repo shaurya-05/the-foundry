@@ -19,7 +19,7 @@ export default function AboutPage() {
         }}>
           <div style={{
             width: 30, height: 30, borderRadius: 7,
-            background: 'linear-gradient(135deg, #D12D1F, #D4A017)',
+            background: 'linear-gradient(135deg, #141413, #5F5F5A)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 0 12px rgba(232,35,31,0.25)',
           }}>
@@ -29,12 +29,12 @@ export default function AboutPage() {
             </svg>
           </div>
           <span style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 16, letterSpacing: '0.08em' }}>
-            <span style={{ color: '#5B93ED', fontWeight: 600 }}>The </span><span style={{ color: '#D12D1F' }}>FOUND</span><span style={{ color: '#D4A017' }}>3</span><span style={{ color: '#D12D1F' }}>RY</span>
+            <span style={{ color: '#5B93ED', fontWeight: 600 }}>The </span><span style={{ color: 'var(--color-ink)' }}>FOUND</span><span style={{ color: 'var(--color-n600)' }}>3</span><span style={{ color: 'var(--color-ink)' }}>RY</span>
           </span>
         </button>
         <div style={{ display: 'flex', gap: 12 }}>
           <button onClick={() => router.push('/login')} style={{
-            padding: '8px 16px', background: 'linear-gradient(135deg, #E8231F, #C81E1C)',
+            padding: '8px 16px', background: 'linear-gradient(135deg, #141413, #141413)',
             border: 'none', borderRadius: 7, cursor: 'pointer', color: '#fff',
             fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600, fontSize: 11,
             letterSpacing: '0.06em', textTransform: 'uppercase',
@@ -53,7 +53,7 @@ export default function AboutPage() {
           border: '1px solid rgba(232,35,31,0.2)',
           borderRadius: 20,
           fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11,
-          color: '#C81E1C', letterSpacing: '0.12em', textTransform: 'uppercase',
+          color: 'var(--color-ink)', letterSpacing: '0.12em', textTransform: 'uppercase',
           marginBottom: 24,
         }}>
           The Story
@@ -107,7 +107,7 @@ export default function AboutPage() {
       }}>
         <div style={{ maxWidth: 720, margin: '0 auto' }}>
           <div style={{
-            fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: '#E8231F',
+            fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--color-ink)',
             letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 14,
           }}>
             The Founder
@@ -137,7 +137,7 @@ export default function AboutPage() {
       {/* What makes it different */}
       <section style={{ padding: '40px 24px', maxWidth: 720, margin: '0 auto' }}>
         <div style={{
-          fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: '#E8231F',
+          fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--color-ink)',
           letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 14,
         }}>
           What makes it different
@@ -170,7 +170,7 @@ export default function AboutPage() {
       }}>
         <div style={{ maxWidth: 720, margin: '0 auto' }}>
           <div style={{
-            fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: '#E8231F',
+            fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--color-ink)',
             letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 14,
           }}>
             What's next
@@ -194,7 +194,7 @@ export default function AboutPage() {
       {/* CTA */}
       <section style={{ padding: '48px 24px 80px', textAlign: 'center', maxWidth: 640, margin: '0 auto' }}>
         <button onClick={() => router.push('/login')} style={{
-          padding: '15px 40px', background: 'linear-gradient(135deg, #E8231F, #C81E1C)',
+          padding: '15px 40px', background: 'linear-gradient(135deg, #141413, #141413)',
           border: 'none', borderRadius: 8, cursor: 'pointer', color: '#fff',
           fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600, fontSize: 15,
           letterSpacing: '0.06em', textTransform: 'uppercase',
@@ -210,7 +210,7 @@ export default function AboutPage() {
         maxWidth: 1200, margin: '0 auto',
       }}>
         <span style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--text-subtle, #9CA3AF)', letterSpacing: '0.06em' }}>
-          <span style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}><span style={{ color: '#5B93ED', fontWeight: 600 }}>The </span><span style={{ color: '#D12D1F' }}>FOUND</span><span style={{ color: '#D4A017' }}>3</span><span style={{ color: '#D12D1F' }}>RY</span></span> by <span style={{ fontWeight: 700 }}><span style={{ color: '#2563EB' }}>h</span><span style={{ color: '#F97316' }}>3</span><span style={{ color: '#2563EB' }}>ros</span></span> · AI co-founder for builders
+          <span style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}><span style={{ color: '#5B93ED', fontWeight: 600 }}>The </span><span style={{ color: 'var(--color-ink)' }}>FOUND</span><span style={{ color: 'var(--color-n600)' }}>3</span><span style={{ color: 'var(--color-ink)' }}>RY</span></span> by <span style={{ fontWeight: 700 }}><span style={{ color: '#2563EB' }}>h</span><span style={{ color: '#F97316' }}>3</span><span style={{ color: '#2563EB' }}>ros</span></span> · AI co-founder for builders
         </span>
       </footer>
     </div>

@@ -1,68 +1,43 @@
+/**
+ * SectionHeader — DEPRECATED legacy wrapper.
+ *
+ * Adapts the old (title, sublabel, accent, children) API to the new
+ * H3ROS <SectionHeaderV2/> primitive. The legacy `accent` prop is
+ * ignored (Arc Cyan is the single accent). `children` is rendered as a
+ * right-side actions slot.
+ *
+ * Phase 6 will rename remaining consumers and delete this file.
+ */
 import { ReactNode } from 'react'
+import SectionHeaderV2 from './SectionHeaderV2'
 
 interface SectionHeaderProps {
   title: string
   sublabel?: string
+  /** @deprecated Arc Cyan is the only section accent. Ignored. */
   accent?: string
+  /** Optional right-aligned action toolbar. */
   children?: ReactNode
 }
 
-export default function SectionHeader({ title, sublabel, accent = '#FF2D2D', children }: SectionHeaderProps) {
+export default function SectionHeader({ title, sublabel, children }: SectionHeaderProps) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'flex-end',
-        justifyContent: 'space-between',
-        marginBottom: 24,
-        paddingBottom: 18,
-        borderBottom: '1px solid var(--border)',
-        position: 'relative',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16 }}>
-        {/* Accent bar */}
-        <div style={{
-          width: 3,
-          height: 38,
-          borderRadius: 2,
-          background: `linear-gradient(180deg, ${accent} 0%, ${accent}44 100%)`,
-          flexShrink: 0,
-          boxShadow: `0 0 14px ${accent}60`,
-          marginBottom: 2,
-        }} />
-        <div>
-          {sublabel && (
-            <div
-              style={{
-                fontFamily: 'var(--font-ibm-plex-mono)',
-                fontSize: 9,
-                color: `${accent}CC`,
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                marginBottom: 4,
-              }}
-            >
-              {sublabel}
-            </div>
-          )}
-          <h2
-            style={{
-              fontFamily: 'var(--font-barlow-condensed)',
-              fontWeight: 700,
-              fontSize: 30,
-              letterSpacing: '0.04em',
-              textTransform: 'uppercase',
-              color: 'var(--text-primary)',
-              lineHeight: 1,
-            }}
-          >
-            {title}
-          </h2>
-        </div>
-      </div>
+    <div style={{
+      display: 'flex',
+      alignItems: 'flex-end',
+      justifyContent: 'space-between',
+      gap: 16,
+      marginBottom: 24,
+      flexWrap: 'wrap',
+    }}>
+      <SectionHeaderV2
+        eyebrow={sublabel || 'SECTION'}
+        title={title}
+        size="sm"
+        crease={false}
+      />
       {children && (
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 2 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {children}
         </div>
       )}

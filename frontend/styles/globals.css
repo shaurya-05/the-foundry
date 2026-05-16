@@ -54,14 +54,18 @@
   --gl2-bg: var(--color-vellum);
   --gl3-bg: var(--color-vellum);   /* Sidebar */
 
-  /* ═══ Legacy accent palette (Phase 3 collapses to Arc Cyan) ════════════ */
-  --accent-red:    #E8231F;
-  --accent-blue:   #0A85FF;
-  --accent-orange: #F06A00;
-  --accent-green:  #16A34A;
-  --accent-purple: #7C3AED;
-  --accent-teal:   #0891B2;
-  --accent-yellow: #CA8A04;
+  /* ═══ Legacy accent palette — Phase 4: collapsed to Arc Cyan ═══════════ */
+  /* Page clients still reference var(--accent-*) inline; rather than rewrite */
+  /* 11 page clients we re-point all accents to Arc Cyan so consumers inherit */
+  /* the H3ROS palette automatically. --accent-red kept distinct in case Signal */
+  /* (parent-brand orange) is needed in narrow contexts. */
+  --accent-red:    var(--color-arc-cyan-deep);
+  --accent-blue:   var(--color-arc-cyan-deep);
+  --accent-orange: var(--color-arc-cyan-deep);
+  --accent-green:  var(--color-arc-cyan-deep);
+  --accent-purple: var(--color-arc-cyan-deep);
+  --accent-teal:   var(--color-arc-cyan-deep);
+  --accent-yellow: var(--color-arc-cyan-deep);
 }
 
 /* Dark mode removed — light theme only */
@@ -103,73 +107,47 @@ h1 { font-size: 2.6rem; line-height: 1.0; letter-spacing: 0.03em; }
 h2 { font-size: 1.9rem; line-height: 1.05; }
 h3 { font-size: 1.3rem; line-height: 1.1; }
 
-/* ─── Card Material System (light mode: paper cards) ───────────────────────── */
-.gl0 {
-  background: var(--gl0-bg);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 1px 2px var(--shadow), 0 2px 8px rgba(0,0,0,0.04);
-  position: relative;
-  overflow: hidden;
-}
-
-.gl1 {
-  background: var(--gl1-bg);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 1px 3px var(--shadow), 0 4px 16px rgba(0,0,0,0.05);
-  position: relative;
-  overflow: hidden;
-}
-
-.gl2 {
-  background: var(--gl2-bg);
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
-  box-shadow: 0 2px 6px var(--shadow), 0 8px 24px rgba(0,0,0,0.07);
-  position: relative;
-  overflow: hidden;
-}
-
+/* ─── Card Material System — H3ROS: Vellum + hairline + no shadow + 0 radius ─ */
+.gl0,
+.gl1,
+.gl2,
 .gl3 {
-  background: var(--gl3-bg);
+  background: var(--color-vellum);
+  border: 1px solid var(--color-n200);
   border-radius: 0;
+  box-shadow: none;
   position: relative;
+  overflow: hidden;
 }
 
 /* ─── Grid Backgrounds ─────────────────────────────────────────────────────── */
-.tech-grid {
-  background-image:
-    linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px);
-  background-size: 22px 22px;
-}
+/* tech-grid is dropped from AppShell; kept as no-op for any straggler usage. */
+.tech-grid { background-image: none; }
 
 .dot-grid {
-  background-image: radial-gradient(circle, rgba(0,0,0,0.06) 1px, transparent 1px);
-  background-size: 26px 26px;
+  background-image: radial-gradient(circle, rgba(20, 20, 19, 0.08) 0.8px, transparent 1px);
+  background-size: 16px 16px;
 }
 
+/* Blueprint canvas — recolor cobalt to Arc Cyan tones */
 .blueprint-grid {
-  background-color: var(--bg-mid);
+  background-color: var(--color-off-white);
   background-image:
-    linear-gradient(rgba(10, 133, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(10, 133, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(rgba(10, 133, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(10, 133, 255, 0.03) 1px, transparent 1px);
+    linear-gradient(rgba(159, 222, 250, 0.10) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(159, 222, 250, 0.10) 1px, transparent 1px),
+    linear-gradient(rgba(159, 222, 250, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(159, 222, 250, 0.05) 1px, transparent 1px);
   background-size: 128px 128px, 128px 128px, 32px 32px, 32px 32px;
 }
 
-/* ─── Hover Lift ───────────────────────────────────────────────────────────── */
+/* ─── Hover Lift — H3ROS: opacity/color only, no transform, no shadow ─────── */
 .lift {
-  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
-              box-shadow 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: background-color var(--duration-base, 200ms) var(--ease-out, ease-out);
   cursor: pointer;
 }
 
 .lift:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.07);
+  background-color: var(--color-off-white);
 }
 
 /* ─── Badges / Pills ───────────────────────────────────────────────────────── */
@@ -189,51 +167,53 @@ h3 { font-size: 1.3rem; line-height: 1.1; }
   color: var(--text-muted);
 }
 
-/* ─── Buttons ──────────────────────────────────────────────────────────────── */
+/* ─── Buttons — H3ROS: flat fills, no shadow, color-only transitions ──────── */
 .btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
-  border-radius: 7px;
-  font-family: var(--font-barlow-condensed), sans-serif;
+  border-radius: 2px;
+  font-family: var(--font-archivo), system-ui, sans-serif;
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: all 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: background-color var(--duration-fast, 120ms) var(--ease-out, ease-out),
+              color var(--duration-fast, 120ms) var(--ease-out, ease-out);
   border: none;
   outline: none;
   position: relative;
 }
 
 .btn-primary {
-  background: var(--accent-red);
-  color: white;
-  box-shadow: 0 1px 3px rgba(232,35,31,0.30), 0 2px 8px rgba(232,35,31,0.15);
+  background: var(--color-arc-cyan);
+  color: var(--color-ink);
+  box-shadow: none;
 }
 .btn-primary:hover {
-  background: #C91C18;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(232,35,31,0.35), 0 4px 16px rgba(232,35,31,0.20);
+  background: var(--color-arc-cyan-deep);
+  color: var(--color-ink);
+  transform: none;
+  box-shadow: none;
 }
 .btn-primary:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
   transform: none;
 }
 
 .btn-ghost {
-  background: #FFFFFF;
-  color: var(--text-secondary);
-  border: 1px solid rgba(0,0,0,0.10);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  background: transparent;
+  color: var(--color-ink);
+  border: 1px solid var(--color-ink);
+  box-shadow: none;
 }
 .btn-ghost:hover {
-  background: #F4F5F7;
-  color: var(--text-primary);
-  border-color: rgba(0,0,0,0.16);
+  background: var(--color-ink);
+  color: var(--color-off-white);
+  border-color: var(--color-ink);
 }
 .btn-ghost:disabled {
   opacity: 0.45;
@@ -246,23 +226,24 @@ h3 { font-size: 1.3rem; line-height: 1.1; }
   letter-spacing: 0.07em;
 }
 
-/* ─── Accent Dot (live pulse) ──────────────────────────────────────────────── */
+/* ─── Accent Dot — H3ROS: opacity only, no scale transform ────────────────── */
 .accent-dot {
   width: 6px;
   height: 6px;
-  border-radius: 50%;
-  animation: pulse-dot 2.4s ease-in-out infinite;
+  border-radius: 0; /* H3ROS: square pixel dot */
+  animation: h3ros-pulse-opacity 2.4s ease-in-out infinite;
 }
 
+/* Keep pulse-dot defined for legacy callers but with opacity-only motion */
 @keyframes pulse-dot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.85); }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
 .glow-dot {
   width: 7px;
   height: 7px;
-  border-radius: 50%;
+  border-radius: 0;
   animation: glow-pulse 2s ease-in-out infinite;
 }
 
@@ -271,7 +252,7 @@ h3 { font-size: 1.3rem; line-height: 1.1; }
   50% { opacity: 0.5; }
 }
 
-/* ─── Ring Out (empty state) ───────────────────────────────────────────────── */
+/* ─── Ring Out — H3ROS: disabled (decorative scale-expand banned) ─────────── */
 .ring-out-container {
   position: relative;
   display: inline-flex;
@@ -279,19 +260,10 @@ h3 { font-size: 1.3rem; line-height: 1.1; }
   justify-content: center;
 }
 
-.ring-out-container::before, .ring-out-container::after {
+.ring-out-container::before,
+.ring-out-container::after {
   content: '';
-  position: absolute;
-  border-radius: 50%;
-  border: 1px solid currentColor;
-  opacity: 0;
-  animation: ring-expand 2.6s ease-out infinite;
-}
-.ring-out-container::after { animation-delay: 1.3s; }
-
-@keyframes ring-expand {
-  0% { width: 100%; height: 100%; opacity: 0.3; }
-  100% { width: 240%; height: 240%; opacity: 0; }
+  display: none;
 }
 
 /* ─── Typing cursor ─────────────────────────────────────────────────────────── */
@@ -313,105 +285,120 @@ h3 { font-size: 1.3rem; line-height: 1.1; }
 ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.22); }
 
-/* ─── Inputs ────────────────────────────────────────────────────────────────── */
+/* ─── Inputs — H3ROS: bottom-border-only, focus → Arc Cyan ─────────────────── */
 .forge-input {
   width: 100%;
-  background: #FFFFFF;
-  border: 1px solid rgba(0,0,0,0.12);
-  border-radius: 7px;
-  color: var(--text-primary);
-  padding: 8px 12px;
-  font-family: var(--font-barlow), sans-serif;
-  font-size: 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--color-n400);
+  border-radius: 0;
+  color: var(--color-ink);
+  padding: 8px 0;
+  font-family: var(--font-archivo), system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 400;
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--duration-fast, 120ms) var(--ease-out, ease-out);
+  box-shadow: none;
 }
 
-.forge-input::placeholder { color: var(--text-muted); }
+.forge-input::placeholder { color: var(--color-n400); }
 
 .forge-input:focus {
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 0 3px rgba(10, 133, 255, 0.10);
+  border-bottom-color: var(--color-arc-cyan);
+  box-shadow: none;
 }
 
-textarea.forge-input { resize: vertical; min-height: 80px; }
+textarea.forge-input { resize: vertical; min-height: 80px; border: 1px solid var(--color-n200); padding: 12px; }
 
-/* ─── Markdown Rendered Output ──────────────────────────────────────────────── */
+/* ─── Markdown Rendered Output — H3ROS palette ─────────────────────────────── */
 .forge-md h1, .forge-md h2, .forge-md h3 {
-  color: var(--text-primary);
+  color: var(--color-ink);
   margin-top: 1.2em;
   margin-bottom: 0.4em;
-  font-family: var(--font-barlow-condensed), sans-serif;
-  font-size: 1.05rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-family: var(--font-archivo-black), sans-serif;
+  font-weight: 400;
+  font-size: 1.1rem;
+  letter-spacing: -0.01em;
+  text-transform: none;
 }
 
 .forge-md p {
-  color: var(--text-secondary);
+  color: var(--color-n600);
   margin-bottom: 0.75em;
   line-height: 1.65;
+  font-family: var(--font-plex-serif), serif;
+  font-weight: 500;
 }
 
 .forge-md ul, .forge-md ol {
-  color: var(--text-secondary);
+  color: var(--color-n600);
   padding-left: 1.5em;
   margin-bottom: 0.75em;
+  font-family: var(--font-plex-serif), serif;
+  font-weight: 500;
 }
 
 .forge-md li { margin-bottom: 0.3em; }
-.forge-md strong { color: var(--text-primary); font-weight: 600; }
+.forge-md strong { color: var(--color-ink); font-weight: 700; font-family: var(--font-archivo), system-ui, sans-serif; }
+.forge-md em { font-style: italic; }
 
 .forge-md code {
-  background: rgba(8, 145, 178, 0.07);
-  border: 1px solid rgba(8, 145, 178, 0.15);
-  border-radius: 3px;
+  background: var(--color-vellum);
+  border: 1px solid var(--color-arc-cyan);
+  border-radius: 2px;
   padding: 1px 5px;
-  font-family: var(--font-ibm-plex-mono), monospace;
+  font-family: var(--font-plex-mono), monospace;
+  font-weight: 500;
   font-size: 12px;
-  color: var(--accent-teal);
+  color: var(--color-ink);
 }
 
-/* ─── Page Enter Animation ──────────────────────────────────────────────────── */
+/* ─── Page Enter Animation — H3ROS: opacity only, no transform ─────────────── */
 @keyframes pageIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .page-enter {
-  animation: pageIn 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: pageIn var(--duration-base, 200ms) var(--ease-out, ease-out);
 }
 
 @keyframes fadeSlideIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .stagger-children > * {
-  animation: fadeSlideIn 0.30s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: fadeSlideIn var(--duration-base, 200ms) var(--ease-out, ease-out) both;
 }
-.stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
-.stagger-children > *:nth-child(2) { animation-delay: 0.10s; }
-.stagger-children > *:nth-child(3) { animation-delay: 0.15s; }
-.stagger-children > *:nth-child(4) { animation-delay: 0.20s; }
-.stagger-children > *:nth-child(5) { animation-delay: 0.25s; }
-.stagger-children > *:nth-child(6) { animation-delay: 0.30s; }
+.stagger-children > *:nth-child(1) { animation-delay: 0.04s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.08s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.12s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.16s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.20s; }
+.stagger-children > *:nth-child(6) { animation-delay: 0.24s; }
 
-/* ─── Accent Lines ──────────────────────────────────────────────────────────── */
-.accent-line-red    { border-left: 2px solid var(--accent-red);    padding-left: 12px; }
-.accent-line-blue   { border-left: 2px solid var(--accent-blue);   padding-left: 12px; }
-.accent-line-orange { border-left: 2px solid var(--accent-orange); padding-left: 12px; }
-.accent-line-green  { border-left: 2px solid var(--accent-green);  padding-left: 12px; }
-.accent-line-purple { border-left: 2px solid var(--accent-purple); padding-left: 12px; }
-.accent-line-teal   { border-left: 2px solid var(--accent-teal);   padding-left: 12px; }
+/* ─── Accent Lines — H3ROS: all collapse to Arc Cyan hairline ──────────────── */
+.accent-line-red,
+.accent-line-blue,
+.accent-line-orange,
+.accent-line-green,
+.accent-line-purple,
+.accent-line-teal {
+  border-left: 1.5px solid var(--color-arc-cyan);
+  padding-left: 12px;
+}
 
-/* ─── Glow accents (lighter in light mode) ─────────────────────────────────── */
-.glow-red    { box-shadow: 0 0 0 1px rgba(232,35,31,0.12),  0 3px 16px rgba(232,35,31,0.07); }
-.glow-blue   { box-shadow: 0 0 0 1px rgba(10,133,255,0.12), 0 3px 16px rgba(10,133,255,0.07); }
-.glow-orange { box-shadow: 0 0 0 1px rgba(240,106,0,0.12),  0 3px 16px rgba(240,106,0,0.07); }
-.glow-green  { box-shadow: 0 0 0 1px rgba(22,163,74,0.12),  0 3px 16px rgba(22,163,74,0.07); }
-.glow-purple { box-shadow: 0 0 0 1px rgba(124,58,237,0.12), 0 3px 16px rgba(124,58,237,0.07); }
-.glow-teal   { box-shadow: 0 0 0 1px rgba(8,145,178,0.12),  0 3px 16px rgba(8,145,178,0.07); }
+/* ─── Glow accents — H3ROS: shadows banned. No-ops. ────────────────────────── */
+.glow-red,
+.glow-blue,
+.glow-orange,
+.glow-green,
+.glow-purple,
+.glow-teal {
+  box-shadow: none;
+}
 
 /* ─── Number Display (hero stat numbers) ────────────────────────────────────── */
 .stat-number {

@@ -158,7 +158,7 @@ export default function IdeasClient() {
                     <button
                       onClick={e => { e.stopPropagation(); connectToProject(idea) }}
                       className="btn btn-ghost btn-sm"
-                      style={{ fontSize: 9, color: '#FF2D2D', borderColor: 'rgba(255,45,45,0.22)' }}
+                      style={{ fontSize: 9, color: 'var(--color-ink)', borderColor: 'rgba(255,45,45,0.22)' }}
                     >
                       → PROJECT
                     </button>

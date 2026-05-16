@@ -8,9 +8,9 @@ import SectionHeader from '@/components/ui/SectionHeader'
 import Markdown from '@/components/ui/Markdown'
 
 const ENTITY_COLORS: Record<string, string> = {
-  KnowledgeItem: '#0A85FF',
-  Project: '#E8231F',
-  Idea: '#F06A00',
+  KnowledgeItem: 'var(--color-arc-cyan-deep)',
+  Project: 'var(--color-ink)',
+  Idea: 'var(--color-n600)',
 }
 
 export default function InsightsClient() {
@@ -45,8 +45,8 @@ export default function InsightsClient() {
 
   return (
     <div className="page-enter" style={{ maxWidth: 960 }}>
-      <SectionHeader title="Insights" sublabel="AI Analysis" accent="#7C3AED">
-        <span className="badge" style={{ background: 'rgba(155,123,255,0.08)', color: '#7C3AED', border: '1px solid rgba(155,123,255,0.18)' }}>
+      <SectionHeader title="Insights" sublabel="AI Analysis" accent="var(--color-n600)">
+        <span className="badge" style={{ background: 'rgba(155,123,255,0.08)', color: 'var(--color-n600)', border: '1px solid rgba(155,123,255,0.18)' }}>
           CROSS-ENTITY
         </span>
       </SectionHeader>
@@ -64,12 +64,12 @@ export default function InsightsClient() {
               padding: '8px 18px',
               background: 'none',
               border: 'none',
-              borderBottom: tab === t.id ? '2px solid #7C3AED' : '2px solid transparent',
+              borderBottom: tab === t.id ? '2px solid #5F5F5A' : '2px solid transparent',
               cursor: 'pointer',
               fontFamily: 'var(--font-ibm-plex-mono)',
               fontSize: 10.5,
               letterSpacing: '0.06em',
-              color: tab === t.id ? '#7C3AED' : 'var(--text-muted)',
+              color: tab === t.id ? 'var(--color-n600)' : 'var(--text-muted)',
               transition: 'all 0.15s ease',
               marginBottom: -1,
             }}
@@ -87,7 +87,7 @@ export default function InsightsClient() {
               onClick={streamInsights}
               disabled={streaming}
               className="btn btn-primary"
-              style={{ background: '#7C3AED', boxShadow: '0 0 20px rgba(155,123,255,0.25)' }}
+              style={{ background: 'var(--color-n600)', boxShadow: '0 0 20px rgba(155,123,255,0.25)' }}
             >
               {streaming ? 'ANALYSING...' : 'RUN ANALYSIS'}
             </button>
@@ -103,10 +103,10 @@ export default function InsightsClient() {
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               {[
-                { title: 'Cross-entity links', desc: 'Connections between knowledge items and active projects', color: '#0A85FF' },
-                { title: 'Research patterns', desc: 'Recurring themes and topics across your knowledge base', color: '#F06A00' },
-                { title: 'Momentum blockers', desc: 'Tasks and projects stalling without recent activity', color: '#E8231F' },
-                { title: 'Idea-to-project gaps', desc: 'Ideas without corresponding projects or follow-up', color: '#16A34A' },
+                { title: 'Cross-entity links', desc: 'Connections between knowledge items and active projects', color: 'var(--color-arc-cyan-deep)' },
+                { title: 'Research patterns', desc: 'Recurring themes and topics across your knowledge base', color: 'var(--color-n600)' },
+                { title: 'Momentum blockers', desc: 'Tasks and projects stalling without recent activity', color: 'var(--color-ink)' },
+                { title: 'Idea-to-project gaps', desc: 'Ideas without corresponding projects or follow-up', color: 'var(--color-n600)' },
               ].map(card => (
                 <GlassCard
                   key={card.title}

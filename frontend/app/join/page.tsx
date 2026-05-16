@@ -4,6 +4,9 @@ import { Suspense, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
+import Found3ryWordmark from '@/components/brand/Found3ryWordmark'
+import EyebrowLabel from '@/components/brand/EyebrowLabel'
+import Crease from '@/components/brand/Crease'
 
 export default function JoinPage() {
   return <Suspense><JoinContent /></Suspense>
@@ -21,13 +24,11 @@ function JoinContent() {
 
   if (!token) {
     return (
-      <div style={containerStyle}>
-        <div style={cardStyle}>
-          <div style={{ fontSize: 32, marginBottom: 16, color: '#E8231F' }}>&#10007;</div>
-          <p style={{ color: '#C81E1C', fontWeight: 600 }}>Invalid invitation link</p>
-          <button onClick={() => router.push('/login')} style={btnStyle}>Go to Sign In</button>
-        </div>
-      </div>
+      <Shell eyebrow="ERROR" title="Invalid invitation link.">
+        <button onClick={() => router.push('/login')} style={primaryBtnStyle}>
+          <span>Go to sign in</span><span aria-hidden="true">→</span>
+        </button>
+      </Shell>
     )
   }
 
@@ -39,11 +40,16 @@ function JoinContent() {
 
   if (authLoading) {
     return (
-      <div style={containerStyle}>
-        <div style={cardStyle}>
-          <p style={{ color: '#6B7280', fontFamily: 'var(--font-ibm-plex-mono)' }}>Loading...</p>
+      <Shell eyebrow="LOADING" title="Verifying invitation…">
+        <div style={{ display: 'flex', gap: 6 }}>
+          {[0, 1, 2].map(i => (
+            <div key={i} style={{
+              width: 6, height: 6, background: 'var(--color-arc-cyan)',
+              animation: `h3ros-pulse-opacity 1.2s ease-in-out ${i * 0.2}s infinite`,
+            }} />
+          ))}
         </div>
-      </div>
+      </Shell>
     )
   }
 
@@ -54,96 +60,134 @@ function JoinContent() {
       await api.workspace.join(token!)
       setSuccess(true)
       setTimeout(() => {
-        window.location.href = '/dashboard' // Full reload to pick up new workspace
+        window.location.href = '/dashboard'
       }, 1500)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to join workspace')
+      setError(err instanceof Error ? err.message : 'Failed to join workspace.')
     } finally {
       setJoining(false)
     }
   }
 
+  if (success) {
+    return (
+      <Shell eyebrow="WELCOME" title="You're on the crew.">
+        <p style={leadStyle}>Redirecting to your dashboard.</p>
+      </Shell>
+    )
+  }
+
   return (
-    <div style={containerStyle}>
-      <div style={cardStyle}>
-        {success ? (
-          <>
-            <div style={{ fontSize: 32, marginBottom: 16, color: '#2DCC72' }}>&#10003;</div>
-            <p style={{ color: '#374151', fontWeight: 600, fontSize: 16 }}>Welcome to the team!</p>
-            <p style={{ color: '#9CA3AF', fontSize: 13, marginTop: 8, fontFamily: 'var(--font-ibm-plex-mono)' }}>
-              Redirecting to dashboard...
-            </p>
-          </>
-        ) : (
-          <>
-            <h2 style={{
-              fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700,
-              fontSize: 20, letterSpacing: '0.06em', textTransform: 'uppercase',
-              color: '#0A0C12', marginBottom: 8,
-            }}>
-              Workspace Invitation
-            </h2>
-            <p style={{ color: '#6B7280', fontSize: 13, marginBottom: 24, fontFamily: 'var(--font-ibm-plex-mono)' }}>
-              You&apos;ve been invited to join a workspace. Click below to accept.
-            </p>
+    <Shell eyebrow="INVITATION" title="Join this workspace.">
+      <div style={{
+        padding: '12px 16px',
+        background: 'var(--color-off-white)',
+        border: '1px solid var(--color-n200)',
+        marginBottom: 20,
+      }}>
+        <div style={{
+          fontFamily: 'var(--font-plex-mono), monospace',
+          fontWeight: 500, fontSize: 10, letterSpacing: '0.10em',
+          color: 'var(--color-n400)', textTransform: 'uppercase', marginBottom: 6,
+        }}>
+          Joining as
+        </div>
+        <div style={{
+          fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+          fontWeight: 700, fontSize: 14, color: 'var(--color-ink)',
+        }}>
+          {user?.display_name}
+        </div>
+        <div style={{
+          fontFamily: 'var(--font-plex-serif), serif',
+          fontStyle: 'italic', fontWeight: 500, fontSize: 12,
+          color: 'var(--color-n600)',
+        }}>
+          {user?.email}
+        </div>
+      </div>
 
-            <div style={{
-              padding: '12px 16px', background: '#F9FAFB',
-              borderRadius: 8, marginBottom: 20,
-              fontSize: 13, fontFamily: 'var(--font-ibm-plex-mono)', color: '#374151',
-            }}>
-              Joining as <strong>{user?.display_name}</strong> ({user?.email})
-            </div>
+      {error && <div style={errorStyle}>{error}</div>}
 
-            {error && (
-              <div style={{
-                marginBottom: 16, padding: '10px 14px',
-                background: 'rgba(232,35,31,0.06)', border: '1px solid rgba(232,35,31,0.2)',
-                borderRadius: 8, color: '#C81E1C', fontSize: 13, fontFamily: 'var(--font-ibm-plex-mono)',
-              }}>
-                {error}
-              </div>
-            )}
+      <button onClick={handleJoin} disabled={joining} style={{
+        ...primaryBtnStyle,
+        background: joining ? 'var(--color-n200)' : 'var(--color-arc-cyan)',
+        cursor: joining ? 'not-allowed' : 'pointer',
+      }}>
+        <span>{joining ? 'Joining…' : 'Accept invitation'}</span>
+        {!joining && <span aria-hidden="true">→</span>}
+      </button>
 
-            <button onClick={handleJoin} disabled={joining} style={{
-              ...btnStyle,
-              background: joining ? '#E5E7EB' : 'linear-gradient(135deg, #E8231F, #C81E1C)',
-              color: joining ? '#9CA3AF' : '#FFF',
-              cursor: joining ? 'not-allowed' : 'pointer',
-            }}>
-              {joining ? 'Joining...' : 'Accept Invitation'}
-            </button>
+      <button onClick={() => router.push('/dashboard')} style={textLinkStyle}>
+        Decline
+      </button>
+    </Shell>
+  )
+}
 
-            <button onClick={() => router.push('/dashboard')} style={{
-              display: 'block', width: '100%', marginTop: 12, background: 'none',
-              border: 'none', color: '#6B7280', cursor: 'pointer', fontSize: 12,
-              fontFamily: 'var(--font-ibm-plex-mono)', textAlign: 'center',
-            }}>
-              Decline
-            </button>
-          </>
-        )}
+function Shell({ eyebrow, title, children }: { eyebrow: string; title: string; children: React.ReactNode }) {
+  return (
+    <div
+      className="h3ros-dot-grid-light"
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+      }}
+    >
+      <div style={{ marginBottom: 32 }}><Found3ryWordmark size="md" /></div>
+      <div style={{
+        width: '100%', maxWidth: 420,
+        background: 'var(--color-vellum)',
+        border: '1px solid var(--color-ink)',
+        borderRadius: 0,
+        padding: 28,
+      }}>
+        <EyebrowLabel number="04" keyword={eyebrow} style={{ marginBottom: 12 }} />
+        <h2 style={titleStyle}>{title}</h2>
+        <div style={{ margin: '12px 0 18px' }}><Crease /></div>
+        {children}
       </div>
     </div>
   )
 }
 
-const containerStyle: React.CSSProperties = {
-  minHeight: '100vh', background: '#F4F5F7',
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  fontFamily: 'var(--font-barlow)', padding: 24,
+const titleStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-archivo-black), sans-serif',
+  fontWeight: 400, fontSize: 26, lineHeight: 1.1, letterSpacing: '-0.02em',
+  color: 'var(--color-ink)', margin: 0,
 }
-
-const cardStyle: React.CSSProperties = {
-  width: '100%', maxWidth: 420, background: '#FFF',
-  borderRadius: 14, padding: 36, textAlign: 'center',
-  border: '1px solid rgba(0,0,0,0.07)', boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
+const leadStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-plex-serif), serif',
+  fontStyle: 'italic', fontWeight: 500, fontSize: 14, lineHeight: 1.55,
+  color: 'var(--color-n600)', margin: 0,
 }
-
-const btnStyle: React.CSSProperties = {
-  width: '100%', padding: '11px 20px',
-  background: 'linear-gradient(135deg, #E8231F, #C81E1C)',
-  color: '#FFF', border: 'none', borderRadius: 8, cursor: 'pointer',
-  fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600,
-  fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase',
+const primaryBtnStyle: React.CSSProperties = {
+  width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+  padding: '12px 20px',
+  background: 'var(--color-arc-cyan)', color: 'var(--color-ink)',
+  border: 'none', borderRadius: 2, cursor: 'pointer',
+  fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+  fontWeight: 700, fontSize: 14, letterSpacing: '0.08em', textTransform: 'uppercase',
+  transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
+}
+const textLinkStyle: React.CSSProperties = {
+  display: 'block', width: '100%', marginTop: 12,
+  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+  fontFamily: 'var(--font-plex-serif), serif',
+  fontWeight: 500, fontStyle: 'italic', fontSize: 13,
+  color: 'var(--color-n600)', textAlign: 'center',
+}
+const errorStyle: React.CSSProperties = {
+  marginBottom: 16, padding: '10px 14px',
+  background: 'var(--color-off-white)',
+  borderLeft: '2px solid var(--color-signal)',
+  borderTop: '1px solid var(--color-n200)',
+  borderRight: '1px solid var(--color-n200)',
+  borderBottom: '1px solid var(--color-n200)',
+  color: 'var(--color-ink)',
+  fontFamily: 'var(--font-plex-mono), monospace', fontSize: 12,
 }

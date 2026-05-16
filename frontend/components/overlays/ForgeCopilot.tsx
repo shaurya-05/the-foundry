@@ -6,6 +6,8 @@ import { classifyIntent, intentLabel } from '@/lib/intent-router'
 import Markdown from '@/components/ui/Markdown'
 import { api } from '@/lib/api'
 import { useRouter } from 'next/navigation'
+import Glyph3 from '@/components/brand/Glyph3'
+import EyebrowLabel from '@/components/brand/EyebrowLabel'
 
 interface Message {
   id: string
@@ -20,9 +22,9 @@ interface ForgeCopilotProps {
 
 const STARTER_PROMPTS = [
   'What should I focus on right now?',
-  'Show me workspace status',
+  'Show me workspace status.',
   'What patterns do you see in my work?',
-  'Create a task: Review last sprint outcomes',
+  'Create a task: review last sprint outcomes.',
 ]
 
 export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
@@ -43,7 +45,6 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
     const msg = input.trim()
     setInput('')
 
-    // Classify intent
     const { intent } = classifyIntent(msg)
 
     setMessages(prev => [
@@ -96,52 +97,59 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
         zIndex: 600,
         display: 'flex',
         flexDirection: 'column',
-        borderLeft: '1px solid rgba(255,255,255,0.09)',
-        boxShadow: '-16px 0 48px rgba(0,0,0,0.5)',
+        background: 'var(--color-vellum)',
+        borderLeft: '1px solid var(--color-n200)',
+        boxShadow: 'none',
       }}
-      className="gl3"
     >
       {/* Header */}
       <div
         style={{
           padding: '16px 18px 0',
-          borderBottom: '1px solid rgba(255,255,255,0.07)',
+          borderBottom: '1px solid var(--color-n200)',
+          background: 'var(--color-vellum)',
           flexShrink: 0,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div
-              className="accent-dot"
-              style={{ background: '#9B7BFF', width: 8, height: 8 }}
+              className="h3ros-pulse"
+              style={{
+                width: 6, height: 6,
+                background: 'var(--color-arc-cyan)',
+                flexShrink: 0,
+              }}
             />
             <span
               style={{
-                fontFamily: 'var(--font-barlow-condensed)',
+                fontFamily: 'var(--font-archivo), system-ui, sans-serif',
                 fontWeight: 700,
-                fontSize: 14,
+                fontSize: 13,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
-                color: 'var(--text-primary)',
+                color: 'var(--color-ink)',
+                display: 'inline-flex',
+                alignItems: 'baseline',
               }}
             >
-              COFOUND3R
+              COFOUND
+              <Glyph3 size="0.72em" style={{ marginLeft: 1, marginRight: 1, transform: 'translateY(-0.01em)' }} />
+              R
             </span>
-            <span
-              className="badge"
-              style={{ background: 'rgba(167,139,250,0.12)', color: '#9B7BFF' }}
-            >
-              ONLINE
-            </span>
+            <EyebrowLabel keyword="ONLINE" />
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             style={{
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              color: 'var(--text-muted)',
-              fontSize: 18,
+              color: 'var(--color-n600)',
+              fontSize: 20,
+              lineHeight: 1,
+              padding: 4,
             }}
           >
             ×
@@ -158,14 +166,15 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
                 padding: '6px 14px',
                 background: 'none',
                 border: 'none',
-                borderBottom: tab === t ? '2px solid #9B7BFF' : '2px solid transparent',
+                borderBottom: tab === t ? '2px solid var(--color-arc-cyan)' : '2px solid transparent',
                 cursor: 'pointer',
-                fontFamily: 'var(--font-ibm-plex-mono)',
-                fontSize: 10,
-                letterSpacing: '0.06em',
+                fontFamily: 'var(--font-plex-mono), monospace',
+                fontWeight: 500,
+                fontSize: 11,
+                letterSpacing: '0.10em',
                 textTransform: 'uppercase',
-                color: tab === t ? '#9B7BFF' : 'var(--text-muted)',
-                transition: 'all 0.15s ease',
+                color: tab === t ? 'var(--color-ink)' : 'var(--color-n600)',
+                transition: 'color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
               }}
             >
               {t === 'intel' ? 'Intel' : t === 'signals' ? 'Signals' : 'Ops'}
@@ -177,7 +186,7 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
       {/* Tab: Intel (Chat) */}
       {tab === 'intel' && (
         <>
-          <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px' }}>
+          <div style={{ flex: 1, overflow: 'auto', padding: '16px 16px', background: 'var(--color-off-white)' }}>
             {messages.length === 0 ? (
               <StarterPrompts onSelect={p => { setInput(p); textareaRef.current?.focus() }} />
             ) : (
@@ -189,8 +198,9 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
           {/* Input */}
           <div
             style={{
-              padding: '12px 16px',
-              borderTop: '1px solid rgba(255,255,255,0.07)',
+              padding: '14px 16px',
+              borderTop: '1px solid var(--color-n200)',
+              background: 'var(--color-vellum)',
               flexShrink: 0,
             }}
           >
@@ -199,10 +209,9 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
                 display: 'flex',
                 gap: 8,
                 alignItems: 'flex-end',
-                background: 'var(--gl1-bg)',
-                border: '1px solid rgba(255,255,255,0.12)',
-                borderRadius: 8,
-                padding: '8px 12px',
+                background: 'var(--color-off-white)',
+                border: '1px solid var(--color-n200)',
+                padding: '8px 10px',
               }}
             >
               <textarea
@@ -210,7 +219,7 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKey}
-                placeholder="Ask COFOUND3R anything..."
+                placeholder="Ask COFOUND3R anything…"
                 rows={1}
                 style={{
                   flex: 1,
@@ -218,9 +227,9 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
                   border: 'none',
                   outline: 'none',
                   resize: 'none',
-                  color: 'var(--text-primary)',
-                  fontFamily: 'var(--font-barlow)',
-                  fontSize: 13,
+                  color: 'var(--color-ink)',
+                  fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+                  fontSize: 14,
                   lineHeight: 1.5,
                   maxHeight: 120,
                   overflowY: 'auto',
@@ -229,18 +238,20 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
               <button
                 onClick={send}
                 disabled={streaming || !input.trim()}
+                aria-label="Send"
                 style={{
-                  background: streaming ? 'rgba(167,139,250,0.1)' : '#9B7BFF',
+                  background: streaming || !input.trim() ? 'var(--color-n200)' : 'var(--color-arc-cyan)',
+                  color: 'var(--color-ink)',
                   border: 'none',
-                  borderRadius: 6,
+                  borderRadius: 0,
                   width: 28,
                   height: 28,
-                  cursor: streaming ? 'not-allowed' : 'pointer',
+                  cursor: streaming || !input.trim() ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0,
-                  transition: 'all 0.15s ease',
+                  transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
                 }}
               >
                 <SendIcon />
@@ -248,11 +259,12 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
             </div>
             <div
               style={{
-                fontFamily: 'var(--font-ibm-plex-mono)',
-                fontSize: 9,
-                color: 'var(--text-subtle)',
+                fontFamily: 'var(--font-plex-mono), monospace',
+                fontSize: 10,
+                color: 'var(--color-n400)',
                 marginTop: 6,
                 textAlign: 'center',
+                letterSpacing: '0.06em',
               }}
             >
               Enter to send · Shift+Enter for newline
@@ -273,13 +285,8 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
 function MessageBubble({ msg }: { msg: Message }) {
   if (msg.role === 'intent') {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', margin: '4px 0' }}>
-        <span
-          className="badge"
-          style={{ background: 'rgba(167,139,250,0.1)', color: '#9B7BFF', fontSize: 9 }}
-        >
-          INTENT: {msg.content}
-        </span>
+      <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0' }}>
+        <EyebrowLabel keyword={`INTENT — ${msg.content}`} color="var(--color-n400)" />
       </div>
     )
   }
@@ -290,22 +297,22 @@ function MessageBubble({ msg }: { msg: Message }) {
           style={{
             width: 24,
             height: 24,
-            borderRadius: '50%',
-            background: 'rgba(167,139,250,0.15)',
+            borderRadius: 0,
+            background: 'var(--color-vellum)',
+            border: '1px solid var(--color-n200)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 10,
             flexShrink: 0,
           }}
         >
-          ◆
+          <Glyph3 size={11} color="var(--color-ink)" />
         </div>
         <div
           style={{
-            background: 'var(--gl1-bg)',
-            borderRadius: '4px 10px 10px 10px',
-            padding: '8px 12px',
+            background: 'var(--color-vellum)',
+            border: '1px solid var(--color-n200)',
+            padding: '10px 14px',
             display: 'flex',
             gap: 4,
             alignItems: 'center',
@@ -317,9 +324,9 @@ function MessageBubble({ msg }: { msg: Message }) {
               style={{
                 width: 5,
                 height: 5,
-                borderRadius: '50%',
-                background: '#9B7BFF',
-                animation: `pulse-dot 1.2s ease-in-out ${i * 0.2}s infinite`,
+                borderRadius: 0,
+                background: 'var(--color-arc-cyan)',
+                animation: `h3ros-pulse-opacity 1.2s ease-in-out ${i * 0.2}s infinite`,
               }}
             />
           ))}
@@ -343,32 +350,39 @@ function MessageBubble({ msg }: { msg: Message }) {
           style={{
             width: 24,
             height: 24,
-            borderRadius: '50%',
-            background: 'rgba(167,139,250,0.15)',
+            borderRadius: 0,
+            background: 'var(--color-vellum)',
+            border: '1px solid var(--color-n200)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 10,
             flexShrink: 0,
-            color: '#9B7BFF',
           }}
         >
-          ◆
+          <Glyph3 size={11} color="var(--color-ink)" />
         </div>
       )}
       <div
         style={{
           maxWidth: '82%',
-          background: isUser ? 'rgba(167,139,250,0.12)' : 'var(--gl1-bg)',
-          border: `1px solid ${isUser ? 'rgba(167,139,250,0.2)' : 'rgba(255,255,255,0.06)'}`,
-          borderRadius: isUser ? '10px 4px 10px 10px' : '4px 10px 10px 10px',
-          padding: '8px 12px',
+          background: isUser ? 'var(--color-ink)' : 'var(--color-vellum)',
+          color: isUser ? 'var(--color-off-white)' : 'var(--color-ink)',
+          border: isUser ? '1px solid var(--color-ink)' : '1px solid var(--color-n200)',
+          padding: '10px 14px',
         }}
       >
         {isUser ? (
-          <p style={{ color: 'var(--text-primary)', fontSize: 13, margin: 0 }}>{msg.content}</p>
+          <p style={{
+            fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+            fontSize: 14,
+            lineHeight: 1.5,
+            margin: 0,
+            color: 'var(--color-off-white)',
+          }}>{msg.content}</p>
         ) : (
-          <Markdown content={msg.content} />
+          <div className="forge-md">
+            <Markdown content={msg.content} />
+          </div>
         )}
       </div>
     </div>
@@ -378,40 +392,35 @@ function MessageBubble({ msg }: { msg: Message }) {
 function StarterPrompts({ onSelect }: { onSelect: (p: string) => void }) {
   return (
     <div style={{ padding: '12px 0' }}>
-      <div
-        style={{
-          fontFamily: 'var(--font-ibm-plex-mono)',
-          fontSize: 9,
-          color: 'var(--text-subtle)',
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          marginBottom: 12,
-          textAlign: 'center',
-        }}
-      >
-        COFOUND3R is online
+      <div style={{ textAlign: 'center', marginBottom: 16 }}>
+        <EyebrowLabel keyword="COFOUND3R is online" color="var(--color-n400)" />
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: 'var(--color-n200)', border: '1px solid var(--color-n200)' }}>
         {STARTER_PROMPTS.map(p => (
           <button
             key={p}
             onClick={() => onSelect(p)}
-            className="gl0 lift"
             style={{
-              padding: '9px 14px',
+              padding: '12px 16px',
               textAlign: 'left',
               cursor: 'pointer',
               border: 'none',
-              borderRadius: 8,
-              color: 'var(--text-secondary)',
-              fontFamily: 'var(--font-barlow)',
-              fontSize: 13,
+              borderRadius: 0,
+              background: 'var(--color-vellum)',
+              color: 'var(--color-ink)',
+              fontFamily: 'var(--font-plex-serif), serif',
+              fontStyle: 'italic',
+              fontWeight: 500,
+              fontSize: 14,
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
+              gap: 10,
+              transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
             }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-off-white)')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-vellum)')}
           >
-            <span style={{ color: '#9B7BFF', fontSize: 10 }}>▸</span>
+            <span style={{ color: 'var(--color-arc-cyan-deep)', fontSize: 12 }}>→</span>
             {p}
           </button>
         ))}
@@ -438,40 +447,37 @@ function SignalsTab() {
     }).catch(() => {})
   }, [])
 
-  const stats = [
-    { label: 'Archive', value: summary.knowledge, color: '#2AB8FF' },
-    { label: 'Active Builds', value: summary.projects, color: '#FF2D2D' },
-    { label: 'Runsheet', value: summary.tasks, color: '#22D3EE' },
-    { label: 'Crucible', value: summary.ideas, color: '#FF8A2A' },
+  const stats: { label: string; value: number }[] = [
+    { label: 'Archive',       value: summary.knowledge },
+    { label: 'Active builds', value: summary.projects },
+    { label: 'Runsheet',      value: summary.tasks },
+    { label: 'Crucible',      value: summary.ideas },
   ]
 
   return (
-    <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
+    <div style={{ flex: 1, overflow: 'auto', padding: 16, background: 'var(--color-off-white)' }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: 1,
+        background: 'var(--color-n200)',
+        border: '1px solid var(--color-n200)',
+        marginBottom: 16,
+      }}>
         {stats.map(s => (
           <div
             key={s.label}
-            className="gl1"
-            style={{ padding: '10px 14px' }}
+            style={{ background: 'var(--color-vellum)', padding: '14px 16px' }}
           >
+            <EyebrowLabel keyword={s.label} style={{ marginBottom: 6 }} />
             <div
               style={{
-                fontFamily: 'var(--font-ibm-plex-mono)',
-                fontSize: 9,
-                color: s.color,
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                marginBottom: 4,
-              }}
-            >
-              {s.label}
-            </div>
-            <div
-              style={{
-                fontFamily: 'var(--font-barlow-condensed)',
-                fontWeight: 700,
-                fontSize: 24,
-                color: 'var(--text-primary)',
+                fontFamily: 'var(--font-archivo-black), sans-serif',
+                fontWeight: 400,
+                fontSize: 28,
+                lineHeight: 1,
+                color: 'var(--color-ink)',
+                fontVariantNumeric: 'tabular-nums',
               }}
             >
               {s.value}
@@ -479,16 +485,8 @@ function SignalsTab() {
           </div>
         ))}
       </div>
-      <div
-        style={{
-          fontFamily: 'var(--font-ibm-plex-mono)',
-          fontSize: 10,
-          color: 'var(--text-muted)',
-          textAlign: 'center',
-          padding: 16,
-        }}
-      >
-        FOUND3RY State · Live
+      <div style={{ textAlign: 'center', padding: 12 }}>
+        <EyebrowLabel keyword="FOUND3RY STATE · LIVE" color="var(--color-n400)" />
       </div>
     </div>
   )
@@ -496,93 +494,91 @@ function SignalsTab() {
 
 function OpsTab({ onNavigate }: { onNavigate: (path: string) => void }) {
   const quickActions = [
-    { label: 'New Build', path: '/projects', color: '#FF2D2D' },
-    { label: 'Forge Ideas', path: '/ideas', color: '#FF8A2A' },
-    { label: 'Add Knowledge', path: '/knowledge', color: '#2AB8FF' },
-    { label: 'View Tasks', path: '/tasks', color: '#22D3EE' },
-    { label: 'Launch Brief', path: '/launchpad', color: '#2DCC72' },
+    { label: 'New build',     path: '/projects' },
+    { label: 'Forge ideas',   path: '/ideas' },
+    { label: 'Add knowledge', path: '/knowledge' },
+    { label: 'View tasks',    path: '/tasks' },
+    { label: 'Launch brief',  path: '/launchpad' },
   ]
 
   const crew = [
-    { id: 'field_analyst', label: 'Field Analyst', color: '#2AB8FF' },
-    { id: 'systems_architect', label: 'Systems Architect', color: '#9B7BFF' },
-    { id: 'market_scout', label: 'Market Scout', color: '#FF8A2A' },
-    { id: 'launch_strategist', label: 'Launch Strategist', color: '#2DCC72' },
+    { id: 'field_analyst',     label: 'Field Analyst' },
+    { id: 'systems_architect', label: 'Systems Architect' },
+    { id: 'market_scout',      label: 'Market Scout' },
+    { id: 'launch_strategist', label: 'Launch Strategist' },
   ]
 
   return (
-    <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
-      <div
-        style={{
-          fontFamily: 'var(--font-ibm-plex-mono)',
-          fontSize: 9,
-          color: 'var(--text-subtle)',
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          marginBottom: 8,
-        }}
-      >
-        Quick Actions
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 20 }}>
+    <div style={{ flex: 1, overflow: 'auto', padding: 16, background: 'var(--color-off-white)' }}>
+      <EyebrowLabel number="01" keyword="QUICK ACTIONS" style={{ marginBottom: 10 }} />
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 1,
+        background: 'var(--color-n200)',
+        border: '1px solid var(--color-n200)',
+        marginBottom: 24,
+      }}>
         {quickActions.map(a => (
           <button
             key={a.label}
             onClick={() => onNavigate(a.path)}
-            className="gl0 lift"
             style={{
-              padding: '8px 14px',
+              padding: '10px 14px',
               textAlign: 'left',
               cursor: 'pointer',
               border: 'none',
-              borderRadius: 7,
-              color: 'var(--text-secondary)',
-              fontFamily: 'var(--font-barlow-condensed)',
+              borderRadius: 0,
+              background: 'var(--color-vellum)',
+              color: 'var(--color-ink)',
+              fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+              fontWeight: 700,
               fontSize: 13,
-              letterSpacing: '0.04em',
+              letterSpacing: '0.06em',
               textTransform: 'uppercase',
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
+              gap: 10,
+              transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
             }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-off-white)')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-vellum)')}
           >
-            <span style={{ color: a.color, fontSize: 8 }}>◆</span>
+            <span style={{ color: 'var(--color-arc-cyan-deep)', fontSize: 12 }}>→</span>
             {a.label}
           </button>
         ))}
       </div>
 
-      <div
-        style={{
-          fontFamily: 'var(--font-ibm-plex-mono)',
-          fontSize: 9,
-          color: 'var(--text-subtle)',
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          marginBottom: 8,
-        }}
-      >
-        Deploy Crew
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+      <EyebrowLabel number="02" keyword="DEPLOY CREW" style={{ marginBottom: 10 }} />
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: 1,
+        background: 'var(--color-n200)',
+        border: '1px solid var(--color-n200)',
+      }}>
         {crew.map(c => (
           <button
             key={c.id}
             onClick={() => onNavigate(`/agents?agent=${c.id}`)}
-            className="gl0 lift"
             style={{
-              padding: '8px 10px',
+              padding: '10px',
               cursor: 'pointer',
-              border: `1px solid ${c.color}25`,
-              borderRadius: 7,
-              background: `${c.color}08`,
-              color: c.color,
-              fontFamily: 'var(--font-ibm-plex-mono)',
-              fontSize: 9,
-              letterSpacing: '0.04em',
+              border: 'none',
+              borderRadius: 0,
+              background: 'var(--color-vellum)',
+              color: 'var(--color-ink)',
+              fontFamily: 'var(--font-plex-mono), monospace',
+              fontWeight: 500,
+              fontSize: 10,
+              letterSpacing: '0.10em',
               textTransform: 'uppercase',
               textAlign: 'center',
+              transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
             }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-off-white)')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-vellum)')}
           >
             {c.label}
           </button>
@@ -596,7 +592,7 @@ function OpsTab({ onNavigate }: { onNavigate: (path: string) => void }) {
 function SendIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-      <path d="M1 6h10M7 2l4 4-4 4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M1 6h10M7 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }

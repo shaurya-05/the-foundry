@@ -8,19 +8,19 @@ import SectionHeader from '@/components/ui/SectionHeader'
 import Markdown from '@/components/ui/Markdown'
 
 const EVENT_COLORS: Record<string, string> = {
-  knowledge_added: '#3ABEFF',
-  project_created: '#FF3B3B',
-  idea_generated: '#FF8A2A',
-  task_created: '#22D3EE',
-  task_completed: '#38D37A',
-  agent_run: '#A78BFA',
-  pipeline_run: '#FF3B3B',
+  knowledge_added: 'var(--color-arc-cyan-deep)',
+  project_created: 'var(--color-ink)',
+  idea_generated: 'var(--color-n600)',
+  task_created: 'var(--color-arc-cyan-deep)',
+  task_completed: 'var(--color-n600)',
+  agent_run: 'var(--color-n600)',
+  pipeline_run: 'var(--color-ink)',
 }
 
 const ENTITY_COLORS: Record<string, string> = {
-  KnowledgeItem: '#3ABEFF',
-  Project: '#FF3B3B',
-  Idea: '#FF8A2A',
+  KnowledgeItem: 'var(--color-arc-cyan-deep)',
+  Project: 'var(--color-ink)',
+  Idea: 'var(--color-n600)',
 }
 
 function groupByDay(events: ActivityEvent[]) {
@@ -79,8 +79,8 @@ export default function ContextClient() {
 
   return (
     <div style={{ maxWidth: 1000 }}>
-      <SectionHeader title="The Signal Room" sublabel="Context Engine" accent="#A78BFA">
-        <span className="badge" style={{ background: 'rgba(167,139,250,0.1)', color: '#A78BFA' }}>
+      <SectionHeader title="The Signal Room" sublabel="Context Engine" accent="var(--color-n600)">
+        <span className="badge" style={{ background: 'rgba(167,139,250,0.1)', color: 'var(--color-n600)' }}>
           AUTO-ANALYSIS
         </span>
       </SectionHeader>
@@ -95,13 +95,13 @@ export default function ContextClient() {
               padding: '8px 20px',
               background: 'none',
               border: 'none',
-              borderBottom: tab === t ? '2px solid #A78BFA' : '2px solid transparent',
+              borderBottom: tab === t ? '2px solid #5F5F5A' : '2px solid transparent',
               cursor: 'pointer',
               fontFamily: 'var(--font-ibm-plex-mono)',
               fontSize: 11,
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
-              color: tab === t ? '#A78BFA' : 'var(--text-muted)',
+              color: tab === t ? 'var(--color-n600)' : 'var(--text-muted)',
               transition: 'all 0.15s ease',
               marginBottom: -1,
             }}
@@ -119,7 +119,7 @@ export default function ContextClient() {
               onClick={streamInsights}
               disabled={streaming}
               className="btn btn-primary"
-              style={{ background: '#A78BFA' }}
+              style={{ background: 'var(--color-n600)' }}
             >
               {streaming ? 'SCANNING...' : '◆ FULL FORGE SCAN'}
             </button>
@@ -132,10 +132,10 @@ export default function ContextClient() {
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               {[
-                { title: 'Cross-Entity Links', desc: 'Detect connections between knowledge and projects', icon: '⟷', color: '#3ABEFF' },
-                { title: 'Research Patterns', desc: 'Identify recurring themes in your archive', icon: '◈', color: '#FF8A2A' },
-                { title: 'Startup Readiness', desc: 'Assess launch potential across your builds', icon: '▲', color: '#38D37A' },
-                { title: 'Blocked Tasks', desc: 'Surface what is stalling your momentum', icon: '⊗', color: '#FF3B3B' },
+                { title: 'Cross-Entity Links', desc: 'Detect connections between knowledge and projects', icon: '⟷', color: 'var(--color-arc-cyan-deep)' },
+                { title: 'Research Patterns', desc: 'Identify recurring themes in your archive', icon: '◈', color: 'var(--color-n600)' },
+                { title: 'Startup Readiness', desc: 'Assess launch potential across your builds', icon: '▲', color: 'var(--color-n600)' },
+                { title: 'Blocked Tasks', desc: 'Surface what is stalling your momentum', icon: '⊗', color: 'var(--color-ink)' },
               ].map(card => (
                 <GlassCard
                   key={card.title}

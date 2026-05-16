@@ -22,9 +22,9 @@ interface CanvasNode {
 
 const NODE_COLORS: Record<NodeType, string> = {
   note: '#F5C518',
-  project: '#FF3B3B',
-  idea: '#FF8A2A',
-  knowledge: '#3ABEFF',
+  project: 'var(--color-ink)',
+  idea: 'var(--color-n600)',
+  knowledge: 'var(--color-arc-cyan-deep)',
   custom: '#637080',
 }
 
@@ -38,8 +38,8 @@ const NODE_LABELS: Record<NodeType, string> = {
 
 const VISIBILITY_COLORS: Record<Visibility, string> = {
   private: '#637080',
-  team: '#A78BFA',
-  public: '#38D37A',
+  team: 'var(--color-n600)',
+  public: 'var(--color-n600)',
 }
 
 const VISIBILITY_LABELS: Record<Visibility, string> = {
@@ -338,16 +338,16 @@ export default function WorkspaceClient() {
   return (
     <div style={{ height: 'calc(100vh - 52px - 48px)', display: 'flex', flexDirection: 'column' }}>
       <div style={{ marginBottom: 12, flexShrink: 0 }}>
-        <SectionHeader title="Workspace" sublabel="Canvas" accent="#9B7BFF">
+        <SectionHeader title="Workspace" sublabel="Canvas" accent="var(--color-n600)">
           {/* Presence indicator */}
-          <span style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, color: '#A78BFA' }}>
+          <span style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, color: 'var(--color-n600)' }}>
             ● {presence} ONLINE
           </span>
           <span style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
             {Math.round(zoom * 100)}% · {saved ? '✓ SAVED' : '● SAVING…'}
           </span>
           {selected && (
-            <button onClick={deleteSelected} className="btn btn-ghost btn-sm" style={{ color: '#FF3B3B' }}>
+            <button onClick={deleteSelected} className="btn btn-ghost btn-sm" style={{ color: 'var(--color-ink)' }}>
               DELETE NODE
             </button>
           )}

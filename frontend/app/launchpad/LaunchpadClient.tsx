@@ -9,9 +9,9 @@ import Markdown from '@/components/ui/Markdown'
 import { useRouter } from 'next/navigation'
 
 const STATS = [
-  { label: 'Projects Shipped', value: '12K+', color: '#38D37A' },
-  { label: 'Founders Supported', value: '3.2K+', color: '#3ABEFF' },
-  { label: 'Avg Time to MVP', value: '6 weeks', color: '#FF8A2A' },
+  { label: 'Projects Shipped', value: '12K+', color: 'var(--color-n600)' },
+  { label: 'Founders Supported', value: '3.2K+', color: 'var(--color-arc-cyan-deep)' },
+  { label: 'Avg Time to MVP', value: '6 weeks', color: 'var(--color-n600)' },
 ]
 
 export default function LaunchpadClient() {
@@ -45,8 +45,8 @@ export default function LaunchpadClient() {
 
   return (
     <div style={{ maxWidth: 1000 }}>
-      <SectionHeader title="The Launch Bay" sublabel="Startup Launchpad" accent="#38D37A">
-        <span className="badge" style={{ background: 'rgba(56,211,122,0.1)', color: '#38D37A' }}>
+      <SectionHeader title="The Launch Bay" sublabel="Startup Launchpad" accent="var(--color-n600)">
+        <span className="badge" style={{ background: 'rgba(56,211,122,0.1)', color: 'var(--color-n600)' }}>
           YC-LEVEL ADVISOR
         </span>
       </SectionHeader>
@@ -85,8 +85,8 @@ export default function LaunchpadClient() {
       </div>
 
       {/* Brief generator */}
-      <GlassCard accent="#38D37A" accentTop style={{ padding: '20px 24px', marginBottom: 16 }}>
-        <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: '#38D37A', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 14 }}>
+      <GlassCard accent="var(--color-n600)" accentTop style={{ padding: '20px 24px', marginBottom: 16 }}>
+        <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--color-n600)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 14 }}>
           Launch Brief Generator
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
@@ -102,7 +102,7 @@ export default function LaunchpadClient() {
             onClick={forgeBrief}
             disabled={streaming || !concept.trim()}
             className="btn btn-primary"
-            style={{ background: '#38D37A', flexShrink: 0 }}
+            style={{ background: 'var(--color-n600)', flexShrink: 0 }}
           >
             {streaming ? 'FORGING...' : '▲ FORGE LAUNCH BRIEF'}
           </button>
@@ -112,7 +112,7 @@ export default function LaunchpadClient() {
       {(brief || streaming) && (
         <GlassCard style={{ padding: '20px 24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 14, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#38D37A' }}>
+            <div style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 14, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--color-n600)' }}>
               LAUNCH BRIEF — {concept.slice(0, 50)}
             </div>
             {brief && !streaming && (
@@ -120,7 +120,7 @@ export default function LaunchpadClient() {
                 onClick={saveAsProject}
                 disabled={saving}
                 className="btn btn-ghost btn-sm"
-                style={{ color: '#38D37A', borderColor: 'rgba(56,211,122,0.2)' }}
+                style={{ color: 'var(--color-n600)', borderColor: 'rgba(56,211,122,0.2)' }}
               >
                 {saving ? 'SAVING...' : 'SAVE AS PROJECT'}
               </button>

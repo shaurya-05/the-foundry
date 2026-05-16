@@ -8,17 +8,17 @@ import EmptyState from '@/components/ui/EmptyState'
 
 const COLUMNS = [
   { id: 'todo', label: 'TO DO', color: '#6B7280' },
-  { id: 'in_progress', label: 'IN PROGRESS', color: '#F06A00' },
-  { id: 'review', label: 'IN REVIEW', color: '#0A85FF' },
-  { id: 'blocked', label: 'BLOCKED', color: '#E8231F' },
-  { id: 'completed', label: 'COMPLETED', color: '#16A34A' },
+  { id: 'in_progress', label: 'IN PROGRESS', color: 'var(--color-n600)' },
+  { id: 'review', label: 'IN REVIEW', color: 'var(--color-arc-cyan-deep)' },
+  { id: 'blocked', label: 'BLOCKED', color: 'var(--color-ink)' },
+  { id: 'completed', label: 'COMPLETED', color: 'var(--color-n600)' },
 ]
 
 const PRIORITY_COLORS: Record<string, string> = {
-  critical: '#E8231F',
-  high: '#F06A00',
+  critical: 'var(--color-ink)',
+  high: 'var(--color-n600)',
   medium: '#F5C518',
-  low: '#0891B2',
+  low: 'var(--color-arc-cyan-deep)',
 }
 
 export default function TasksClient() {
@@ -100,14 +100,14 @@ export default function TasksClient() {
 
   return (
     <div className="page-enter" style={{ maxWidth: '100%' }}>
-      <SectionHeader title="Tasks" sublabel="Task board" accent="#0891B2">
-        <span className="badge" style={{ background: 'rgba(14,232,200,0.08)', color: '#0891B2', border: '1px solid rgba(14,232,200,0.18)' }}>
+      <SectionHeader title="Tasks" sublabel="Task board" accent="var(--color-arc-cyan-deep)">
+        <span className="badge" style={{ background: 'rgba(14,232,200,0.08)', color: 'var(--color-arc-cyan-deep)', border: '1px solid rgba(14,232,200,0.18)' }}>
           {totalActive} ACTIVE
         </span>
       </SectionHeader>
 
       {/* Quick add */}
-      <GlassCard accent="#0891B2" accentTop style={{ padding: '14px 18px', marginBottom: 20 }}>
+      <GlassCard accent="var(--color-arc-cyan-deep)" accentTop style={{ padding: '14px 18px', marginBottom: 20 }}>
         <div style={{ display: 'flex', gap: 8 }}>
           <input
             className="forge-input"
@@ -143,7 +143,7 @@ export default function TasksClient() {
             onClick={create}
             disabled={creating || !newTitle.trim()}
             className="btn btn-primary"
-            style={{ background: '#0891B2', flexShrink: 0 }}
+            style={{ background: 'var(--color-arc-cyan-deep)', flexShrink: 0 }}
           >
             + ADD
           </button>
@@ -254,7 +254,7 @@ export default function TasksClient() {
                         {task.source !== 'manual' && (
                           <span
                             className="badge"
-                            style={{ background: 'rgba(124,58,237,0.1)', color: '#7C3AED', fontSize: 8 }}
+                            style={{ background: 'rgba(124,58,237,0.1)', color: 'var(--color-n600)', fontSize: 8 }}
                           >
                             {task.source}
                           </span>
@@ -369,13 +369,13 @@ export default function TasksClient() {
               </div>
 
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <button onClick={saveModal} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', background: '#0891B2' }}>
+                <button onClick={saveModal} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', background: 'var(--color-arc-cyan-deep)' }}>
                   SAVE CHANGES
                 </button>
                 <button
                   onClick={() => deleteTask(modal.id)}
                   className="btn btn-ghost"
-                  style={{ color: '#E8231F', borderColor: 'rgba(255,59,59,0.2)' }}
+                  style={{ color: 'var(--color-ink)', borderColor: 'rgba(255,59,59,0.2)' }}
                 >
                   DELETE
                 </button>

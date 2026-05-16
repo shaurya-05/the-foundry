@@ -12,28 +12,28 @@ const AGENTS = [
     id: 'field_analyst',
     name: 'Field Analyst',
     role: 'Research, papers, insights, technology recommendations',
-    color: '#0A85FF',
+    color: 'var(--color-arc-cyan-deep)',
     icon: '◈',
   },
   {
     id: 'systems_architect',
     name: 'Systems Architect',
     role: 'System architectures, tech stacks, technical feasibility',
-    color: '#7C3AED',
+    color: 'var(--color-n600)',
     icon: '⬡',
   },
   {
     id: 'market_scout',
     name: 'Market Scout',
     role: 'Market sizing, competitors, positioning, customer segments',
-    color: '#F06A00',
+    color: 'var(--color-n600)',
     icon: '◉',
   },
   {
     id: 'launch_strategist',
     name: 'Launch Strategist',
     role: 'MVP roadmaps, elevator pitches, go-to-market, funding paths',
-    color: '#16A34A',
+    color: 'var(--color-n600)',
     icon: '▲',
   },
 ]
@@ -123,8 +123,8 @@ export default function AgentsClient() {
 
   return (
     <div style={{ maxWidth: 1100 }}>
-      <SectionHeader title="Agents" sublabel="AI analysis" accent="#7C3AED">
-        <span className="badge" style={{ background: 'rgba(155,123,255,0.08)', color: '#7C3AED', border: '1px solid rgba(155,123,255,0.18)' }}>
+      <SectionHeader title="Agents" sublabel="AI analysis" accent="var(--color-n600)">
+        <span className="badge" style={{ background: 'rgba(155,123,255,0.08)', color: 'var(--color-n600)', border: '1px solid rgba(155,123,255,0.18)' }}>
           4 AGENTS
         </span>
       </SectionHeader>
@@ -139,13 +139,13 @@ export default function AgentsClient() {
               padding: '8px 20px',
               background: 'none',
               border: 'none',
-              borderBottom: tab === t ? '2px solid #7C3AED' : '2px solid transparent',
+              borderBottom: tab === t ? '2px solid #5F5F5A' : '2px solid transparent',
               cursor: 'pointer',
               fontFamily: 'var(--font-ibm-plex-mono)',
               fontSize: 11,
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
-              color: tab === t ? '#7C3AED' : 'var(--text-muted)',
+              color: tab === t ? 'var(--color-n600)' : 'var(--text-muted)',
               marginBottom: -1,
             }}
           >
@@ -233,7 +233,7 @@ export default function AgentsClient() {
 
             {agentError && (
               <GlassCard style={{ padding: '14px 18px', border: '1px solid rgba(255,45,45,0.25)' }}>
-                <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: '#E8231F', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>
+                <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--color-ink)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>
                   Connection Error
                 </div>
                 <div style={{ fontFamily: 'var(--font-barlow)', fontSize: 12, color: 'var(--text-muted)' }}>
@@ -338,7 +338,7 @@ export default function AgentsClient() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {pipelineSteps.map((step, i) => {
                   const agent = AGENTS.find(a => a.name === step.agentName) || AGENTS[i % AGENTS.length]
-                  const statusColor = step.status === 'complete' ? '#16A34A' : step.status === 'running' ? agent.color : 'var(--text-subtle)'
+                  const statusColor = step.status === 'complete' ? 'var(--color-n600)' : step.status === 'running' ? agent.color : 'var(--text-subtle)'
                   return (
                     <GlassCard
                       key={i}

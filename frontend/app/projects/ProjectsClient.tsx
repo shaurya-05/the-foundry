@@ -30,20 +30,20 @@ function parseBrief(markdown: string): BriefSection[] {
 }
 
 const BRIEF_COLORS: Record<string, string> = {
-  'The Pitch': '#E8231F',
-  'The Problem': '#F06A00',
-  'The Solution': '#16A34A',
-  'Target Market': '#0A85FF',
-  'MVP Feature Set': '#7C3AED',
-  'Go-To-Market Strategy': '#F06A00',
-  'Key Metrics': '#0891B2',
-  'Funding Path': '#E8231F',
+  'The Pitch': 'var(--color-ink)',
+  'The Problem': 'var(--color-n600)',
+  'The Solution': 'var(--color-n600)',
+  'Target Market': 'var(--color-arc-cyan-deep)',
+  'MVP Feature Set': 'var(--color-n600)',
+  'Go-To-Market Strategy': 'var(--color-n600)',
+  'Key Metrics': 'var(--color-arc-cyan-deep)',
+  'Funding Path': 'var(--color-ink)',
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  active: '#16A34A',
-  paused: '#F06A00',
-  completed: '#0A85FF',
+  active: 'var(--color-n600)',
+  paused: 'var(--color-n600)',
+  completed: 'var(--color-arc-cyan-deep)',
 }
 
 export default function ProjectsClient() {
@@ -226,8 +226,8 @@ export default function ProjectsClient() {
 
   return (
     <div className="page-enter" style={{ maxWidth: 1100 }}>
-      <SectionHeader title="Projects" sublabel="Build tracker" accent="#E8231F">
-        <span className="badge" style={{ background: 'rgba(255,45,45,0.10)', color: '#E8231F', border: '1px solid rgba(255,45,45,0.20)' }}>
+      <SectionHeader title="Projects" sublabel="Build tracker" accent="var(--color-ink)">
+        <span className="badge" style={{ background: 'rgba(255,45,45,0.10)', color: 'var(--color-ink)', border: '1px solid rgba(255,45,45,0.20)' }}>
           {projects.filter(p => p.status === 'active').length} ACTIVE
         </span>
       </SectionHeader>
@@ -263,7 +263,7 @@ export default function ProjectsClient() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <span style={{
                     fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 11,
-                    letterSpacing: '0.08em', textTransform: 'uppercase', color: '#E8231F',
+                    letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-ink)',
                   }}>Project Plan</span>
                   <button onClick={selectAllPlan} style={{
                     background: 'none', border: 'none', cursor: 'pointer',
@@ -286,7 +286,7 @@ export default function ProjectsClient() {
                     border: `1px solid ${createSections[item.key] ? 'rgba(232,35,31,0.15)' : 'transparent'}`,
                   }}>
                     <input type="checkbox" checked={createSections[item.key]} onChange={() => toggleSection(item.key)}
-                      style={{ marginTop: 2, accentColor: '#E8231F' }} />
+                      style={{ marginTop: 2, accentColor: 'var(--color-ink)' }} />
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-barlow)' }}>{item.label}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)' }}>{item.desc}</div>
@@ -300,7 +300,7 @@ export default function ProjectsClient() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <span style={{
                     fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 11,
-                    letterSpacing: '0.08em', textTransform: 'uppercase', color: '#0A85FF',
+                    letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-arc-cyan-deep)',
                   }}>Launch Brief</span>
                   <button onClick={selectAllBrief} style={{
                     background: 'none', border: 'none', cursor: 'pointer',
@@ -325,7 +325,7 @@ export default function ProjectsClient() {
                     border: `1px solid ${createSections[item.key] ? 'rgba(10,133,255,0.15)' : 'transparent'}`,
                   }}>
                     <input type="checkbox" checked={createSections[item.key]} onChange={() => toggleSection(item.key)}
-                      style={{ marginTop: 2, accentColor: '#0A85FF' }} />
+                      style={{ marginTop: 2, accentColor: 'var(--color-arc-cyan-deep)' }} />
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-barlow)' }}>{item.label}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)' }}>{item.desc}</div>
@@ -342,7 +342,7 @@ export default function ProjectsClient() {
             }}>
               <button onClick={selectAll} style={{
                 background: 'none', border: 'none', cursor: 'pointer',
-                fontSize: 11, color: '#E8231F', fontFamily: 'var(--font-barlow-condensed)',
+                fontSize: 11, color: 'var(--color-ink)', fontFamily: 'var(--font-barlow-condensed)',
                 fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
               }}>
                 SELECT ALL
@@ -398,7 +398,7 @@ export default function ProjectsClient() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <span style={{
                     fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 11,
-                    letterSpacing: '0.08em', textTransform: 'uppercase', color: '#0A85FF',
+                    letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-arc-cyan-deep)',
                   }}>Launch Brief</span>
                   <button onClick={() => setConceptSections(prev => ({ ...prev, pitch: true, problem: true, solution: true, target_market: true, mvp: true, go_to_market: true, key_metrics: true, funding: true }))} style={{
                     background: 'none', border: 'none', cursor: 'pointer',
@@ -423,7 +423,7 @@ export default function ProjectsClient() {
                     border: `1px solid ${conceptSections[item.key] ? 'rgba(10,133,255,0.15)' : 'transparent'}`,
                   }}>
                     <input type="checkbox" checked={conceptSections[item.key]} onChange={() => toggleConceptSection(item.key)}
-                      style={{ marginTop: 2, accentColor: '#0A85FF' }} />
+                      style={{ marginTop: 2, accentColor: 'var(--color-arc-cyan-deep)' }} />
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-barlow)' }}>{item.label}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)' }}>{item.desc}</div>
@@ -437,7 +437,7 @@ export default function ProjectsClient() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <span style={{
                     fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 11,
-                    letterSpacing: '0.08em', textTransform: 'uppercase', color: '#E8231F',
+                    letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-ink)',
                   }}>Project Plan</span>
                   <button onClick={() => setConceptSections(prev => ({ ...prev, overview: true, objectives: true, milestones: true, technical: true, success_criteria: true, tasks: true }))} style={{
                     background: 'none', border: 'none', cursor: 'pointer',
@@ -460,7 +460,7 @@ export default function ProjectsClient() {
                     border: `1px solid ${conceptSections[item.key] ? 'rgba(232,35,31,0.15)' : 'transparent'}`,
                   }}>
                     <input type="checkbox" checked={conceptSections[item.key]} onChange={() => toggleConceptSection(item.key)}
-                      style={{ marginTop: 2, accentColor: '#E8231F' }} />
+                      style={{ marginTop: 2, accentColor: 'var(--color-ink)' }} />
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-barlow)' }}>{item.label}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)' }}>{item.desc}</div>
@@ -477,7 +477,7 @@ export default function ProjectsClient() {
             }}>
               <button onClick={() => setConceptSections(Object.fromEntries(Object.keys(conceptSections).map(k => [k, true])))} style={{
                 background: 'none', border: 'none', cursor: 'pointer',
-                fontSize: 11, color: '#E8231F', fontFamily: 'var(--font-barlow-condensed)',
+                fontSize: 11, color: 'var(--color-ink)', fontFamily: 'var(--font-barlow-condensed)',
                 fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
               }}>
                 SELECT ALL
@@ -497,7 +497,7 @@ export default function ProjectsClient() {
       )}
 
       {/* Create Form */}
-      <GlassCard accent="#E8231F" accentTop accentGlow style={{ padding: '16px 20px', marginBottom: 20 }}>
+      <GlassCard accent="var(--color-ink)" accentTop accentGlow style={{ padding: '16px 20px', marginBottom: 20 }}>
         <div style={{ display: 'flex', gap: 10 }}>
           <input
             className="forge-input"
@@ -513,7 +513,7 @@ export default function ProjectsClient() {
           <button
             onClick={openConceptModal}
             className="btn btn-ghost btn-sm"
-            style={{ color: '#E8231F', borderColor: 'rgba(255,45,45,0.22)', whiteSpace: 'nowrap', fontSize: 10 }}
+            style={{ color: 'var(--color-ink)', borderColor: 'rgba(255,45,45,0.22)', whiteSpace: 'nowrap', fontSize: 10 }}
             title="Generate a full project brief from a concept"
           >
             GENERATE FROM CONCEPT
@@ -528,7 +528,7 @@ export default function ProjectsClient() {
           icon={<span style={{ fontSize: 24 }}>⬡</span>}
           title="Workshop is empty"
           subtitle="Create your first build. Claude will forge a complete project plan and auto-generate tasks."
-          accent="#FF3B3B"
+          accent="var(--color-ink)"
         />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -600,7 +600,7 @@ export default function ProjectsClient() {
                           style={{
                             height: '100%',
                             width: `${progress * 100}%`,
-                            background: '#16A34A',
+                            background: 'var(--color-n600)',
                             borderRadius: 2,
                             transition: 'width 0.3s ease',
                           }}
@@ -740,10 +740,10 @@ function ProjectExpandedView({
   const TAB_STYLE = (active: boolean): React.CSSProperties => ({
     padding: '6px 14px', border: 'none', cursor: 'pointer',
     background: active ? 'rgba(232,35,31,0.08)' : 'transparent',
-    color: active ? '#E8231F' : 'var(--text-muted)',
+    color: active ? 'var(--color-ink)' : 'var(--text-muted)',
     fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600,
     fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase',
-    borderBottom: active ? '2px solid #E8231F' : '2px solid transparent',
+    borderBottom: active ? '2px solid #141413' : '2px solid transparent',
   })
 
   return (
@@ -795,7 +795,7 @@ function ProjectExpandedView({
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>No plan yet.</span>
-              <button onClick={onForgePlan} disabled={isPlanning} className="btn btn-ghost btn-sm" style={{ color: '#E8231F', borderColor: 'rgba(255,45,45,0.22)' }}>
+              <button onClick={onForgePlan} disabled={isPlanning} className="btn btn-ghost btn-sm" style={{ color: 'var(--color-ink)', borderColor: 'rgba(255,45,45,0.22)' }}>
                 {isPlanning ? 'FORGING PLAN...' : 'FORGE PLAN'}
               </button>
             </div>
@@ -831,7 +831,7 @@ function ProjectExpandedView({
             }}>
               <span className="badge" style={{
                 background: t.status === 'completed' ? 'rgba(22,163,74,0.1)' : 'rgba(0,0,0,0.04)',
-                color: t.status === 'completed' ? '#16A34A' : 'var(--text-muted)', fontSize: 8,
+                color: t.status === 'completed' ? 'var(--color-n600)' : 'var(--text-muted)', fontSize: 8,
               }}>
                 {t.status}
               </span>

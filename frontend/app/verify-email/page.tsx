@@ -3,6 +3,9 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
+import Found3ryWordmark from '@/components/brand/Found3ryWordmark'
+import EyebrowLabel from '@/components/brand/EyebrowLabel'
+import Crease from '@/components/brand/Crease'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -22,7 +25,7 @@ function VerifyEmailContent() {
   useEffect(() => {
     if (!token) {
       setStatus('error')
-      setMessage('No verification token provided')
+      setMessage('No verification token provided.')
       return
     }
     fetch(`${API_BASE}/api/auth/verify-email`, {
@@ -33,68 +36,106 @@ function VerifyEmailContent() {
       .then(async res => {
         if (res.ok) {
           setStatus('success')
-          setMessage('Email verified successfully!')
+          setMessage('Email verified.')
           await refreshUser()
           setTimeout(() => router.push('/dashboard'), 2000)
         } else {
           const data = await res.json().catch(() => ({}))
           setStatus('error')
-          setMessage(data.detail || 'Verification failed')
+          setMessage(data.detail || 'Verification failed.')
         }
       })
       .catch(() => {
         setStatus('error')
-        setMessage('Network error')
+        setMessage('Network error.')
       })
   }, [token, refreshUser, router])
 
   return (
-    <div style={{
-      minHeight: '100vh', background: '#F4F5F7',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: 'var(--font-barlow)',
-    }}>
+    <div
+      className="h3ros-dot-grid-light"
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+      }}
+    >
+      <div style={{ marginBottom: 32 }}><Found3ryWordmark size="md" /></div>
+
       <div style={{
-        width: '100%', maxWidth: 400, background: '#FFF',
-        borderRadius: 14, padding: 40, textAlign: 'center',
-        border: '1px solid rgba(0,0,0,0.07)', boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
+        width: '100%', maxWidth: 420,
+        background: 'var(--color-vellum)',
+        border: '1px solid var(--color-ink)',
+        borderRadius: 0,
+        padding: 32,
+        textAlign: 'left',
       }}>
+        <EyebrowLabel
+          number="03"
+          keyword={status === 'verifying' ? 'VERIFYING' : status === 'success' ? 'VERIFIED' : 'ERROR'}
+          style={{ marginBottom: 12 }}
+        />
+
         {status === 'verifying' && (
           <>
-            <div style={{ fontSize: 32, marginBottom: 16 }}>...</div>
-            <p style={{ color: '#6B7280', fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 14 }}>
-              Verifying your email...
-            </p>
+            <h2 style={titleStyle}>Verifying your email…</h2>
+            <div style={{ margin: '12px 0 18px' }}><Crease /></div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              {[0, 1, 2].map(i => (
+                <div
+                  key={i}
+                  style={{
+                    width: 6, height: 6,
+                    background: 'var(--color-arc-cyan)',
+                    animation: `h3ros-pulse-opacity 1.2s ease-in-out ${i * 0.2}s infinite`,
+                  }}
+                />
+              ))}
+            </div>
           </>
         )}
+
         {status === 'success' && (
           <>
-            <div style={{ fontSize: 32, marginBottom: 16, color: '#2DCC72' }}>&#10003;</div>
-            <p style={{ color: '#374151', fontWeight: 600, fontSize: 16 }}>{message}</p>
-            <p style={{ color: '#9CA3AF', fontSize: 13, marginTop: 8, fontFamily: 'var(--font-ibm-plex-mono)' }}>
-              Redirecting to dashboard...
-            </p>
+            <h2 style={titleStyle}>{message}</h2>
+            <div style={{ margin: '12px 0 18px' }}><Crease /></div>
+            <p style={leadStyle}>Redirecting to your dashboard.</p>
           </>
         )}
+
         {status === 'error' && (
           <>
-            <div style={{ fontSize: 32, marginBottom: 16, color: '#E8231F' }}>&#10007;</div>
-            <p style={{ color: '#C81E1C', fontWeight: 600, fontSize: 16 }}>{message}</p>
-            <button
-              onClick={() => router.push('/dashboard')}
-              style={{
-                marginTop: 20, padding: '10px 24px',
-                background: 'linear-gradient(135deg, #E8231F, #C81E1C)',
-                color: '#FFF', border: 'none', borderRadius: 8, cursor: 'pointer',
-                fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600,
-                fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase',
-              }}
-            >
-              Go to Dashboard
+            <h2 style={titleStyle}>{message}</h2>
+            <div style={{ margin: '12px 0 18px' }}><Crease /></div>
+            <button onClick={() => router.push('/dashboard')} style={primaryBtnStyle}>
+              <span>Go to dashboard</span><span aria-hidden="true">→</span>
             </button>
           </>
         )}
       </div>
     </div>
   )
+}
+
+const titleStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-archivo-black), sans-serif',
+  fontWeight: 400, fontSize: 24, lineHeight: 1.15, letterSpacing: '-0.02em',
+  color: 'var(--color-ink)', margin: 0,
+}
+const leadStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-plex-serif), serif',
+  fontStyle: 'italic', fontWeight: 500, fontSize: 14, lineHeight: 1.55,
+  color: 'var(--color-n600)', margin: 0,
+}
+const primaryBtnStyle: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+  padding: '12px 20px',
+  background: 'var(--color-arc-cyan)', color: 'var(--color-ink)',
+  border: 'none', borderRadius: 2, cursor: 'pointer',
+  fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+  fontWeight: 700, fontSize: 14, letterSpacing: '0.08em', textTransform: 'uppercase',
+  transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
 }

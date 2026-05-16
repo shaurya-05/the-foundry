@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
+import EyebrowLabel from '@/components/brand/EyebrowLabel'
 
 interface CommandItem {
   id: string
@@ -10,7 +11,6 @@ interface CommandItem {
   description: string
   category: string
   action: () => void
-  accent?: string
 }
 
 interface ForgeCommandProps {
@@ -18,22 +18,22 @@ interface ForgeCommandProps {
 }
 
 const NAV_COMMANDS = [
-  { id: 'nav-dashboard', label: 'Go to Dashboard', description: 'The Forge Floor', path: '/dashboard', accent: '#FF3B3B' },
-  { id: 'nav-knowledge', label: 'Go to Knowledge', description: 'The Archive', path: '/knowledge', accent: '#3ABEFF' },
-  { id: 'nav-projects', label: 'Go to Projects', description: 'The Workshop', path: '/projects', accent: '#FF3B3B' },
-  { id: 'nav-ideas', label: 'Go to Ideas', description: 'The Crucible', path: '/ideas', accent: '#FF8A2A' },
-  { id: 'nav-launchpad', label: 'Go to Launchpad', description: 'The Launch Bay', path: '/launchpad', accent: '#38D37A' },
-  { id: 'nav-workspace', label: 'Go to Workspace', description: 'The Blueprint', path: '/workspace', accent: '#A78BFA' },
-  { id: 'nav-tasks', label: 'Go to Tasks', description: 'The Runsheet', path: '/tasks', accent: '#22D3EE' },
-  { id: 'nav-context', label: 'Go to Context', description: 'The Signal Room', path: '/context', accent: '#A78BFA' },
-  { id: 'nav-agents', label: 'Go to Agents', description: 'The Crew', path: '/agents', accent: '#A78BFA' },
+  { id: 'nav-dashboard', label: 'Go to Dashboard', description: 'The forge floor',   path: '/dashboard' },
+  { id: 'nav-knowledge', label: 'Go to Knowledge', description: 'The archive',       path: '/knowledge' },
+  { id: 'nav-projects',  label: 'Go to Projects',  description: 'The workshop',      path: '/projects' },
+  { id: 'nav-ideas',     label: 'Go to Ideas',     description: 'The crucible',      path: '/ideas' },
+  { id: 'nav-launchpad', label: 'Go to Launchpad', description: 'The launch bay',    path: '/launchpad' },
+  { id: 'nav-workspace', label: 'Go to Workspace', description: 'The blueprint',     path: '/workspace' },
+  { id: 'nav-tasks',     label: 'Go to Tasks',     description: 'The runsheet',      path: '/tasks' },
+  { id: 'nav-context',   label: 'Go to Context',   description: 'The signal room',   path: '/context' },
+  { id: 'nav-agents',    label: 'Go to Agents',    description: 'The crew',          path: '/agents' },
 ]
 
 const PIPELINE_COMMANDS = [
-  { id: 'pipe-deep-recon', label: 'Run Deep Recon', description: 'Field Analyst → Systems Architect', path: '/agents?pipeline=deep_recon', accent: '#3ABEFF' },
-  { id: 'pipe-launch', label: 'Run Launch Readiness', description: 'Market Scout → Launch Strategist', path: '/agents?pipeline=launch_readiness', accent: '#38D37A' },
-  { id: 'pipe-full-forge', label: 'Run Full Forge', description: 'All 4 crew members in sequence', path: '/agents?pipeline=full_forge', accent: '#FF3B3B' },
-  { id: 'pipe-blueprint', label: 'Run Blueprint Design', description: 'Systems Architect → Market Scout', path: '/agents?pipeline=blueprint_design', accent: '#A78BFA' },
+  { id: 'pipe-deep-recon',  label: 'Run Deep Recon',       description: 'Field Analyst → Systems Architect',  path: '/agents?pipeline=deep_recon' },
+  { id: 'pipe-launch',      label: 'Run Launch Readiness', description: 'Market Scout → Launch Strategist',   path: '/agents?pipeline=launch_readiness' },
+  { id: 'pipe-full-forge',  label: 'Run Full Forge',       description: 'All 4 crew members in sequence',     path: '/agents?pipeline=full_forge' },
+  { id: 'pipe-blueprint',   label: 'Run Blueprint Design', description: 'Systems Architect → Market Scout',   path: '/agents?pipeline=blueprint_design' },
 ]
 
 export default function ForgeCommand({ onClose }: ForgeCommandProps) {
@@ -63,42 +63,38 @@ export default function ForgeCommand({ onClose }: ForgeCommandProps) {
         const q = query.toLowerCase()
         const results: CommandItem[] = []
 
-        // Search projects
         for (const p of (projects as any[])) {
           if (p.title?.toLowerCase().includes(q)) {
             results.push({
               id: `proj-${p.id}`, label: p.title, description: `Project · ${p.status || 'active'}`,
-              category: 'project', accent: '#E8231F',
+              category: 'project',
               action: () => { router.push(`/projects`); onClose() },
             })
           }
         }
-        // Search tasks
         for (const t of (tasks as any[])) {
           if (t.title?.toLowerCase().includes(q)) {
             results.push({
               id: `task-${t.id}`, label: t.title, description: `Task · ${t.status || 'backlog'}`,
-              category: 'task', accent: '#0891B2',
+              category: 'task',
               action: () => { router.push('/tasks'); onClose() },
             })
           }
         }
-        // Search knowledge
         for (const k of (knowledge as any[])) {
           if (k.title?.toLowerCase().includes(q) || k.content?.toLowerCase().includes(q)) {
             results.push({
               id: `know-${k.id}`, label: k.title || 'Untitled', description: `Knowledge · ${k.type || 'note'}`,
-              category: 'knowledge', accent: '#0A85FF',
+              category: 'knowledge',
               action: () => { router.push('/knowledge'); onClose() },
             })
           }
         }
-        // Search ideas
         for (const i of (ideas as any[])) {
           if (i.domains?.toLowerCase().includes(q) || i.content?.toLowerCase().includes(q)) {
             results.push({
               id: `idea-${i.id}`, label: i.domains || 'Idea', description: `Idea · ${(i.content || '').slice(0, 60)}`,
-              category: 'idea', accent: '#F06A00',
+              category: 'idea',
               action: () => { router.push('/ideas'); onClose() },
             })
           }
@@ -117,7 +113,6 @@ export default function ForgeCommand({ onClose }: ForgeCommandProps) {
         label: c.label,
         description: c.description,
         category: 'navigate',
-        accent: c.accent,
         action: () => { router.push(c.path); onClose() },
       })),
       ...PIPELINE_COMMANDS.map(c => ({
@@ -125,12 +120,10 @@ export default function ForgeCommand({ onClose }: ForgeCommandProps) {
         label: c.label,
         description: c.description,
         category: 'pipeline',
-        accent: c.accent,
         action: () => { router.push(c.path); onClose() },
       })),
     ]
 
-    // If searching, show search results first
     if (searchResults.length > 0) {
       return [...searchResults, ...cmds.filter(c => {
         const q = query.toLowerCase()
@@ -161,32 +154,34 @@ export default function ForgeCommand({ onClose }: ForgeCommandProps) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'rgba(0,0,0,0.25)',
-        backdropFilter: 'blur(4px)',
+        background: 'rgba(20, 20, 19, 0.35)',
+        padding: 24,
       }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
-        className="gl2"
         style={{
           width: 560,
+          maxWidth: '100%',
           maxHeight: '60vh',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          background: '#FFFFFF',
-          border: '1px solid rgba(0,0,0,0.10)',
-          boxShadow: '0 8px 40px rgba(0,0,0,0.14)',
+          background: 'var(--color-vellum)',
+          border: '1px solid var(--color-ink)',
+          borderRadius: 0,
+          boxShadow: 'none',
         }}
       >
-        {/* Search input */}
+        {/* Search input — bottom-border-only H3ROS field */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 12,
             padding: '14px 18px',
-            borderBottom: '1px solid rgba(0,0,0,0.08)',
+            background: 'var(--color-off-white)',
+            borderBottom: '1px solid var(--color-n200)',
           }}
         >
           <SearchIcon />
@@ -195,111 +190,112 @@ export default function ForgeCommand({ onClose }: ForgeCommandProps) {
             value={query}
             onChange={e => { setQuery(e.target.value); setSelected(0) }}
             onKeyDown={handleKey}
-            placeholder="Type a command or search..."
+            placeholder="Type a command or search…"
             style={{
               flex: 1,
               background: 'none',
               border: 'none',
               outline: 'none',
-              color: 'var(--text-primary)',
-              fontFamily: 'var(--font-barlow)',
+              color: 'var(--color-ink)',
+              fontFamily: 'var(--font-archivo), system-ui, sans-serif',
               fontSize: 15,
             }}
           />
-          <span
-            className="badge"
-            style={{
-              background: 'rgba(0,0,0,0.06)',
-              color: 'var(--text-muted)',
-              fontSize: 9,
-            }}
-          >
+          {searching && (
+            <span
+              className="h3ros-pulse"
+              style={{
+                width: 6, height: 6,
+                background: 'var(--color-arc-cyan)',
+              }}
+            />
+          )}
+          <span style={{
+            fontFamily: 'var(--font-plex-mono), monospace',
+            fontWeight: 500,
+            fontSize: 10,
+            letterSpacing: '0.10em',
+            color: 'var(--color-n400)',
+            padding: '2px 6px',
+            border: '1px solid var(--color-n200)',
+          }}>
             ESC
           </span>
         </div>
 
         {/* Results */}
-        <div style={{ overflow: 'auto', padding: '6px 0' }}>
+        <div style={{ overflow: 'auto', padding: 0, background: 'var(--color-off-white)' }}>
           {commands.length === 0 ? (
-            <div
-              style={{
-                padding: '24px',
-                textAlign: 'center',
-                color: 'var(--text-muted)',
-                fontFamily: 'var(--font-barlow)',
-                fontSize: 13,
-              }}
-            >
-              No commands found
+            <div style={{ textAlign: 'center', padding: 24 }}>
+              <EyebrowLabel keyword="NO COMMANDS FOUND" color="var(--color-n400)" />
             </div>
           ) : (
             commands.map((cmd, i) => (
               <div
                 key={cmd.id}
                 onClick={cmd.action}
+                onMouseEnter={() => setSelected(i)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: 12,
-                  padding: '10px 18px',
+                  padding: '12px 18px',
                   cursor: 'pointer',
-                  background: i === selected ? 'rgba(255,255,255,0.06)' : 'transparent',
-                  transition: 'background 0.1s ease',
+                  background: i === selected ? 'var(--color-vellum)' : 'var(--color-off-white)',
+                  borderLeft: i === selected ? '2px solid var(--color-arc-cyan)' : '2px solid transparent',
+                  borderBottom: '1px solid var(--color-n200)',
+                  transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
                 }}
-                onMouseEnter={() => setSelected(i)}
               >
-                <div
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    background: cmd.accent || 'var(--text-muted)',
-                    flexShrink: 0,
-                  }}
-                />
-                <div style={{ flex: 1 }}>
-                  <div
-                    style={{
-                      fontFamily: 'var(--font-barlow-condensed)',
-                      fontWeight: 600,
-                      fontSize: 14,
-                      letterSpacing: '0.04em',
-                      textTransform: 'uppercase',
-                      color: 'var(--text-primary)',
-                    }}
-                  >
+                <span style={{
+                  color: 'var(--color-arc-cyan-deep)',
+                  fontFamily: 'var(--font-plex-mono), monospace',
+                  fontSize: 12,
+                  flexShrink: 0,
+                }}>
+                  →
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+                    fontWeight: 700,
+                    fontSize: 14,
+                    letterSpacing: '0.02em',
+                    color: 'var(--color-ink)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}>
                     {cmd.label}
                   </div>
-                  <div
-                    style={{
-                      fontFamily: 'var(--font-ibm-plex-mono)',
-                      fontSize: 10,
-                      color: 'var(--text-muted)',
-                    }}
-                  >
+                  <div style={{
+                    fontFamily: 'var(--font-plex-mono), monospace',
+                    fontWeight: 500,
+                    fontSize: 11,
+                    color: 'var(--color-n600)',
+                    marginTop: 2,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}>
                     {cmd.description}
                   </div>
                 </div>
-                <span
-                  className="badge"
-                  style={{
-                    background: 'rgba(255,255,255,0.04)',
-                    color: 'var(--text-subtle)',
-                    fontSize: 8,
-                  }}
-                >
-                  {cmd.category}
-                </span>
+                <EyebrowLabel
+                  keyword={cmd.category}
+                  color="var(--color-n400)"
+                />
               </div>
             ))
           )}
         </div>
 
-        {/* Footer */}
+        {/* Footer hints */}
         <div
           style={{
             padding: '8px 18px',
-            borderTop: '1px solid rgba(255,255,255,0.06)',
+            background: 'var(--color-vellum)',
+            borderTop: '1px solid var(--color-n200)',
             display: 'flex',
             gap: 16,
           }}
@@ -308,10 +304,11 @@ export default function ForgeCommand({ onClose }: ForgeCommandProps) {
             <span
               key={hint}
               style={{
-                fontFamily: 'var(--font-ibm-plex-mono)',
-                fontSize: 9,
-                color: 'var(--text-subtle)',
-                letterSpacing: '0.04em',
+                fontFamily: 'var(--font-plex-mono), monospace',
+                fontWeight: 500,
+                fontSize: 10,
+                color: 'var(--color-n400)',
+                letterSpacing: '0.08em',
               }}
             >
               {hint}
@@ -325,7 +322,7 @@ export default function ForgeCommand({ onClose }: ForgeCommandProps) {
 
 function SearchIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ color: 'var(--color-n600)', flexShrink: 0 }}>
       <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5" />
       <path d="m11 11 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>

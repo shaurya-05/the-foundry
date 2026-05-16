@@ -2,6 +2,9 @@
 
 import { useState, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
+import Found3ryWordmark from '@/components/brand/Found3ryWordmark'
+import EyebrowLabel from '@/components/brand/EyebrowLabel'
+import Crease from '@/components/brand/Crease'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -31,100 +34,148 @@ export default function ForgotPasswordPage() {
     }
   }
 
-  const labelStyle: React.CSSProperties = {
-    display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 600,
-    letterSpacing: '0.07em', textTransform: 'uppercase', color: '#374151',
-    fontFamily: 'var(--font-barlow-condensed)',
-  }
-  const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '9px 12px', background: '#F9FAFB',
-    border: '1px solid rgba(0,0,0,0.10)', borderRadius: 7, fontSize: 14,
-    color: '#0A0C12', fontFamily: 'var(--font-barlow)', outline: 'none', boxSizing: 'border-box',
-  }
-
   return (
-    <div style={{
-      minHeight: '100vh', background: '#F4F5F7',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: 'var(--font-barlow)', padding: 24,
-    }}>
+    <div
+      className="h3ros-dot-grid-light"
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+      }}
+    >
+      <div style={{ marginBottom: 32 }}><Found3ryWordmark size="md" /></div>
+
       <div style={{
-        width: '100%', maxWidth: 400, background: '#FFF',
-        borderRadius: 14, padding: 32,
-        border: '1px solid rgba(0,0,0,0.07)', boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
+        width: '100%', maxWidth: 420,
+        background: 'var(--color-vellum)',
+        border: '1px solid var(--color-ink)',
+        borderRadius: 0,
+        padding: 28,
       }}>
-        <h2 style={{
-          fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700,
-          fontSize: 18, letterSpacing: '0.06em', textTransform: 'uppercase',
-          color: '#0A0C12', marginBottom: 8,
-        }}>
-          Reset Password
-        </h2>
-        <p style={{ color: '#6B7280', fontSize: 13, marginBottom: 24, fontFamily: 'var(--font-ibm-plex-mono)' }}>
+        <EyebrowLabel number="01" keyword="RESET PASSWORD" style={{ marginBottom: 12 }} />
+        <h2 style={titleStyle}>Reset your password.</h2>
+        <div style={{ margin: '12px 0 18px' }}><Crease /></div>
+        <p style={leadStyle}>
           Enter your email and we&apos;ll send you a reset link.
         </p>
 
         {sent ? (
-          <div style={{
-            padding: '16px', background: 'rgba(45,204,114,0.08)',
-            border: '1px solid rgba(45,204,114,0.3)', borderRadius: 8,
-            color: '#1a8a4a', fontSize: 14, fontFamily: 'var(--font-ibm-plex-mono)',
-          }}>
-            If an account exists with that email, we&apos;ve sent a password reset link. Check your inbox.
-            <button
-              onClick={() => router.push('/login')}
-              style={{
-                display: 'block', marginTop: 16, background: 'none', border: 'none',
-                color: '#E8231F', cursor: 'pointer', fontSize: 12,
-                fontFamily: 'var(--font-ibm-plex-mono)', textDecoration: 'underline',
-              }}
-            >
-              Back to Sign In
+          <div style={successStyle}>
+            <p style={{ margin: 0 }}>
+              If an account exists with that email, we&apos;ve sent a password reset link. Check your inbox.
+            </p>
+            <button onClick={() => router.push('/login')} style={primaryBtnStyle}>
+              <span>Back to sign in</span><span aria-hidden="true">→</span>
             </button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: 20 }}>
-              <label style={labelStyle}>Email</label>
+          <form onSubmit={handleSubmit} style={{ marginTop: 20 }}>
+            <Field label="Email">
               <input
-                type="email" required value={email}
+                type="email"
+                required
+                value={email}
                 onChange={e => setEmail(e.target.value)}
-                placeholder="you@example.com" style={inputStyle}
+                placeholder="you@example.com"
+                style={inputStyle}
+                onFocus={(e) => (e.currentTarget.style.borderBottomColor = 'var(--color-arc-cyan)')}
+                onBlur={(e) => (e.currentTarget.style.borderBottomColor = 'var(--color-n400)')}
               />
-            </div>
+            </Field>
 
             {error && (
-              <div style={{
-                marginBottom: 16, padding: '10px 14px',
-                background: 'rgba(232,35,31,0.06)', border: '1px solid rgba(232,35,31,0.2)',
-                borderRadius: 8, color: '#C81E1C', fontSize: 13,
-                fontFamily: 'var(--font-ibm-plex-mono)',
-              }}>
-                {error}
-              </div>
+              <div style={errorStyle}>{error}</div>
             )}
 
             <button type="submit" disabled={loading} style={{
-              width: '100%', padding: '11px 20px',
-              background: loading ? '#E5E7EB' : 'linear-gradient(135deg, #E8231F, #C81E1C)',
-              color: loading ? '#9CA3AF' : '#FFF', border: 'none', borderRadius: 8,
+              ...primaryBtnStyle,
+              background: loading ? 'var(--color-n200)' : 'var(--color-arc-cyan)',
               cursor: loading ? 'not-allowed' : 'pointer',
-              fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600,
-              fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase',
             }}>
-              {loading ? 'Sending...' : 'Send Reset Link'}
+              <span>{loading ? 'Sending…' : 'Send reset link'}</span>
+              {!loading && <span aria-hidden="true">→</span>}
             </button>
 
-            <button type="button" onClick={() => router.push('/login')} style={{
-              display: 'block', width: '100%', marginTop: 16, background: 'none',
-              border: 'none', color: '#6B7280', cursor: 'pointer', fontSize: 12,
-              fontFamily: 'var(--font-ibm-plex-mono)', textAlign: 'center',
-            }}>
-              Back to Sign In
+            <button type="button" onClick={() => router.push('/login')} style={textLinkStyle}>
+              Back to sign in
             </button>
           </form>
         )}
       </div>
     </div>
   )
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={fieldLabelStyle}>{label}</div>
+      {children}
+    </div>
+  )
+}
+
+const titleStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-archivo-black), sans-serif',
+  fontWeight: 400, fontSize: 26, lineHeight: 1.1, letterSpacing: '-0.02em',
+  color: 'var(--color-ink)', margin: 0,
+}
+const leadStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-plex-serif), serif',
+  fontStyle: 'italic', fontWeight: 500, fontSize: 14, lineHeight: 1.55,
+  color: 'var(--color-n600)', margin: 0,
+}
+const fieldLabelStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-plex-mono), monospace',
+  fontWeight: 500, fontSize: 11, letterSpacing: '0.18em',
+  textTransform: 'uppercase', color: 'var(--color-n600)', marginBottom: 6,
+}
+const inputStyle: React.CSSProperties = {
+  width: '100%', background: 'transparent', border: 'none',
+  borderBottom: '1px solid var(--color-n400)', borderRadius: 0,
+  padding: '8px 0', fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+  fontWeight: 400, fontSize: 15, color: 'var(--color-ink)',
+  outline: 'none', transition: 'border-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
+  boxSizing: 'border-box',
+}
+const primaryBtnStyle: React.CSSProperties = {
+  width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+  padding: '12px 20px',
+  background: 'var(--color-arc-cyan)', color: 'var(--color-ink)',
+  border: 'none', borderRadius: 2, cursor: 'pointer',
+  fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+  fontWeight: 700, fontSize: 14, letterSpacing: '0.08em', textTransform: 'uppercase',
+  marginTop: 16,
+  transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
+}
+const textLinkStyle: React.CSSProperties = {
+  display: 'block', width: '100%', marginTop: 16,
+  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+  fontFamily: 'var(--font-plex-serif), serif',
+  fontWeight: 500, fontStyle: 'italic', fontSize: 13,
+  color: 'var(--color-n600)', textAlign: 'center',
+}
+const errorStyle: React.CSSProperties = {
+  marginBottom: 16, padding: '10px 14px',
+  background: 'var(--color-vellum)',
+  borderLeft: '2px solid var(--color-signal)',
+  borderTop: '1px solid var(--color-n200)',
+  borderRight: '1px solid var(--color-n200)',
+  borderBottom: '1px solid var(--color-n200)',
+  color: 'var(--color-ink)',
+  fontFamily: 'var(--font-plex-mono), monospace', fontSize: 12,
+}
+const successStyle: React.CSSProperties = {
+  marginTop: 20, padding: '16px',
+  background: 'var(--color-vellum)',
+  borderLeft: '2px solid var(--color-arc-cyan)',
+  borderTop: '1px solid var(--color-n200)',
+  borderRight: '1px solid var(--color-n200)',
+  borderBottom: '1px solid var(--color-n200)',
+  color: 'var(--color-ink)',
+  fontFamily: 'var(--font-plex-serif), serif',
+  fontStyle: 'italic', fontWeight: 500, fontSize: 14, lineHeight: 1.55,
 }
