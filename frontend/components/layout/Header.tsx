@@ -34,6 +34,7 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
 
   return (
     <header
+      className="foundry-header"
       style={{
         height: 50,
         background: 'var(--color-vellum)',
@@ -41,8 +42,7 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
         borderRadius: 0,
         display: 'flex',
         alignItems: 'center',
-        padding: '0 18px',
-        gap: 12,
+        gap: 8,
         flexShrink: 0,
         zIndex: 30,
       }}
@@ -103,9 +103,10 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
       </div>
 
       {/* Right controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} className="foundry-header-right">
         {/* Live clock */}
         <div
+          className="foundry-header-clock"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -148,8 +149,8 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
         {/* Command palette */}
         <GhostButton onClick={onCommand} title="Command palette (⌘K)">
           <CommandIcon />
-          <span style={{ fontFamily: 'var(--font-archivo), system-ui, sans-serif', fontWeight: 700 }}>COMMAND</span>
-          <span style={{ fontFamily: 'var(--font-plex-mono), monospace', fontWeight: 500, fontSize: 9, opacity: 0.6, marginLeft: 4 }}>⌘K</span>
+          <span className="foundry-header-label" style={{ fontFamily: 'var(--font-archivo), system-ui, sans-serif', fontWeight: 700 }}>COMMAND</span>
+          <span className="foundry-header-shortcut" style={{ fontFamily: 'var(--font-plex-mono), monospace', fontWeight: 500, fontSize: 9, opacity: 0.6, marginLeft: 4 }}>⌘K</span>
         </GhostButton>
 
         {/* Signals bell */}
@@ -193,7 +194,7 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
         {/* COFOUND3R */}
         <GhostButton onClick={onCopilot} title="COFOUND3R (⌘J)">
           <CopilotIcon />
-          <span style={{ fontFamily: 'var(--font-archivo), system-ui, sans-serif', fontWeight: 700, display: 'inline-flex', alignItems: 'baseline' }}>
+          <span className="foundry-header-label" style={{ fontFamily: 'var(--font-archivo), system-ui, sans-serif', fontWeight: 700, display: 'inline-flex', alignItems: 'baseline' }}>
             COFOUND
             <Glyph3 size="0.72em" style={{ marginLeft: 1, marginRight: 1, transform: 'translateY(-0.01em)' }} />
             R
@@ -201,7 +202,7 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
         </GhostButton>
 
         {/* H3ROS parent stamp (Equity Layer 3) */}
-        <div style={{ marginLeft: 4 }}>
+        <div className="foundry-header-stamp" style={{ marginLeft: 4 }}>
           <H3rosStamp
             size={14}
             onClick={() => window.open('https://h3ros.com', '_blank', 'noopener,noreferrer')}

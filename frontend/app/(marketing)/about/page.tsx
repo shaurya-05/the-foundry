@@ -15,10 +15,10 @@ export default function AboutPage() {
     <div className="min-h-screen bg-off-white font-body">
 
       {/* Nav */}
-      <nav className="flex items-center justify-between py-[18px] px-8 max-w-[1200px] mx-auto">
-        <button onClick={() => router.push('/')} className="flex items-center gap-2.5 bg-transparent border-0 cursor-pointer">
+      <nav className="flex items-center justify-between py-[18px] px-4 sm:px-8 max-w-[1200px] mx-auto gap-3">
+        <button onClick={() => router.push('/')} className="flex items-center gap-2.5 bg-transparent border-0 cursor-pointer min-w-0">
           <Found3ryWordmark size="sm" />
-          <span className="font-mono font-medium text-[10px] tracking-[0.10em] uppercase text-n-600 inline-flex items-center gap-1.5">
+          <span className="hidden sm:inline-flex font-mono font-medium text-[10px] tracking-[0.10em] uppercase text-n-600 items-center gap-1.5">
             · an
             <a href="https://h3ros.com" target="_blank" rel="noopener noreferrer" className="no-underline inline-flex">
               <H3rosWordmark size="xs" />
@@ -26,7 +26,7 @@ export default function AboutPage() {
             venture
           </span>
         </button>
-        <div className="flex gap-3">
+        <div className="flex gap-3 shrink-0">
           <button
             onClick={() => router.push('/login')}
             className="py-2 px-4 bg-ink border-0 rounded-sm cursor-pointer text-off-white font-display font-semibold text-[11px] tracking-[0.06em] uppercase transition-colors duration-100 hover:bg-n-600"
@@ -41,8 +41,8 @@ export default function AboutPage() {
         <div className="inline-block py-1.5 px-3.5 bg-vellum border border-n-200 rounded-[20px] font-mono font-medium text-[11px] text-ink tracking-[0.12em] uppercase mb-6">
           The Story
         </div>
-        <h1 className="font-display font-bold text-[clamp(36px,6vw,56px)] tracking-[0.02em] text-ink leading-[1.05] mb-5">
-          We built the tool<br />we wished we had.
+        <h1 className="font-display font-bold text-[clamp(30px,6vw,56px)] tracking-[0.02em] text-ink leading-[1.08] mb-5">
+          We built the tool<br className="hidden sm:inline" /> we wished we had.
         </h1>
         <p className="font-body text-[17px] text-n-600 max-w-[520px] mx-auto leading-[1.6]">
           Why The FOUND3RY exists, who it&apos;s for, and where it&apos;s going.
@@ -139,7 +139,8 @@ export default function AboutPage() {
       <footer className="py-7 px-6 border-t border-n-200 max-w-[1200px] mx-auto flex items-center justify-between flex-wrap gap-3">
         <span className="font-mono font-medium text-[11px] text-n-600 tracking-[0.06em] inline-flex items-center gap-2 flex-wrap">
           <Found3ryWordmark size="sm" />
-          <span>· an h3ros venture · workspace graph for builders</span>
+          <span className="hidden sm:inline">· an h3ros venture · workspace graph for builders</span>
+          <span className="sm:hidden">· an h3ros venture</span>
         </span>
         <span className="font-mono font-medium text-[10px] text-n-400 tracking-[0.10em] uppercase">
           © {new Date().getFullYear()}

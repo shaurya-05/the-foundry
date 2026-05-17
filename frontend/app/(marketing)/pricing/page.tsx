@@ -76,14 +76,16 @@ export default function PricingPage() {
   return (
     <div style={{
       minHeight: '100vh', background: 'var(--bg, #F4F5F7)',
-      padding: '60px 24px', fontFamily: 'var(--font-barlow)',
+      padding: 'clamp(40px, 6vw, 60px) clamp(16px, 4vw, 24px)',
+      fontFamily: 'var(--font-barlow)',
     }}>
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
           <h1 style={{
             fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700,
-            fontSize: 36, letterSpacing: '0.06em', textTransform: 'uppercase',
+            fontSize: 'clamp(28px, 6vw, 36px)',
+            letterSpacing: '0.06em', textTransform: 'uppercase',
             color: 'var(--text-primary, #0A0C12)', marginBottom: 8,
           }}>
             Pricing
@@ -116,14 +118,14 @@ export default function PricingPage() {
         </div>
 
         {/* Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 20 }}>
           {PLANS.map(plan => {
             const price = annual ? plan.yearlyPrice : plan.monthlyPrice
             return (
               <div key={plan.id} style={{
                 background: 'var(--bg-surface, #fff)',
                 border: plan.recommended ? `2px solid ${plan.accent}` : '1px solid var(--border, rgba(0,0,0,0.07))',
-                borderRadius: 14, padding: 32, position: 'relative',
+                borderRadius: 14, padding: 'clamp(20px, 4vw, 32px)', position: 'relative',
                 boxShadow: plan.recommended ? `0 4px 24px ${plan.accent}20` : '0 2px 12px rgba(0,0,0,0.04)',
               }}>
                 {plan.recommended && (

@@ -43,10 +43,10 @@ export default function LandingPage() {
     <div className="min-h-screen bg-off-white font-body">
 
       {/* Nav — Found3ryWordmark + h3ros parent lockup */}
-      <nav className="flex items-center justify-between py-[18px] px-8 max-w-[1200px] mx-auto">
-        <div className="flex items-center gap-2.5">
+      <nav className="flex items-center justify-between py-[18px] px-4 sm:px-8 max-w-[1200px] mx-auto gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
           <Found3ryWordmark size="sm" />
-          <span className="font-mono font-medium text-[10px] tracking-[0.10em] uppercase text-n-600 inline-flex items-center gap-1.5">
+          <span className="hidden sm:inline-flex font-mono font-medium text-[10px] tracking-[0.10em] uppercase text-n-600 items-center gap-1.5">
             · an
             <a href="https://h3ros.com" target="_blank" rel="noopener noreferrer" className="no-underline inline-flex">
               <H3rosWordmark size="xs" />
@@ -54,8 +54,8 @@ export default function LandingPage() {
             venture
           </span>
         </div>
-        <div className="flex gap-3 items-center">
-          <button onClick={() => router.push('/about')} className="py-2 px-3.5 bg-transparent border-0 cursor-pointer font-display font-semibold text-[11px] tracking-[0.06em] uppercase text-n-600 hover:text-ink transition-colors duration-100">
+        <div className="flex gap-2 sm:gap-3 items-center shrink-0">
+          <button onClick={() => router.push('/about')} className="py-2 px-2.5 sm:px-3.5 bg-transparent border-0 cursor-pointer font-display font-semibold text-[11px] tracking-[0.06em] uppercase text-n-600 hover:text-ink transition-colors duration-100">
             About
           </button>
           <SolidNavButton onClick={() => router.push('/login')}>Sign In</SolidNavButton>
@@ -66,8 +66,8 @@ export default function LandingPage() {
       <section className="px-6 pt-[72px] pb-12 max-w-[960px] mx-auto text-center">
         <Pill>Built by a founder, for founders</Pill>
 
-        <h1 className="font-display font-bold text-[clamp(40px,7vw,72px)] tracking-[0.02em] text-ink leading-[1.02] mt-6 mb-6">
-          The venture stack for operators<br />running more than one thing.
+        <h1 className="font-display font-bold text-[clamp(32px,7vw,72px)] tracking-[0.02em] text-ink leading-[1.05] mt-6 mb-6">
+          The venture stack for operators<br className="hidden sm:inline" /> running more than one thing.
         </h1>
 
         <p className="font-body text-[19px] font-medium text-n-600 max-w-[640px] mx-auto mb-3.5 leading-[1.5]">
@@ -91,8 +91,8 @@ export default function LandingPage() {
       <section className="px-6 py-16 bg-vellum border-t border-b border-n-200">
         <div className="max-w-[760px] mx-auto">
           <EyebrowLabel number="01" keyword="THE PROBLEM" className="mb-4 text-center" />
-          <h2 className="font-display font-bold text-[clamp(28px,4.5vw,36px)] tracking-[0.02em] text-center leading-[1.18] text-ink mb-6">
-            The problem isn&apos;t your ideas.<br />It&apos;s that your ideas live in eleven tools that don&apos;t talk to each other.
+          <h2 className="font-display font-bold text-[clamp(24px,4.5vw,36px)] tracking-[0.02em] text-center leading-[1.2] text-ink mb-6">
+            The problem isn&apos;t your ideas.<br className="hidden sm:inline" /> It&apos;s that your ideas live in eleven tools that don&apos;t talk to each other.
           </h2>
           <div className="max-w-[560px] mx-auto mt-6">
             <Crease />
@@ -110,7 +110,7 @@ export default function LandingPage() {
       <section className="px-6 py-16 bg-off-white">
         <div className="max-w-[720px] mx-auto">
           <EyebrowLabel number="02" keyword="THE WHY" className="mb-4 text-center" />
-          <h2 className="font-display font-bold text-[32px] tracking-[0.02em] text-center text-ink mb-8 leading-[1.15]">
+          <h2 className="font-display font-bold text-[clamp(24px,4.5vw,32px)] tracking-[0.02em] text-center text-ink mb-8 leading-[1.2]">
             Every multi-venture operator knows the feeling.
           </h2>
           <p className={whyPara}>
@@ -133,14 +133,14 @@ export default function LandingPage() {
         <div className="max-w-[1040px] mx-auto">
           <div className="text-center mb-12">
             <EyebrowLabel number="03" keyword="THE SOLUTION" className="mb-3" />
-            <h2 className="font-display font-bold text-[32px] tracking-[0.02em] text-ink leading-[1.15]">
+            <h2 className="font-display font-bold text-[clamp(24px,4.5vw,32px)] tracking-[0.02em] text-ink leading-[1.2]">
               From chaos to clarity — in minutes.
             </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-n-200 border border-n-200">
             {OUTCOMES.map((o, i) => (
-              <div key={o.title} className="bg-off-white px-[26px] py-7">
+              <div key={o.title} className="bg-off-white px-5 py-6 sm:px-[26px] sm:py-7">
                 <EyebrowLabel keyword={`0${i + 1}`} color="var(--color-arc-cyan-deep)" className="mb-3" />
                 <h3 className="font-display font-bold text-[20px] tracking-[0.01em] text-ink mb-2.5 leading-[1.25]">
                   {o.title}
@@ -159,7 +159,7 @@ export default function LandingPage() {
         <div className="max-w-[720px] mx-auto">
           <div className="text-center mb-8">
             <EyebrowLabel number="04" keyword="WHO IT'S FOR" className="mb-3" />
-            <h2 className="font-display font-bold text-[32px] tracking-[0.02em] text-ink leading-[1.15]">
+            <h2 className="font-display font-bold text-[clamp(24px,4.5vw,32px)] tracking-[0.02em] text-ink leading-[1.2]">
               Multi-venture operators.
             </h2>
           </div>
@@ -173,8 +173,8 @@ export default function LandingPage() {
       <section className="px-6 py-8 bg-vellum border-t border-b border-n-200 text-center">
         <div className="max-w-[720px] mx-auto">
           <EyebrowLabel keyword="THE PARENT" className="mb-3" />
-          <p className="font-body text-[16px] leading-[1.55] text-n-600 inline-flex items-baseline gap-1.5 flex-wrap justify-center">
-            <a href="https://h3ros.com" target="_blank" rel="noopener noreferrer" className="no-underline inline-flex">
+          <p className="font-body text-[15px] sm:text-[16px] leading-[1.55] text-n-600">
+            <a href="https://h3ros.com" target="_blank" rel="noopener noreferrer" className="no-underline inline-flex align-baseline mr-1.5">
               <H3rosWordmark size="sm" />
             </a>
             builds operating infrastructure for the builder economy. FOUND3RY is one of its active ventures.
@@ -184,8 +184,8 @@ export default function LandingPage() {
 
       {/* CTA */}
       <section className="px-6 py-20 text-center max-w-[640px] mx-auto">
-        <h2 className="font-display font-bold text-[clamp(28px,5vw,40px)] tracking-[0.02em] text-ink mb-3 leading-[1.15]">
-          Your ideas deserve<br />more than a notes app.
+        <h2 className="font-display font-bold text-[clamp(26px,5vw,40px)] tracking-[0.02em] text-ink mb-3 leading-[1.18]">
+          Your ideas deserve<br className="hidden sm:inline" /> more than a notes app.
         </h2>
         <p className="font-body text-[16px] text-n-600 mb-7 leading-[1.5]">
           Free during early access. No limits. No credit card. Just build.
@@ -197,7 +197,8 @@ export default function LandingPage() {
       <footer className="py-7 px-6 border-t border-n-200 max-w-[1200px] mx-auto flex items-center justify-between flex-wrap gap-3">
         <span className="font-mono font-medium text-[11px] text-n-600 tracking-[0.06em] inline-flex items-center gap-2 flex-wrap">
           <Found3ryWordmark size="sm" />
-          <span>· an h3ros venture · workspace graph for builders</span>
+          <span className="hidden sm:inline">· an h3ros venture · workspace graph for builders</span>
+          <span className="sm:hidden">· an h3ros venture</span>
         </span>
         <span className="font-mono font-medium text-[10px] text-n-400 tracking-[0.10em] uppercase">
           © {new Date().getFullYear()}

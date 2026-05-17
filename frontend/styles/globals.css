@@ -458,6 +458,9 @@ textarea.forge-input { resize: vertical; min-height: 80px; border: 1px solid var
 }
 
 /* ─── Mobile Responsive ─────────────────────────────────────────────────────── */
+/* Default header padding (desktop) — overridden below for mobile. */
+.foundry-header { padding: 0 18px; }
+
 @media (max-width: 768px) {
   .sidebar-desktop { display: none; }
   .sidebar-mobile-overlay {
@@ -473,6 +476,18 @@ textarea.forge-input { resize: vertical; min-height: 80px; border: 1px solid var
   .mobile-hamburger { display: flex !important; }
   .desktop-only { display: none !important; }
   .page-enter { padding: 12px !important; }
+
+  /* App header — collapse to essentials so 6 controls fit a 375px viewport.
+     Hide the clock readout, the verbose COMMAND/COFOUND3R text labels,
+     the ⌘K shortcut hint, and the h3ros stamp. The hamburger and the
+     section indicator on the left stay; on the right we keep the
+     icon-only Command, Signals, and COFOUND3R buttons. */
+  .foundry-header { padding: 0 10px; gap: 6px; }
+  .foundry-header-right { gap: 6px !important; }
+  .foundry-header-clock { display: none !important; }
+  .foundry-header-label { display: none !important; }
+  .foundry-header-shortcut { display: none !important; }
+  .foundry-header-stamp { display: none !important; }
 }
 @media (min-width: 769px) {
   .sidebar-desktop { display: flex; }
