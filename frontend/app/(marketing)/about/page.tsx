@@ -5,6 +5,9 @@ import Found3ryWordmark from '@/components/brand/Found3ryWordmark'
 import H3rosWordmark from '@/components/brand/H3rosWordmark'
 import EyebrowLabel from '@/components/brand/EyebrowLabel'
 
+// Phase 2 §3.6 (Path A) — fully static prerender for Lighthouse perf.
+export const dynamic = 'force-static'
+
 export default function AboutPage() {
   const router = useRouter()
 

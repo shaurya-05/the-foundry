@@ -2,11 +2,15 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/lib/auth'
 import Found3ryWordmark from '@/components/brand/Found3ryWordmark'
 import H3rosWordmark from '@/components/brand/H3rosWordmark'
 import EyebrowLabel from '@/components/brand/EyebrowLabel'
 import Crease from '@/components/brand/Crease'
+
+// Phase 2 §3.6 (Path A) — mark this route as fully static for Lighthouse.
+// The 'use client' wrapper still ships, but the HTML response is prerendered
+// at build time with no per-request render cost.
+export const dynamic = 'force-static'
 
 // Three outcomes (collapsed from four per §3.2 — Four-specialists card deleted)
 const OUTCOMES = [
@@ -26,13 +30,14 @@ const OUTCOMES = [
 
 export default function LandingPage() {
   const router = useRouter()
-  const { user, loading } = useAuth()
 
+  // Phase 2 §3.6 — no AuthProvider in scope; check token directly.
+  // If the visitor is already signed in, send them to the app surface.
   useEffect(() => {
-    if (!loading && user) router.replace('/dashboard')
-  }, [user, loading, router])
-
-  if (!loading && user) return null
+    if (typeof window === 'undefined') return
+    const token = localStorage.getItem('foundry_token')
+    if (token) router.replace('/dashboard')
+  }, [router])
 
   return (
     <div className="min-h-screen bg-off-white font-body">

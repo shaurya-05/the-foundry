@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+// Phase 2 §3.6 (Path A) — fully static prerender for Lighthouse perf.
+export const dynamic = 'force-static'
+
 const PLANS = [
   {
     id: 'spark',

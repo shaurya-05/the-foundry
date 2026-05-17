@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 import { Barlow_Condensed, Barlow, IBM_Plex_Mono, IBM_Plex_Serif, Archivo, Archivo_Black } from 'next/font/google'
 import '../styles/globals.css'
-import { AuthProvider } from '@/lib/auth'
-// Light theme only — no ThemeProvider needed
+// Phase 2 §3.6 — AuthProvider lives in (app)/layout.tsx, NOT root.
+// Marketing routes ((marketing)/) skip the auth hydration cycle entirely.
 
 // ─── Legacy fonts (Phase 6 will remove Barlow stack) ─────────────────────────
 const barlowCondensed = Barlow_Condensed({
@@ -61,7 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${barlowCondensed.variable} ${barlow.variable} ${ibmPlexMono.variable} ${archivo.variable} ${archivoBlack.variable} ${plexSerif.variable}`}
       suppressHydrationWarning
     >
-      <body><AuthProvider>{children}</AuthProvider></body>
+      <body>{children}</body>
     </html>
   )
 }
