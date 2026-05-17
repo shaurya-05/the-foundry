@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 142 142">
-  <rect width="142" height="142" fill="#141413"/>
-  <g transform="translate(16 0)" fill="#9FDEFA">
+  <rect width="142" height="142" fill="#F2F2EE"/>
+  <g transform="translate(41 32) scale(0.549)" fill="#6BBFD9">
     <rect x="0"  y="0"   width="110" height="34"/>
     <rect x="15" y="54"  width="95"  height="34"/>
     <rect x="0"  y="108" width="110" height="34"/>
