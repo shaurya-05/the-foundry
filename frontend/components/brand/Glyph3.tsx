@@ -1,14 +1,20 @@
 /**
  * Glyph3 — the custom drawn `3` glyph that anchors the h3ros identity system.
  *
- * Geometry locked to the canonical h3ros DrawnThree (h3ros-com/components/brand/
- * DrawnThree.tsx). Four hard-edge rectangles, right-side spine, recessed middle
- * bar. The same glyph anchors every vertical wordmark: T3RRA, FOUND3RY, HERM3S,
+ * Geometry: four hard-edge rectangles, right-side spine, recessed middle bar.
+ * The same glyph anchors every vertical wordmark: T3RRA, FOUND3RY, HERM3S,
  * CR3ATE — never typeset as an E.
  *
+ * Proportion note: h3ros source DrawnThree uses bar=28 / gap=29 (roughly 1:1).
+ * That renders identically at large sizes but at inline body-text scale the
+ * bars get sub-pixel crushed by AA and look thinner than the gaps. We thicken
+ * the bars to bar=34 / gap=20 (≈ 1.7:1) so the visual reads cleanly at every
+ * scale and matches the canonical h3ros wordmark renders shown on h3ros.com.
+ *
  * Spec:
- *   viewBox  0 0 110 142   (aspect ≈ 0.775, matches h3ros canon)
- *   shape    4 rects: top bar, recessed middle bar, bottom bar, right spine
+ *   viewBox  0 0 110 142   (aspect ≈ 0.775)
+ *   shape    4 rects: top bar (h=34), middle bar (h=34, recessed 15px left),
+ *            bottom bar (h=34), right spine (w=28, full height)
  *   color    FOUND3RY uses Arc Cyan; h3ros parent uses Signal Orange
  *
  * Sized by `size` prop. For inline use beside text, callers should pass a value
@@ -55,9 +61,9 @@ export default function Glyph3({
         ...style,
       }}
     >
-      <rect x="0"  y="0"   width="110" height="28" />
-      <rect x="15" y="57"  width="95"  height="28" />
-      <rect x="0"  y="114" width="110" height="28" />
+      <rect x="0"  y="0"   width="110" height="34" />
+      <rect x="15" y="54"  width="95"  height="34" />
+      <rect x="0"  y="108" width="110" height="34" />
       <rect x="82" y="0"   width="28"  height="142" />
     </svg>
   )
