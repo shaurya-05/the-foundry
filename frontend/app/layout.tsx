@@ -51,7 +51,7 @@ const plexSerif = IBM_Plex_Serif({
 
 export const metadata: Metadata = {
   title: 'The FOUND3RY — by h3ros',
-  description: 'AI-powered builder operating system. Source → Forge → Cast → Ship.',
+  description: 'Workspace graph for multi-venture operators. Built by h3ros.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

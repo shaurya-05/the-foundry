@@ -23,7 +23,7 @@ const WALKTHROUGH_STEPS: Step[] = [
     number: '01',
     title: 'Welcome to The FOUND3RY.',
     subtitle: 'Builder OS',
-    desc: 'The FOUND3RY is where ideas become real. Every tool you need to go from concept to launch — with an AI co-founder that actually knows your work.',
+    desc: 'The FOUND3RY is where ideas become real. Every tool you need to go from concept to launch — with an agent that actually knows your work.',
     features: [
       'Project plans generated in minutes with auto-created tasks.',
       'Knowledge base with semantic search.',
@@ -111,7 +111,7 @@ const WALKTHROUGH_STEPS: Step[] = [
   },
   {
     number: '08',
-    title: 'COFOUND3R is your AI co-founder.',
+    title: 'COFOUND3R reads your entire workspace graph.',
     subtitle: 'Press ⌘J anywhere',
     desc: 'COFOUND3R knows every project, task, knowledge item, and idea in your workspace. Ask it anything — "what should I work on?", "summarize my progress", "draft a pitch".',
     features: [

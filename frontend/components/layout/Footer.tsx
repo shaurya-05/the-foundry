@@ -48,7 +48,7 @@ const DEFAULT_COLUMNS: FooterColumn[] = [
 
 export default function Footer({
   columns = DEFAULT_COLUMNS,
-  tagline = 'The AI co-founder for builders. Source · Forge · Cast · Ship.',
+  tagline = 'Workspace graph for multi-venture operators. An h3ros venture.',
 }: FooterProps) {
   return (
     <footer style={{ position: 'relative' }}>
