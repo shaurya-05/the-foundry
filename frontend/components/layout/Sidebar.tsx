@@ -19,7 +19,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/knowledge', label: 'Knowledge', sublabel: 'Research and docs', icon: <ArchiveIcon /> },
   { href: '/projects',  label: 'Projects',  sublabel: 'Build tracker',    icon: <WorkshopIcon /> },
   { href: '/tasks',     label: 'Tasks',     sublabel: 'Task board',       icon: <TaskIcon /> },
-  { href: '/agents',    label: 'Agents',    sublabel: 'AI analysis',      icon: <AgentsIcon /> },
+  { href: '/agents',    label: 'COFOUND3R', sublabel: 'Portfolio agent',  icon: <AgentsIcon /> },
   { href: '/insights',  label: 'Insights',  sublabel: 'Cross-entity scan', icon: <InsightsIcon /> },
 ]
 
