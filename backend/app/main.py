@@ -91,7 +91,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="THE FOUNDRY API",
-    description="AI-powered builder operating system by h3ros",
+    description="Venture stack for operators running more than one thing — by h3ros",
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/api/docs" if not IS_PROD else None,       # Disable Swagger in prod

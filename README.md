@@ -1,6 +1,6 @@
 # THE FOUNDRY — by h3ros
 
-AI-powered builder operating system. Source → Forge → Cast → Ship.
+The venture stack for operators running more than one thing. Connect your tools — one agent reads the entire portfolio.
 
 ## Quick Start
 
