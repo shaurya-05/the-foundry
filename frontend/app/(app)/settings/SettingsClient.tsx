@@ -173,6 +173,28 @@ export default function SettingsClient() {
         </p>
       </div>
 
+      {/* ─── Connections shortcut ───────────────────────────────────── */}
+      <button
+        onClick={() => router.push('/settings/connections')}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '14px 18px', marginBottom: 24, cursor: 'pointer',
+          background: 'var(--bg-surface, #fff)', border: '1px solid var(--border, rgba(0,0,0,0.07))',
+          borderLeft: '3px solid var(--color-arc-cyan-deep)',
+          textAlign: 'left',
+        }}
+      >
+        <div>
+          <div style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-primary)' }}>
+            Connections
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)', marginTop: 2 }}>
+            Authorize GitHub, Linear, Notion — feed the workspace graph
+          </div>
+        </div>
+        <span style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 12, color: 'var(--text-muted)' }}>→</span>
+      </button>
+
       {/* ─── Profile ─────────────────────────────────────────────────── */}
       <Section title="Profile" accent="var(--color-ink)">
         {/* Avatar preview */}

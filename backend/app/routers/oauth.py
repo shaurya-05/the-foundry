@@ -171,12 +171,57 @@ def _callback_url(request: Request, provider: str) -> str:
 # ─── Start endpoint ───────────────────────────────────────────────────────
 
 
+def _set_csrf_cookie(response, nonce: str) -> None:
+    is_prod = os.getenv("ENVIRONMENT", "development") == "production"
+    response.set_cookie(
+        key=_STATE_COOKIE_NAME,
+        value=nonce,
+        max_age=_STATE_TTL_MINUTES * 60,
+        httponly=True,
+        # Cross-site OAuth round-trip requires SameSite=None+Secure in prod;
+        # Lax suffices for same-host dev.
+        secure=is_prod,
+        samesite="none" if is_prod else "lax",
+        path="/api/oauth",
+    )
+
+
+@router.post("/{provider}/authorize-url")
+async def oauth_authorize_url(
+    provider: str,
+    request: Request,
+    auth: AuthContext = Depends(require_auth),
+):
+    """
+    Return the provider authorize URL + set the CSRF cookie.
+
+    The frontend then does a top-level navigation to the URL. We can't
+    use a 302 here because the fetch is cross-origin and JavaScript
+    cannot read Location off an opaqueredirect.
+    """
+    cfg = _get_provider(provider)
+    state, nonce = _mint_state(auth.user_id, auth.workspace_id, provider)
+    params = {
+        "client_id": cfg.client_id,
+        "redirect_uri": _callback_url(request, provider),
+        "scope": cfg.scopes,
+        "state": state,
+        "allow_signup": "false",
+    }
+    url = f"{cfg.authorize_url}?{urllib.parse.urlencode(params)}"
+    response = JSONResponse({"authorize_url": url})
+    _set_csrf_cookie(response, nonce)
+    log.info("oauth_authorize_url", provider=provider, user_id=auth.user_id)
+    return response
+
+
 @router.get("/{provider}/start")
 async def oauth_start(
     provider: str,
     request: Request,
     auth: AuthContext = Depends(require_auth),
 ):
+    """Legacy 302 endpoint — kept for same-origin contexts and webhooks."""
     cfg = _get_provider(provider)
     state, nonce = _mint_state(auth.user_id, auth.workspace_id, provider)
     params = {
@@ -188,15 +233,7 @@ async def oauth_start(
     }
     url = f"{cfg.authorize_url}?{urllib.parse.urlencode(params)}"
     response = RedirectResponse(url=url, status_code=302)
-    response.set_cookie(
-        key=_STATE_COOKIE_NAME,
-        value=nonce,
-        max_age=_STATE_TTL_MINUTES * 60,
-        httponly=True,
-        secure=os.getenv("ENVIRONMENT", "development") == "production",
-        samesite="lax",
-        path="/api/oauth",
-    )
+    _set_csrf_cookie(response, nonce)
     log.info("oauth_start", provider=provider, user_id=auth.user_id)
     return response
 
