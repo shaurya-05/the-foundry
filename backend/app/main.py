@@ -67,6 +67,7 @@ from app.routers import (
     knowledge, projects, ideas, tasks, agents,
     copilot, context, notifications, command, launchpad,
     blueprint, workspace, auth, subscription, analytics,
+    oauth,
 )
 
 @asynccontextmanager
@@ -180,6 +181,7 @@ app.include_router(workspace.router)
 app.include_router(auth.router)
 app.include_router(subscription.router)
 app.include_router(analytics.router)
+app.include_router(oauth.router)
 
 
 # ─── Health check (deep) ─────────────────────────────────────────────────────
