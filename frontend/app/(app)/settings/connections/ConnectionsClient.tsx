@@ -29,6 +29,17 @@ type Connection = {
   expires_at: string | null
 }
 
+type SyncJob = {
+  id: string
+  provider: string
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  phase: string | null
+  progress: Record<string, number | string>
+  error: string | null
+  started_at: string | null
+  completed_at: string | null
+}
+
 const PROVIDER_META: Record<string, { label: string; tagline: string; status: 'live' | 'soon' }> = {
   github: {
     label: 'GitHub',
@@ -52,6 +63,7 @@ export default function ConnectionsClient() {
   const search = useSearchParams()
   const { user, loading } = useAuth()
   const [connections, setConnections] = useState<Connection[]>([])
+  const [syncJobs, setSyncJobs] = useState<SyncJob[]>([])
   const [busy, setBusy] = useState<string | null>(null)
   const [banner, setBanner] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null)
 
@@ -80,9 +92,50 @@ export default function ConnectionsClient() {
     if (res.ok) setConnections(await res.json())
   }
 
+  async function loadSyncJobs() {
+    const token = localStorage.getItem('foundry_token')
+    if (!token) return
+    const res = await fetch(`${API_URL}/api/oauth/sync/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (res.ok) setSyncJobs(await res.json())
+  }
+
   useEffect(() => {
-    if (user) loadConnections()
+    if (!user) return
+    loadConnections()
+    loadSyncJobs()
   }, [user])
+
+  // Poll sync status while any job is still running
+  useEffect(() => {
+    if (!user) return
+    const hasRunning = syncJobs.some((j) => j.status === 'pending' || j.status === 'running')
+    if (!hasRunning) return
+    const t = setInterval(loadSyncJobs, 4000)
+    return () => clearInterval(t)
+  }, [user, syncJobs])
+
+  async function rerunSync(provider: string) {
+    const token = localStorage.getItem('foundry_token')
+    if (!token) return
+    setBusy(`sync:${provider}`)
+    try {
+      const res = await fetch(`${API_URL}/api/oauth/connections/${provider}/sync`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        setBanner({ tone: 'ok', text: `Sync re-enqueued for ${provider}.` })
+        loadSyncJobs()
+      } else {
+        const d = await res.json().catch(() => ({}))
+        setBanner({ tone: 'err', text: d.detail || 'Re-sync failed to enqueue' })
+      }
+    } finally {
+      setBusy(null)
+    }
+  }
 
   async function startConnect(provider: string) {
     const token = localStorage.getItem('foundry_token')
@@ -199,13 +252,22 @@ export default function ConnectionsClient() {
                       Coming soon
                     </button>
                   ) : isConnected ? (
-                    <button
-                      onClick={() => revoke(provider)}
-                      disabled={busy === provider}
-                      className="border border-ink text-ink px-4 py-2 text-xs font-mono uppercase tracking-wider hover:bg-ink hover:text-off-white transition-colors"
-                    >
-                      {busy === provider ? 'Working…' : 'Disconnect'}
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => rerunSync(provider)}
+                        disabled={busy === `sync:${provider}`}
+                        className="border border-arc-cyan-deep text-arc-cyan-deep px-3 py-2 text-xs font-mono uppercase tracking-wider hover:bg-arc-cyan transition-colors"
+                      >
+                        {busy === `sync:${provider}` ? 'Queuing…' : 'Re-sync'}
+                      </button>
+                      <button
+                        onClick={() => revoke(provider)}
+                        disabled={busy === provider}
+                        className="border border-ink text-ink px-4 py-2 text-xs font-mono uppercase tracking-wider hover:bg-ink hover:text-off-white transition-colors"
+                      >
+                        {busy === provider ? 'Working…' : 'Disconnect'}
+                      </button>
+                    </div>
                   ) : (
                     <button
                       onClick={() => startConnect(provider)}
@@ -220,6 +282,56 @@ export default function ConnectionsClient() {
             )
           })}
         </div>
+
+        {syncJobs.length > 0 && (
+          <div className="mt-12">
+            <EyebrowLabel number="02" keyword="Sync history" />
+            <div className="mt-3 border border-n200">
+              {syncJobs.map((j, i) => (
+                <div
+                  key={j.id}
+                  className={`flex items-start justify-between gap-4 p-4 ${
+                    i > 0 ? 'border-t border-n200' : ''
+                  }`}
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <span className="font-archivo-black text-sm text-ink uppercase">{j.provider}</span>
+                      <span
+                        className={`text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 ${
+                          j.status === 'completed'
+                            ? 'bg-arc-cyan text-ink'
+                            : j.status === 'failed'
+                            ? 'bg-signal text-off-white'
+                            : 'bg-n200 text-ink'
+                        }`}
+                      >
+                        {j.status}
+                      </span>
+                      {j.phase && (
+                        <span className="text-xs font-mono text-n600">{j.phase}</span>
+                      )}
+                    </div>
+                    {Object.keys(j.progress).length > 0 && (
+                      <div className="mt-1 text-xs font-mono text-n600 break-words">
+                        {Object.entries(j.progress)
+                          .filter(([k]) => !['current', 'total'].includes(k))
+                          .map(([k, v]) => `${k}: ${v}`)
+                          .join(' · ')}
+                      </div>
+                    )}
+                    {j.error && (
+                      <div className="mt-1 text-xs text-signal">{j.error}</div>
+                    )}
+                  </div>
+                  <div className="text-xs font-mono text-n600 shrink-0 text-right">
+                    {j.started_at && new Date(j.started_at).toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-12">
           <button

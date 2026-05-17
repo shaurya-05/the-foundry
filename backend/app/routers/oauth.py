@@ -36,8 +36,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import httpx
+import json as _json
 import structlog
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Cookie, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from jose import JWTError, jwt
 from pydantic import BaseModel
@@ -241,10 +242,23 @@ async def oauth_start(
 # ─── Callback endpoint ────────────────────────────────────────────────────
 
 
+def _kick_initial_sync(workspace_id: str, user_id: str, background: BackgroundTasks) -> None:
+    """Try Celery first; fall back to FastAPI BackgroundTasks for dev / no-worker."""
+    try:
+        from workers.pipeline_worker import github_initial_sync
+        github_initial_sync.delay(workspace_id, user_id)
+        log.info("github_sync_enqueued_celery", workspace_id=workspace_id)
+    except Exception as e:
+        log.warning("github_sync_celery_unavailable_falling_back", error=str(e))
+        from app.services.github_sync import run_initial_github_sync
+        background.add_task(run_initial_github_sync, workspace_id=workspace_id, user_id=user_id)
+
+
 @router.get("/{provider}/callback")
 async def oauth_callback(
     provider: str,
     request: Request,
+    background: BackgroundTasks,
     code: Optional[str] = Query(None),
     state: Optional[str] = Query(None),
     error: Optional[str] = Query(None),
@@ -347,6 +361,10 @@ async def oauth_callback(
         provider_user_login=provider_user_login,
     )
 
+    # Kick off the initial sync so the graph populates without a manual click.
+    if provider == "github":
+        _kick_initial_sync(payload["workspace_id"], payload["sub"], background)
+
     response = RedirectResponse(
         url=f"{fe}/settings/connections?status=connected&provider={provider}",
         status_code=302,
@@ -386,6 +404,76 @@ async def list_connections(auth: AuthContext = Depends(require_auth)):
             scopes=list(r["scopes"]) if r["scopes"] else None,
             connected_at=r["created_at"],
             expires_at=r["expires_at"],
+        )
+        for r in rows
+    ]
+
+
+@router.post("/connections/{provider}/sync")
+async def trigger_sync(
+    provider: str,
+    background: BackgroundTasks,
+    auth: AuthContext = Depends(require_auth),
+):
+    """Manually trigger a re-sync. Useful after large repo changes or imports."""
+    if provider != "github":
+        raise HTTPException(status_code=400, detail="Only github is supported today")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        conn_row = await graph_repo.get_oauth_connection(conn, auth.user_id, provider)
+    if not conn_row:
+        raise HTTPException(status_code=404, detail="No active GitHub connection")
+    _kick_initial_sync(auth.workspace_id, auth.user_id, background)
+    return {"status": "enqueued", "provider": provider}
+
+
+def _parse_progress(v) -> dict:
+    if v is None:
+        return {}
+    if isinstance(v, dict):
+        return v
+    try:
+        return _json.loads(v)
+    except (TypeError, ValueError):
+        return {}
+
+
+class SyncJobView(BaseModel):
+    id: str
+    provider: str
+    status: str
+    phase: Optional[str]
+    progress: dict
+    error: Optional[str]
+    started_at: Optional[datetime]
+    completed_at: Optional[datetime]
+
+
+@router.get("/sync/status", response_model=list[SyncJobView])
+async def sync_status(auth: AuthContext = Depends(require_auth)):
+    """Recent sync jobs for the current workspace, newest first."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, provider, status, phase, progress, error, started_at, completed_at
+            FROM sync_jobs
+            WHERE workspace_id = $1
+            ORDER BY created_at DESC
+            LIMIT 10
+            """,
+            auth.workspace_id,
+        )
+    return [
+        SyncJobView(
+            id=str(r["id"]),
+            provider=r["provider"],
+            status=r["status"],
+            phase=r["phase"],
+            progress=_parse_progress(r["progress"]),
+            error=r["error"],
+            started_at=r["started_at"],
+            completed_at=r["completed_at"],
         )
         for r in rows
     ]
