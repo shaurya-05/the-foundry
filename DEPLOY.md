@@ -28,8 +28,13 @@ npx vercel --prod
 ```
 
 Set environment variables in Vercel dashboard:
-- `NEXT_PUBLIC_API_URL` = `https://your-railway-backend.up.railway.app`
-- `NEXT_PUBLIC_WS_URL` = `wss://your-railway-backend.up.railway.app`
+- `NEXT_PUBLIC_API_URL` = `https://api.found3ry.com`
+- `NEXT_PUBLIC_WS_URL` = `wss://api.found3ry.com`
+
+> **Phase 2 §3.1 hardening:** the production frontend MUST point at the
+> custom domain `api.found3ry.com`, never the raw Railway hostname.
+> `next.config.mjs` will refuse to build a production bundle if either env
+> var contains `.up.railway.app`.
 
 ### 2. Backend → Railway
 
@@ -126,3 +131,60 @@ api.yourdomain.com {
 - [ ] Set up database backups (Railway auto-backs up, VPS needs cron)
 - [ ] Monitor health endpoint with UptimeRobot (free) or Better Stack
 - [ ] Set up domain and SSL certificates
+
+---
+
+## Phase 2 §3.1 — Backend custom-domain cutover
+
+The Railway-issued hostname (`*.up.railway.app`) must not appear in the
+production CSP `connect-src`. The fix is a custom subdomain on the Railway
+service and a one-time env-var flip in Vercel.
+
+### 1. DNS (GoDaddy)
+
+Add the two records Railway requests when you provision the custom domain:
+
+| Type   | Name                 | Value                                 |
+|--------|----------------------|---------------------------------------|
+| CNAME  | `api`                | `<your-service>.up.railway.app`       |
+| TXT    | `_railway-verify.api`| `railway-verify=<token-from-railway>` |
+
+### 2. Railway
+
+- Service → **Settings** → **Networking** → **Custom Domain**
+- Add `api.found3ry.com`
+- Wait for both verification ✓ and TLS-provision ✓ (typically 2–10 min)
+
+### 3. Vercel env-var flip
+
+In each environment (Production, Preview, Development):
+
+```
+NEXT_PUBLIC_API_URL=https://api.found3ry.com
+NEXT_PUBLIC_WS_URL=wss://api.found3ry.com
+```
+
+Redeploy. `next.config.mjs` validates these at build time and refuses to
+build if either contains `.up.railway.app`.
+
+### 4. Backend CORS
+
+In Railway env vars on the backend service, ensure `ALLOWED_ORIGINS`
+contains both: `https://found3ry.com,https://www.found3ry.com`. The
+backend itself doesn't need a value change — it serves on whatever
+hostname Railway routes to it.
+
+### 5. Verify
+
+```bash
+# DNS
+dig +short CNAME api.found3ry.com
+dig +short TXT   _railway-verify.api.found3ry.com
+
+# Live API
+curl -sI https://api.found3ry.com/health
+
+# CSP must not contain railway hostname
+curl -sI https://found3ry.com/ | grep -i content-security-policy | grep -ic railway
+# Expected: 0
+```

@@ -111,7 +111,13 @@
       "Bash(psql \"$PROD_DB\" -c \"SELECT id, email, display_name, role, email_verified, created_at FROM users WHERE deleted_at IS NULL ORDER BY created_at;\")",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8000/health)",
       "Bash(rm -rf .next)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(ls frontend/.env*)",
+      "Bash(NEXT_PUBLIC_API_URL=https://api.found3ry.com NEXT_PUBLIC_WS_URL=wss://api.found3ry.com NODE_ENV=production npx next build)",
+      "Bash(NEXT_PUBLIC_API_URL=https://the-foundry-production-1482.up.railway.app NODE_ENV=production npx next build)",
+      "Bash(openssl s_client -servername api.found3ry.com -connect api.found3ry.com:443 -showcerts)",
+      "Bash(curl -s --max-time 15 https://api.found3ry.com/health)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 15 https://api.found3ry.com/health)"
     ]
   }
 }
