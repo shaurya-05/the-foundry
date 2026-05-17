@@ -117,7 +117,12 @@
       "Bash(NEXT_PUBLIC_API_URL=https://the-foundry-production-1482.up.railway.app NODE_ENV=production npx next build)",
       "Bash(openssl s_client -servername api.found3ry.com -connect api.found3ry.com:443 -showcerts)",
       "Bash(curl -s --max-time 15 https://api.found3ry.com/health)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 15 https://api.found3ry.com/health)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 15 https://api.found3ry.com/health)",
+      "Bash(curl -sI -X OPTIONS https://api.found3ry.com/api/auth/login -H \"Origin: https://found3ry.com\" -H \"Access-Control-Request-Method: POST\" -H \"Access-Control-Request-Headers: Content-Type\" --max-time 15)",
+      "Bash(curl -sI https://found3ry.com/ --max-time 15)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" --max-time 15 https://found3ry.com/)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" --max-time 15 https://api.found3ry.com/health)",
+      "Bash(curl -sI -L https://found3ry.com/ --max-time 15)"
     ]
   }
 }

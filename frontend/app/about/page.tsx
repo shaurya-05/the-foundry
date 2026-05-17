@@ -1,218 +1,149 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import Found3ryWordmark from '@/components/brand/Found3ryWordmark'
+import H3rosWordmark from '@/components/brand/H3rosWordmark'
+import EyebrowLabel from '@/components/brand/EyebrowLabel'
 
 export default function AboutPage() {
   const router = useRouter()
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg, #F4F5F7)', fontFamily: 'var(--font-barlow)' }}>
+    <div className="min-h-screen bg-off-white font-body">
 
       {/* Nav */}
-      <nav style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '18px 32px', maxWidth: 1200, margin: '0 auto',
-      }}>
-        <button onClick={() => router.push('/')} style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          background: 'none', border: 'none', cursor: 'pointer',
-        }}>
-          <div style={{
-            width: 30, height: 30, borderRadius: 7,
-            background: 'linear-gradient(135deg, #141413, #5F5F5A)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 12px rgba(232,35,31,0.25)',
-          }}>
-            <svg width="14" height="14" viewBox="0 0 15 15" fill="none">
-              <path d="M7.5 1L14 4.5V10.5L7.5 14L1 10.5V4.5L7.5 1Z" stroke="white" strokeWidth="1.4" fill="none" />
-              <path d="M7.5 1L7.5 14M1 4.5L14 10.5M14 4.5L1 10.5" stroke="white" strokeWidth="0.7" opacity="0.45" />
-            </svg>
-          </div>
-          <span style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 16, letterSpacing: '0.08em' }}>
-            <span style={{ color: '#5B93ED', fontWeight: 600 }}>The </span><span style={{ color: 'var(--color-ink)' }}>FOUND</span><span style={{ color: 'var(--color-n600)' }}>3</span><span style={{ color: 'var(--color-ink)' }}>RY</span>
+      <nav className="flex items-center justify-between py-[18px] px-8 max-w-[1200px] mx-auto">
+        <button onClick={() => router.push('/')} className="flex items-center gap-2.5 bg-transparent border-0 cursor-pointer">
+          <Found3ryWordmark size="sm" />
+          <span className="font-mono font-medium text-[10px] tracking-[0.10em] uppercase text-n-600 inline-flex items-center gap-1.5">
+            · an
+            <a href="https://h3ros.com" target="_blank" rel="noopener noreferrer" className="no-underline inline-flex">
+              <H3rosWordmark size="xs" />
+            </a>
+            venture
           </span>
         </button>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button onClick={() => router.push('/login')} style={{
-            padding: '8px 16px', background: 'linear-gradient(135deg, #141413, #141413)',
-            border: 'none', borderRadius: 7, cursor: 'pointer', color: '#fff',
-            fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600, fontSize: 11,
-            letterSpacing: '0.06em', textTransform: 'uppercase',
-          }}>
+        <div className="flex gap-3">
+          <button
+            onClick={() => router.push('/login')}
+            className="py-2 px-4 bg-ink border-0 rounded-sm cursor-pointer text-off-white font-display font-semibold text-[11px] tracking-[0.06em] uppercase transition-colors duration-100 hover:bg-n-600"
+          >
             Sign In
           </button>
         </div>
       </nav>
 
       {/* Hero */}
-      <section style={{ padding: '80px 24px 40px', maxWidth: 720, margin: '0 auto', textAlign: 'center' }}>
-        <div style={{
-          display: 'inline-block',
-          padding: '6px 14px',
-          background: 'rgba(232,35,31,0.08)',
-          border: '1px solid rgba(232,35,31,0.2)',
-          borderRadius: 20,
-          fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11,
-          color: 'var(--color-ink)', letterSpacing: '0.12em', textTransform: 'uppercase',
-          marginBottom: 24,
-        }}>
+      <section className="px-6 pt-20 pb-10 max-w-[720px] mx-auto text-center">
+        <div className="inline-block py-1.5 px-3.5 bg-vellum border border-n-200 rounded-[20px] font-mono font-medium text-[11px] text-ink tracking-[0.12em] uppercase mb-6">
           The Story
         </div>
-        <h1 style={{
-          fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700,
-          fontSize: 'clamp(36px, 6vw, 56px)', letterSpacing: '0.02em',
-          color: 'var(--text-primary, #0A0C12)',
-          lineHeight: 1.05, marginBottom: 20,
-        }}>
+        <h1 className="font-display font-bold text-[clamp(36px,6vw,56px)] tracking-[0.02em] text-ink leading-[1.05] mb-5">
           We built the tool<br />we wished we had.
         </h1>
-        <p style={{
-          fontSize: 17, color: 'var(--text-muted, #6B7280)', maxWidth: 520,
-          margin: '0 auto', lineHeight: 1.6,
-        }}>
-          Why The FOUND3RY exists, who it's for, and where it's going.
+        <p className="font-body text-[17px] text-n-600 max-w-[520px] mx-auto leading-[1.6]">
+          Why The FOUND3RY exists, who it&apos;s for, and where it&apos;s going.
         </p>
       </section>
 
       {/* The problem */}
-      <section style={{ padding: '40px 24px', maxWidth: 720, margin: '0 auto' }}>
-        <h2 style={{
-          fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 26,
-          letterSpacing: '0.02em', color: 'var(--text-primary, #0A0C12)',
-          marginBottom: 20, lineHeight: 1.2,
-        }}>
+      <section className="px-6 py-10 max-w-[720px] mx-auto">
+        <EyebrowLabel number="01" keyword="THE GAP" className="mb-4" />
+        <h2 className="font-display font-bold text-[26px] tracking-[0.02em] text-ink mb-5 leading-[1.2]">
           The gap between idea and execution.
         </h2>
-        <p style={{ fontSize: 16, lineHeight: 1.75, color: 'var(--text-secondary, #374151)', marginBottom: 16 }}>
+        <p className={paraStyle}>
           Every founder knows the feeling. The idea hits you suddenly — on a walk, in the shower, at 2am. You capture it somewhere. A voice memo. A note on your phone. A text to yourself.
         </p>
-        <p style={{ fontSize: 16, lineHeight: 1.75, color: 'var(--text-secondary, #374151)', marginBottom: 16 }}>
+        <p className={paraStyle}>
           Then real life happens. And when you come back to it a week later, the idea has fragmented across browser tabs, half-finished Notion docs, scattered research, and a group chat that nobody reads.
         </p>
-        <p style={{ fontSize: 16, lineHeight: 1.75, color: 'var(--text-secondary, #374151)', marginBottom: 16 }}>
-          You try to piece it back together. You look for a tool to help. You find project management apps designed for teams that already know what they're building. You find AI chatbots that forget the conversation the moment you close the tab. You find notes apps that can store anything but organize nothing.
+        <p className={paraStyle}>
+          You try to piece it back together. You look for a tool to help. You find project management apps designed for teams that already know what they&apos;re building. You find AI chatbots that forget the conversation the moment you close the tab. You find notes apps that can store anything but organize nothing.
         </p>
-        <p style={{ fontSize: 16, lineHeight: 1.75, color: 'var(--text-secondary, #374151)', fontWeight: 600 }}>
-          None of them were built for how founders actually think.
+        <p className="font-body text-[16px] leading-[1.75] text-ink font-semibold">
+          None of them were built for how multi-venture operators actually think.
         </p>
       </section>
 
       {/* Founder story */}
-      <section style={{
-        padding: '56px 24px',
-        background: 'var(--bg-surface, #fff)',
-        borderTop: '1px solid var(--border, rgba(0,0,0,0.06))',
-        borderBottom: '1px solid var(--border, rgba(0,0,0,0.06))',
-        margin: '40px 0',
-      }}>
-        <div style={{ maxWidth: 720, margin: '0 auto' }}>
-          <div style={{
-            fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--color-ink)',
-            letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 14,
-          }}>
-            The Founder
-          </div>
-          <h2 style={{
-            fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 28,
-            letterSpacing: '0.02em', color: 'var(--text-primary, #0A0C12)',
-            marginBottom: 20, lineHeight: 1.2,
-          }}>
-            Shaurya's story.
+      <section className="px-6 py-14 bg-vellum border-t border-b border-n-200 my-10">
+        <div className="max-w-[720px] mx-auto">
+          <EyebrowLabel number="02" keyword="THE FOUNDER" className="mb-3.5" />
+          <h2 className="font-display font-bold text-[28px] tracking-[0.02em] text-ink mb-5 leading-[1.2]">
+            Shaurya&apos;s story.
           </h2>
-          <p style={{ fontSize: 16, lineHeight: 1.75, color: 'var(--text-secondary, #374151)', marginBottom: 16 }}>
-            Shaurya is a multi-disciplinary builder working across hardware, software, and design. He's run more than one venture at the same time, watched promising ideas lose momentum because the tools couldn't keep up, and spent too many hours rebuilding the same context from scratch.
+          <p className={paraStyle}>
+            Shaurya is a multi-disciplinary builder running five ventures across hardware, software, and design. He&apos;s watched promising ideas lose momentum because the tools couldn&apos;t keep up, and spent too many hours rebuilding the same context from scratch.
           </p>
-          <p style={{ fontSize: 16, lineHeight: 1.75, color: 'var(--text-secondary, #374151)', marginBottom: 16 }}>
-            He noticed a pattern. Every time he started something new — a product, a research direction, a pitch deck — he'd end up doing the same work over and over. Summarizing research. Writing plans. Breaking work into tasks. Pulling together the story for investors. Work that AI was perfectly capable of doing, if only someone gave it the full picture.
+          <p className={paraStyle}>
+            He noticed a pattern. Every time he started something new — a product, a research direction, a pitch deck — he&apos;d end up doing the same work over and over. Summarizing research. Writing plans. Breaking work into tasks. Pulling together the story for investors. Work that AI was perfectly capable of doing, if only someone gave it the full picture.
           </p>
-          <p style={{ fontSize: 16, lineHeight: 1.75, color: 'var(--text-secondary, #374151)', marginBottom: 16 }}>
-            The problem wasn't AI. The problem was that AI didn't <em>know</em> anything about his actual work. Every conversation started from zero.
+          <p className={paraStyle}>
+            The problem wasn&apos;t AI. The problem was that AI didn&apos;t <em>know</em> anything about his actual work. Every conversation started from zero.
           </p>
-          <p style={{ fontSize: 16, lineHeight: 1.75, color: 'var(--text-secondary, #374151)', fontWeight: 600 }}>
+          <p className="font-body text-[16px] leading-[1.75] text-ink font-semibold">
             So he built something different.
           </p>
         </div>
       </section>
 
       {/* What makes it different */}
-      <section style={{ padding: '40px 24px', maxWidth: 720, margin: '0 auto' }}>
-        <div style={{
-          fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--color-ink)',
-          letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 14,
-        }}>
-          What makes it different
-        </div>
-        <h2 style={{
-          fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 28,
-          letterSpacing: '0.02em', color: 'var(--text-primary, #0A0C12)',
-          marginBottom: 20, lineHeight: 1.2,
-        }}>
-          An AI that actually remembers.
+      <section className="px-6 py-10 max-w-[720px] mx-auto">
+        <EyebrowLabel number="03" keyword="WHAT MAKES IT DIFFERENT" className="mb-3.5" />
+        <h2 className="font-display font-bold text-[28px] tracking-[0.02em] text-ink mb-5 leading-[1.2]">
+          A workspace graph, not a chatbot.
         </h2>
-        <p style={{ fontSize: 16, lineHeight: 1.75, color: 'var(--text-secondary, #374151)', marginBottom: 16 }}>
-          The FOUND3RY isn't another chatbot. It's an operating system for builders — one that connects your projects, tasks, research, and ideas into a single, continuous context.
+        <p className={paraStyle}>
+          The FOUND3RY isn&apos;t another chatbot. It&apos;s a workspace graph for builders — one that ingests your operating reality from the tools you already use (GitHub, Linear, Notion) and gives one agent full context over all of it.
         </p>
-        <p style={{ fontSize: 16, lineHeight: 1.75, color: 'var(--text-secondary, #374151)', marginBottom: 16 }}>
-          When you ask COFOUND3R what to work on next, it doesn't give you a generic answer. It references your actual projects by name, your actual tasks by priority, your actual deadlines. When you run an agent for deep research, it already knows the context. When you generate a launch brief, it pulls from everything you've built so far.
+        <p className={paraStyle}>
+          When you ask COFOUND3R what to work on next, it doesn&apos;t give you a generic answer. It cites your actual PRs, your actual tickets, your actual docs — without you typing any of that into the chat. It knows which venture you&apos;re asking about because it knows what venture each artifact belongs to.
         </p>
-        <p style={{ fontSize: 16, lineHeight: 1.75, color: 'var(--text-secondary, #374151)', marginBottom: 16 }}>
-          Four specialized agents — Field Analyst, Systems Architect, Market Scout, and Launch Strategist — each trained for a different stage of building. Run them individually. Chain them into pipelines. Let them work while you sleep.
+        <p className={paraStyle}>
+          The moat is the graph. Not the model.
         </p>
       </section>
 
       {/* Where it's going */}
-      <section style={{
-        padding: '56px 24px',
-        background: 'var(--bg-surface, #fff)',
-        borderTop: '1px solid var(--border, rgba(0,0,0,0.06))',
-        borderBottom: '1px solid var(--border, rgba(0,0,0,0.06))',
-        margin: '40px 0',
-      }}>
-        <div style={{ maxWidth: 720, margin: '0 auto' }}>
-          <div style={{
-            fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--color-ink)',
-            letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 14,
-          }}>
-            What's next
-          </div>
-          <h2 style={{
-            fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 28,
-            letterSpacing: '0.02em', color: 'var(--text-primary, #0A0C12)',
-            marginBottom: 20, lineHeight: 1.2,
-          }}>
+      <section className="px-6 py-14 bg-vellum border-t border-b border-n-200 my-10">
+        <div className="max-w-[720px] mx-auto">
+          <EyebrowLabel number="04" keyword="WHAT'S NEXT" className="mb-3.5" />
+          <h2 className="font-display font-bold text-[28px] tracking-[0.02em] text-ink mb-5 leading-[1.2]">
             Early access. Free. Open to feedback.
           </h2>
-          <p style={{ fontSize: 16, lineHeight: 1.75, color: 'var(--text-secondary, #374151)', marginBottom: 16 }}>
+          <p className={paraStyle}>
             Version 1 is live. No limits. No credit card. Every feature we ship is shaped by the builders using it.
           </p>
-          <p style={{ fontSize: 16, lineHeight: 1.75, color: 'var(--text-secondary, #374151)', marginBottom: 16 }}>
-            If you're building something, this was built for you. Try it, break it, tell us what's missing. We're listening.
+          <p className={paraStyle}>
+            If you&apos;re running more than one thing, this was built for you. Try it, break it, tell us what&apos;s missing. We&apos;re listening.
           </p>
         </div>
       </section>
 
       {/* CTA */}
-      <section style={{ padding: '48px 24px 80px', textAlign: 'center', maxWidth: 640, margin: '0 auto' }}>
-        <button onClick={() => router.push('/login')} style={{
-          padding: '15px 40px', background: 'linear-gradient(135deg, #141413, #141413)',
-          border: 'none', borderRadius: 8, cursor: 'pointer', color: '#fff',
-          fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600, fontSize: 15,
-          letterSpacing: '0.06em', textTransform: 'uppercase',
-          boxShadow: '0 4px 16px rgba(232,35,31,0.3)',
-        }}>
-          Start Building Free
+      <section className="px-6 pt-12 pb-20 text-center max-w-[640px] mx-auto">
+        <button
+          onClick={() => router.push('/login')}
+          className="inline-flex items-center justify-center gap-2 py-[15px] px-10 bg-arc-cyan text-ink border-0 rounded-sm cursor-pointer font-display font-semibold text-[15px] tracking-[0.06em] uppercase transition-colors duration-100 hover:bg-arc-cyan-deep"
+        >
+          <span>Start Building Free</span>
+          <span aria-hidden="true">→</span>
         </button>
       </section>
 
       {/* Footer */}
-      <footer style={{
-        textAlign: 'center', padding: '28px 24px', borderTop: '1px solid var(--border, rgba(0,0,0,0.07))',
-        maxWidth: 1200, margin: '0 auto',
-      }}>
-        <span style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--text-subtle, #9CA3AF)', letterSpacing: '0.06em' }}>
-          <span style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700 }}><span style={{ color: '#5B93ED', fontWeight: 600 }}>The </span><span style={{ color: 'var(--color-ink)' }}>FOUND</span><span style={{ color: 'var(--color-n600)' }}>3</span><span style={{ color: 'var(--color-ink)' }}>RY</span></span> · an <span style={{ fontWeight: 700 }}><span style={{ color: '#2563EB' }}>h</span><span style={{ color: '#F97316' }}>3</span><span style={{ color: '#2563EB' }}>ros</span></span> venture — workspace graph for builders
+      <footer className="py-7 px-6 border-t border-n-200 max-w-[1200px] mx-auto flex items-center justify-between flex-wrap gap-3">
+        <span className="font-mono font-medium text-[11px] text-n-600 tracking-[0.06em] inline-flex items-center gap-2 flex-wrap">
+          <Found3ryWordmark size="sm" />
+          <span>· an h3ros venture · workspace graph for builders</span>
+        </span>
+        <span className="font-mono font-medium text-[10px] text-n-400 tracking-[0.10em] uppercase">
+          © {new Date().getFullYear()}
         </span>
       </footer>
     </div>
   )
 }
+
+const paraStyle = 'font-body text-[16px] leading-[1.75] text-n-600 mb-4'
