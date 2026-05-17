@@ -1,16 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- Mirror h3ros canonical favicon: off-white bg, brand-colored 3 at ~60% fill -->
-  <rect width="32" height="32" fill="#F2F2EE"/>
-  <!--
-    Drawn-3 stencil. Source viewBox is 110 × 142 (canonical DrawnThree).
-    Scaled to 0.135 → 14.85 wide × 19.17 tall in the 32×32 canvas.
-    Centered: translate((32 − 14.85)/2, (32 − 19.17)/2) ≈ (8.6, 6.4).
-    Result: 3 occupies ~60% of icon height, matching h3ros.
-  -->
-  <g transform="translate(8.6 6.4) scale(0.135)" fill="#6BBFD9">
-    <rect x="0"  y="0"   width="110" height="34"/>
-    <rect x="15" y="54"  width="95"  height="34"/>
-    <rect x="0"  y="108" width="110" height="34"/>
-    <rect x="82" y="0"   width="28"  height="142"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Exact h3ros favicon spec — only the glyph color is swapped from Signal orange to Arc Cyan Deep -->
+  <rect width="64" height="64" fill="#141413"/>
+  <g transform="translate(15 11)" fill="#6BBFD9">
+    <rect x="0"  y="0"  width="33" height="9"/>
+    <rect x="4"  y="17" width="29" height="9"/>
+    <rect x="0"  y="34" width="33" height="9"/>
+    <rect x="25" y="0"  width="8"  height="43"/>
   </g>
 </svg>
