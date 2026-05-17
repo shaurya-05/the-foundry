@@ -16,6 +16,11 @@ services:
       - ./backend/migrations/002_collab_visibility.sql:/docker-entrypoint-initdb.d/002_collab_visibility.sql
       - ./backend/migrations/003_auth.sql:/docker-entrypoint-initdb.d/003_auth.sql
       - ./backend/migrations/004_email_verification.sql:/docker-entrypoint-initdb.d/004_email_verification.sql
+      - ./backend/migrations/005_subscriptions.sql:/docker-entrypoint-initdb.d/005_subscriptions.sql
+      - ./backend/migrations/006_conversation_history.sql:/docker-entrypoint-initdb.d/006_conversation_history.sql
+      - ./backend/migrations/007_project_chat.sql:/docker-entrypoint-initdb.d/007_project_chat.sql
+      - ./backend/migrations/008_task_assignment.sql:/docker-entrypoint-initdb.d/008_task_assignment.sql
+      - ./backend/migrations/009_workspace_graph.sql:/docker-entrypoint-initdb.d/009_workspace_graph.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U foundry -d foundry_db"]
       interval: 10s
