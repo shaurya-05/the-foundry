@@ -88,8 +88,10 @@ body {
   font-family: var(--font-barlow), system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.5;
-  overflow: hidden;
-  height: 100vh;
+  /* No global overflow: hidden / height: 100vh.
+     - Marketing routes need natural page scroll on mobile.
+     - App routes (AppShell) set height/overflow on their own root
+       container, so this rule is only ever a footgun. */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
