@@ -200,9 +200,11 @@ export default function LandingPage() {
           <span className="hidden sm:inline">· an h3ros venture · workspace graph for builders</span>
           <span className="sm:hidden">· an h3ros venture</span>
         </span>
-        <span className="font-mono font-medium text-[10px] text-n-400 tracking-[0.10em] uppercase">
-          © {new Date().getFullYear()}
-        </span>
+        <nav className="font-mono font-medium text-[10px] text-n-600 tracking-[0.10em] uppercase flex items-center gap-4">
+          <a href="/privacy" className="hover:text-ink">Privacy</a>
+          <a href="/terms" className="hover:text-ink">Terms</a>
+          <span className="text-n-400">© {new Date().getFullYear()}</span>
+        </nav>
       </footer>
     </div>
   )

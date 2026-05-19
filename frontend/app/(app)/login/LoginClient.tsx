@@ -243,9 +243,9 @@ export default function LoginClient() {
               />
               <span>
                 I agree to the{' '}
-                <span style={termsLinkStyle}>Terms of Service</span>
+                <a href="/terms" target="_blank" rel="noopener noreferrer" style={termsLinkStyle}>Terms of Service</a>
                 {' '}and{' '}
-                <span style={termsLinkStyle}>Privacy Policy</span>.
+                <a href="/privacy" target="_blank" rel="noopener noreferrer" style={termsLinkStyle}>Privacy Policy</a>.
               </span>
             </label>
           )}

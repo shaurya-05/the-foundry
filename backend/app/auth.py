@@ -4,12 +4,21 @@ from datetime import datetime, timedelta, timezone
 import bcrypt
 from jose import jwt, JWTError  # python-jose[cryptography] already in requirements
 
-SECRET_KEY = os.getenv("JWT_SECRET", "change_me_in_production")
+_JWT_DEFAULT = "change_me_in_production"
+SECRET_KEY = os.getenv("JWT_SECRET", _JWT_DEFAULT)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60  # short-lived access token
 REFRESH_TOKEN_EXPIRE_DAYS = 30
 
-if SECRET_KEY == "change_me_in_production":
+# Hard-fail in production if JWT_SECRET is unset — booting with the default
+# would mint forgeable tokens. Warn in dev so tests can still run.
+if SECRET_KEY == _JWT_DEFAULT:
+    if os.getenv("ENVIRONMENT", "development") == "production":
+        raise RuntimeError(
+            "JWT_SECRET is not set in production. Refusing to start — "
+            "set a strong random value (e.g. `openssl rand -hex 32`) in your "
+            "Railway / Vercel environment."
+        )
     import warnings
     warnings.warn(
         "JWT_SECRET is using the default value! Set a strong secret via environment variable.",
