@@ -41,7 +41,7 @@ function formatSyncTime(ts: string | null): string | null {
   if (diffHours < 24) {
     const hh = d.getHours().toString().padStart(2, '0')
     const mm = d.getMinutes().toString().padStart(2, '0')
-    return `synced today at ${hh}:${mm}`
+    return `synced at ${hh}:${mm}`
   }
   const mo = (d.getMonth() + 1).toString().padStart(2, '0')
   const day = d.getDate().toString().padStart(2, '0')
