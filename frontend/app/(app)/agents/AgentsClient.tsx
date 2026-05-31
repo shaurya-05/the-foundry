@@ -25,6 +25,7 @@ type Exchange = {
   a: string
   ts: Date
   context?: { ventures: number; events: number; doc_hits: number; open_tasks: number }
+  context_md?: string
 }
 
 const STARTER_QUERIES = [
@@ -42,6 +43,7 @@ export default function AgentsClient() {
   const [error, setError] = useState('')
   const [contextPreview, setContextPreview] = useState<{ ventures: number; doc_hits: number; events: number; open_tasks: number } | null>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
+  const [expandedPanels, setExpandedPanels] = useState<Record<number, boolean>>({})
 
   // Surface the "graph empty?" hint: peek at the context preview.
   useEffect(() => {
@@ -82,6 +84,7 @@ export default function AgentsClient() {
                 doc_hits: chunk.doc_hits,
                 open_tasks: chunk.open_tasks,
               },
+              context_md: chunk.context_md as string | undefined,
             }
             return copy
           })
@@ -158,6 +161,34 @@ export default function AgentsClient() {
               <div className="text-base text-ink">
                 {ex.a ? <Markdown content={ex.a} streaming={streaming && i === exchanges.length - 1} /> : streaming && i === exchanges.length - 1 ? <span className="text-n600">…</span> : null}
               </div>
+              {ex.context && !(streaming && i === exchanges.length - 1) && (
+                <div className="mt-3 border border-n200 bg-vellum">
+                  <button
+                    onClick={() => setExpandedPanels(prev => ({ ...prev, [i]: !prev[i] }))}
+                    className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-mono uppercase tracking-wider text-n600 hover:text-ink transition-colors"
+                  >
+                    <span>
+                      What I read — {ex.context.ventures} ventures · {ex.context.doc_hits} docs · {ex.context.events} events · {ex.context.open_tasks} open tasks
+                    </span>
+                    <svg
+                      className={`w-3 h-3 flex-shrink-0 transition-transform duration-150 ${expandedPanels[i] ? 'rotate-180' : ''}`}
+                      viewBox="0 0 12 12"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M2 4l4 4 4-4" />
+                    </svg>
+                  </button>
+                  {expandedPanels[i] && (
+                    <div className="border-t border-n200 px-3 py-2 text-[11px] font-mono text-n600 whitespace-pre-wrap leading-relaxed">
+                      {ex.context_md ?? `${ex.context.ventures} ventures · ${ex.context.doc_hits} docs · ${ex.context.events} events · ${ex.context.open_tasks} open tasks`}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
