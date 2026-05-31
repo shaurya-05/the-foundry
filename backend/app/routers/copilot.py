@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from app.models.schemas import CopilotMessage, IntentRequest, IntentResponse
 from app.services.claude import stream_sse
 from app.services.context_engine import get_workspace_summary, build_copilot_system, build_project_copilot_system
+from app.services.usage import check_limit, increment_usage
 from app.db.postgres import get_pool
-from app.dependencies import AuthContext, require_auth, RequireUsage
+from app.dependencies import AuthContext, require_auth
 from typing import Optional
 import re
 
@@ -22,9 +23,9 @@ INTENT_PATTERNS = [
 ]
 
 @router.post("/message")
-async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(RequireUsage("copilot_messages"))):
-    from app.services.usage import increment_usage
-    await increment_usage(auth.workspace_id, "copilot_messages")
+async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(require_auth)):
+    if not await check_limit(auth.workspace_id, 'copilot_messages'):
+        raise HTTPException(status_code=429, detail='Copilot message limit reached')
 
     pool = await get_pool()
 
@@ -43,6 +44,7 @@ async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(Requi
         system = build_copilot_system(summary)
 
     async def stream_and_save():
+        await increment_usage(auth.workspace_id, 'copilot_messages')
         full_output = []
         async for chunk in stream_sse(system, req.message, max_tokens=800):
             full_output.append(chunk)

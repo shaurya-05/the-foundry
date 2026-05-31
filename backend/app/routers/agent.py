@@ -22,6 +22,7 @@ from app.db.postgres import get_pool
 from app.dependencies import AuthContext, require_auth
 from app.services.agent_retrieval import build_context, build_system_prompt
 from app.services.claude import stream_claude
+from app.services.usage import check_limit, increment_usage
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 
@@ -41,6 +42,9 @@ async def ask(
     Streaming answer. SSE format identical to the legacy /api/agents
     endpoint so the existing copilot UI can consume it without changes.
     """
+    if not await check_limit(auth.workspace_id, 'agent_runs'):
+        raise HTTPException(status_code=429, detail='Agent run limit reached')
+
     pool = await get_pool()
     async with pool.acquire() as conn:
         ctx = await build_context(
@@ -50,6 +54,7 @@ async def ask(
     system = build_system_prompt(ctx["context_md"], venture_focus=body.venture_focus)
 
     async def event_stream():
+        await increment_usage(auth.workspace_id, 'agent_runs')
         # Emit a context-preamble event so the UI can show "Pulled X
         # docs across Y ventures" before the answer starts streaming.
         preamble = {
