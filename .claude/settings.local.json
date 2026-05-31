@@ -125,7 +125,23 @@
       "Bash(curl -sI -L https://found3ry.com/ --max-time 15)",
       "Bash(grep -rn \"useAuth\\\\|from ''''@/lib/auth''''\" \"app/\\(marketing\\)\")",
       "Bash(grep -rln \"useAuth\\\\|from ''''@/lib/auth''''\" \"app/\\(app\\)\")",
-      "Bash(grep -n \"useAuth\\\\|from ''@/lib/auth''\" \"app/\\(marketing\\)/pricing/page.tsx\")"
+      "Bash(grep -n \"useAuth\\\\|from ''@/lib/auth''\" \"app/\\(marketing\\)/pricing/page.tsx\")",
+      "Bash(grep -E \"embedding\\\\s+vector\" migrations/*.sql)",
+      "Bash(python -c \"from app.services.graph_repo import upsert_venture, upsert_person, upsert_doc, upsert_graph_task, upsert_event, add_edge, upsert_oauth_connection, get_oauth_connection, recent_events, semantic_search_docs; print\\(''graph_repo imports OK''\\)\")",
+      "Bash(python3 -c \"from app.services.graph_repo import upsert_venture, upsert_person, upsert_doc, upsert_graph_task, upsert_event, add_edge, upsert_oauth_connection, get_oauth_connection, recent_events, semantic_search_docs; print\\(''graph_repo imports OK''\\)\")",
+      "Bash(python3 -c \"from app.routers import oauth; print\\(''routes:'', [r.path for r in oauth.router.routes]\\)\")",
+      "Bash(npx --no-install tsc --noEmit -p tsconfig.json)",
+      "Bash(NEXT_PUBLIC_API_URL=https://api.found3ry.com NEXT_PUBLIC_WS_URL=wss://api.found3ry.com npx --no-install next build)",
+      "Bash(grep -E '\\(icon|favicon|/$|Route|Compiled\\)')",
+      "Bash(ls \"/Users/shauryakarra/The FOUNDRY/frontend/app/\\(marketing\\)\")",
+      "Bash(find '/Users/shauryakarra/h3ros website May 2026' -name Glyph3* -o -name *Wordmark*)",
+      "Bash(find '/Users/shauryakarra/h3ros website May 2026' -name DrawnThree*)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "Bash(find '/Users/shauryakarra/h3ros website May 2026' \\\\\\(-name *.svg -o -name *found*.png -o -name *h3ros*.png -o -name *logo* \\\\\\))",
+      "Bash(find '/Users/shauryakarra/h3ros website May 2026' -name icon* -o -name favicon*)",
+      "Bash(find '/Users/shauryakarra/The FOUNDRY/frontend' -maxdepth 4 \\\\\\(-name favicon* -o -name icon* -o -name apple-icon* \\\\\\))",
+      "Bash(ls -la .env* backend/.env* frontend/.env*)",
+      "Bash(wc -l \"app/\\(marketing\\)/page.tsx\")"
     ]
   }
 }
