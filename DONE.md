@@ -1,21 +1,10 @@
-# Context Transparency Panel — [2026-05-31]
+# Context Transparency Panel — [2026-05-31] (session 2 polish)
 
-## What was built
+Prior checkpoint had the panel ~95% complete. This session:
+- Removed redundant inline `text-[10px]` context count above COFOUND3R label (panel is now sole display)
+- Fixed collapsed button font: `text-[10px]` → `text-xs` to match spec
 
-Added a collapsible "What I read" panel to `frontend/app/(app)/agents/AgentsClient.tsx` that appears below each COFOUND3R answer after streaming completes.
-
-### Changes
-
-1. **Exchange type** — added `context_md?: string` to capture full context markdown from SSE preamble.
-2. **State** — added `expandedPanels: Record<number, boolean>` (collapsed by default per exchange index).
-3. **SSE handler** — extended `context` chunk branch to also store `chunk.context_md` into the Exchange.
-4. **UI panel** — rendered below each answer, gated on `ex.context && !(streaming && i === exchanges.length - 1)`:
-   - Header: `What I read — N ventures · N docs · N events · N open tasks`
-   - Chevron SVG rotates 180° on expand via Tailwind `rotate-180`
-   - Expanded body: shows `context_md` (falls back to count string if backend omits it)
-   - Styled with `border border-n200 bg-vellum font-mono text-n600` — consistent with design system
-
-No new API calls. No streaming logic changes.
+Final state: collapsible `border border-n200 bg-vellum` panel below each answer; `text-xs font-mono text-n600` collapsed line with counts; expanded shows `context_md`; chevron rotates; per-exchange state via `expandedPanels[i]`; no new API calls; `ask()` untouched.
 
 ---
 

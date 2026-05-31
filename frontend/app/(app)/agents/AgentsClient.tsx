@@ -152,11 +152,6 @@ export default function AgentsClient() {
             <div key={i}>
               <div className="text-xs font-mono uppercase tracking-wider text-n600 mb-1">You</div>
               <div className="text-base text-ink mb-3">{ex.q}</div>
-              {ex.context && (
-                <div className="text-[10px] font-mono uppercase tracking-wider text-n600 mb-2">
-                  Pulled {ex.context.doc_hits} docs · {ex.context.events} events · {ex.context.open_tasks} open · {ex.context.ventures} ventures
-                </div>
-              )}
               <div className="text-xs font-mono uppercase tracking-wider text-arc-cyan-deep mb-1">COFOUND3R</div>
               <div className="text-base text-ink">
                 {ex.a ? <Markdown content={ex.a} streaming={streaming && i === exchanges.length - 1} /> : streaming && i === exchanges.length - 1 ? <span className="text-n600">…</span> : null}
@@ -165,7 +160,7 @@ export default function AgentsClient() {
                 <div className="mt-3 border border-n200 bg-vellum">
                   <button
                     onClick={() => setExpandedPanels(prev => ({ ...prev, [i]: !prev[i] }))}
-                    className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-mono uppercase tracking-wider text-n600 hover:text-ink transition-colors"
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-mono uppercase tracking-wider text-n600 hover:text-ink transition-colors"
                   >
                     <span>
                       What I read — {ex.context.ventures} ventures · {ex.context.doc_hits} docs · {ex.context.events} events · {ex.context.open_tasks} open tasks
