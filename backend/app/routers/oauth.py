@@ -382,6 +382,7 @@ class OAuthConnectionView(BaseModel):
     scopes: Optional[list[str]]
     connected_at: datetime
     expires_at: Optional[datetime]
+    last_sync_at: Optional[datetime]
 
 
 @router.get("/connections", response_model=list[OAuthConnectionView])
@@ -390,7 +391,7 @@ async def list_connections(auth: AuthContext = Depends(require_auth)):
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT provider, provider_user_login, scopes, created_at, expires_at
+            SELECT provider, provider_user_login, scopes, created_at, expires_at, last_sync_at
             FROM oauth_connections
             WHERE user_id=$1 AND revoked_at IS NULL
             ORDER BY created_at DESC
@@ -404,6 +405,7 @@ async def list_connections(auth: AuthContext = Depends(require_auth)):
             scopes=list(r["scopes"]) if r["scopes"] else None,
             connected_at=r["created_at"],
             expires_at=r["expires_at"],
+            last_sync_at=r["last_sync_at"],
         )
         for r in rows
     ]

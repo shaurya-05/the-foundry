@@ -27,6 +27,25 @@ type Connection = {
   scopes: string[] | null
   connected_at: string
   expires_at: string | null
+  last_sync_at: string | null
+}
+
+function formatSyncTime(ts: string | null): string | null {
+  if (!ts) return null
+  const d = new Date(ts)
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  const diffMin = Math.floor(diffMs / 60_000)
+  if (diffMin < 60) return `synced ${diffMin <= 1 ? '1 min' : `${diffMin} min`} ago`
+  const diffHours = Math.floor(diffMs / 3_600_000)
+  if (diffHours < 24) {
+    const hh = d.getHours().toString().padStart(2, '0')
+    const mm = d.getMinutes().toString().padStart(2, '0')
+    return `synced today at ${hh}:${mm}`
+  }
+  const mo = (d.getMonth() + 1).toString().padStart(2, '0')
+  const day = d.getDate().toString().padStart(2, '0')
+  return `synced ${mo}/${day}`
 }
 
 type SyncJob = {
@@ -240,6 +259,9 @@ export default function ConnectionsClient() {
                     <div className="mt-2 text-xs font-mono text-n600">
                       {conn.provider_user_login ? `@${conn.provider_user_login}` : 'authenticated'}
                       {conn.scopes?.length ? ` · ${conn.scopes.join(' ')}` : ''}
+                      {formatSyncTime(conn.last_sync_at) && (
+                        <span className="ml-3">{formatSyncTime(conn.last_sync_at)}</span>
+                      )}
                     </div>
                   )}
                 </div>
