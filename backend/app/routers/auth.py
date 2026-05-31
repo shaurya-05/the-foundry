@@ -422,7 +422,7 @@ async def get_me(authorization: Optional[str] = Header(None)):
             raise HTTPException(status_code=404, detail="User not found")
 
         ws = await conn.fetchrow(
-            "SELECT id, name FROM workspaces WHERE id=$1", str(user["workspace_id"])
+            "SELECT id, name, onboarding_step FROM workspaces WHERE id=$1", str(user["workspace_id"])
         )
         members_count = await conn.fetchval(
             "SELECT COUNT(*) FROM workspace_members WHERE workspace_id=$1",
@@ -444,6 +444,7 @@ async def get_me(authorization: Optional[str] = Header(None)):
             "avatar_color": user["avatar_color"] or "#E8231F",
             "workspace_id": str(user["workspace_id"]),
             "workspace_name": ws["name"] if ws else "My Workspace",
+            "onboarding_step": ws["onboarding_step"] if ws else 0,
             "role": user["role"],
             "email_verified": user["email_verified"],
             "preferences": user["preferences"] or {},
