@@ -1,8 +1,8 @@
 import { API_URL } from '@/lib/config'
+import { getToken } from '@/lib/auth'
 
 function getAuthHeader(): Record<string, string> {
-  if (typeof window === 'undefined') return {}
-  const token = localStorage.getItem('foundry_token')
+  const token = getToken()
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 

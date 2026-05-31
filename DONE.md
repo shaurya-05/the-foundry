@@ -46,6 +46,19 @@ No test files existed for these routers — none written.
 
 ---
 
+# api.ts + streaming.ts final cleanup [2026-05-31]
+
+**frontend/lib/api.ts**
+- Removed hardcoded `const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'`
+- Added `import { API_URL } from '@/lib/config'`
+- Replaced all `API_BASE` occurrences with `API_URL`
+
+**frontend/lib/streaming.ts**
+- Added `import { getToken } from '@/lib/auth'`
+- Replaced `getAuthHeader()` body: removed inline `localStorage.getItem('foundry_token')` and redundant SSR guard; now delegates to `getToken()` which already handles SSR
+
+---
+
 # Backend fixes — model bump, stream_sse removal, embed caching [2026-05-31]
 
 ## 1. claude.py — model bump + stream_sse removal

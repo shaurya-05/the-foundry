@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+import { API_URL } from '@/lib/config'
 
 function getAuthHeader(): Record<string, string> {
   if (typeof window === 'undefined') return {}
@@ -20,7 +20,7 @@ function getWorkspaceId(): string {
 }
 
 async function req<T>(path: string, options?: RequestInit): Promise<T> {
-  let res = await fetch(`${API_BASE}${path}`, {
+  let res = await fetch(`${API_URL}${path}`, {
     headers: { 'Content-Type': 'application/json', ...getAuthHeader(), ...options?.headers },
     ...options,
   })
@@ -30,7 +30,7 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
     const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('foundry_refresh_token') : null
     if (refreshToken) {
       try {
-        const refreshRes = await fetch(`${API_BASE}/api/auth/refresh`, {
+        const refreshRes = await fetch(`${API_URL}/api/auth/refresh`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh_token: refreshToken }),
@@ -39,7 +39,7 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
           const data = await refreshRes.json()
           localStorage.setItem('foundry_token', data.access_token)
           // Retry original request with new token
-          res = await fetch(`${API_BASE}${path}`, {
+          res = await fetch(`${API_URL}${path}`, {
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.access_token}`, ...options?.headers },
             ...options,
           })
@@ -174,7 +174,7 @@ export const api = {
 
 // ─── Streaming URLs ──────────────────────────────────────────────────────────
 export function streamUrl(path: string) {
-  return `${API_BASE}${path}`
+  return `${API_URL}${path}`
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
