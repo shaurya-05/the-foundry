@@ -18,11 +18,13 @@ needs room for the actual answer.
 from __future__ import annotations
 
 import asyncpg
+import hashlib
 import json
 from typing import Optional
 
 from app.services import graph_repo
 from app.services.embeddings import embed_text
+from app.db.cache import cache_get, cache_set
 
 
 MAX_VENTURES = 10
@@ -110,7 +112,11 @@ async def build_context(
 
     doc_hits: list[dict] = []
     try:
-        q_vec = await embed_text(question)
+        cache_key = f"embed:{hashlib.sha256(question[:200].encode()).hexdigest()}"
+        q_vec = await cache_get(cache_key)
+        if q_vec is None:
+            q_vec = await embed_text(question)
+            await cache_set(cache_key, q_vec, ttl=300)
         rows = await graph_repo.semantic_search_docs(
             conn, workspace_id, q_vec, k=MAX_DOC_HITS, venture_id=venture_id,
         )

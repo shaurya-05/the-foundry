@@ -4,7 +4,7 @@ from typing import AsyncGenerator
 
 client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-MODEL = "claude-sonnet-4-5"
+MODEL = "claude-sonnet-4-6"
 
 async def stream_claude(
     system: str,
@@ -34,15 +34,3 @@ async def complete_claude(
         messages=[{"role": "user", "content": user}],
     )
     return message.content[0].text
-
-async def stream_sse(
-    system: str,
-    user: str,
-    max_tokens: int = 1500,
-) -> AsyncGenerator[str, None]:
-    """Yield SSE-formatted strings for FastAPI StreamingResponse."""
-    import json
-    async for text in stream_claude(system, user, max_tokens):
-        payload = json.dumps({"type": "text_delta", "text": text})
-        yield f"data: {payload}\n\n"
-    yield "data: {\"type\": \"done\"}\n\n"

@@ -18,6 +18,7 @@ import Markdown from '@/components/ui/Markdown'
 import EyebrowLabel from '@/components/brand/EyebrowLabel'
 import Crease from '@/components/brand/Crease'
 import { API_URL } from '@/lib/config'
+import { getToken } from '@/lib/auth'
 
 type Exchange = {
   q: string
@@ -44,7 +45,7 @@ export default function AgentsClient() {
 
   // Surface the "graph empty?" hint: peek at the context preview.
   useEffect(() => {
-    const token = localStorage.getItem('foundry_token')
+    const token = getToken()
     if (!token) return
     fetch(`${API_URL}/api/agent/context?q=portfolio`, {
       headers: { Authorization: `Bearer ${token}` },

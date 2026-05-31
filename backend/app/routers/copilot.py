@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from app.models.schemas import CopilotMessage, IntentRequest, IntentResponse
-from app.services.claude import stream_sse
+from app.services.claude import stream_claude
 from app.services.context_engine import get_workspace_summary, build_copilot_system, build_project_copilot_system
 from app.services.usage import check_limit, increment_usage
 from app.db.postgres import get_pool
 from app.dependencies import AuthContext, require_auth
 from typing import Optional
+import json
 import re
 
 router = APIRouter(prefix="/api/copilot", tags=["copilot"])
@@ -45,17 +46,13 @@ async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(requi
 
     async def stream_and_save():
         await increment_usage(auth.workspace_id, 'copilot_messages')
-        full_output = []
-        async for chunk in stream_sse(system, req.message, max_tokens=800):
-            full_output.append(chunk)
-            yield chunk
-        output_text = "".join(full_output)
-        lines = output_text.split("\n")
-        content_parts = []
-        for line in lines:
-            if line.startswith("data: ") and line != "data: [DONE]":
-                content_parts.append(line[6:])
-        assistant_text = "".join(content_parts)
+        full_text = []
+        async for text in stream_claude(system, req.message, max_tokens=800):
+            full_text.append(text)
+            payload = json.dumps({"type": "text_delta", "text": text})
+            yield f"data: {payload}\n\n"
+        yield 'data: {"type": "done"}\n\n'
+        assistant_text = "".join(full_text)
         if assistant_text:
             async with pool.acquire() as conn:
                 await conn.execute(

@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+import { API_URL } from '@/lib/config'
 
 function getAuthHeader(): Record<string, string> {
   if (typeof window === 'undefined') return {}
@@ -22,7 +22,7 @@ export async function* streamSSE(
 ): AsyncGenerator<StreamChunk> {
   let res: Response
   try {
-    res = await fetch(`${API_BASE}${path}`, {
+    res = await fetch(`${API_URL}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify(body),
@@ -37,7 +37,7 @@ export async function* streamSSE(
     const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('foundry_refresh_token') : null
     if (refreshToken) {
       try {
-        const refreshRes = await fetch(`${API_BASE}/api/auth/refresh`, {
+        const refreshRes = await fetch(`${API_URL}/api/auth/refresh`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh_token: refreshToken }),
@@ -45,7 +45,7 @@ export async function* streamSSE(
         if (refreshRes.ok) {
           const data = await refreshRes.json()
           localStorage.setItem('foundry_token', data.access_token)
-          res = await fetch(`${API_BASE}${path}`, {
+          res = await fetch(`${API_URL}${path}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.access_token}` },
             body: JSON.stringify(body),
