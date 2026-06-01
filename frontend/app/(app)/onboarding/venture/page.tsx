@@ -60,10 +60,7 @@ export default function OnboardingVenturePage() {
         throw new Error(err.detail || 'Failed to update onboarding step')
       }
 
-      // Update the cookie so middleware sees the new step on next dashboard visit
-      document.cookie = `foundry_onboarding_done=1; path=/; SameSite=Lax; max-age=31536000`
-
-      router.push('/dashboard')
+      router.push('/onboarding/connect')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.')
       setSubmitting(false)

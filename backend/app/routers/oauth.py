@@ -352,6 +352,11 @@ async def oauth_callback(
             scopes=[s.strip() for s in scope.split(",") if s.strip()] if scope else None,
             expires_at=expires_at,
         )
+        # Read onboarding step inside the same connection to avoid a second acquire
+        onboarding_step = await conn.fetchval(
+            "SELECT onboarding_step FROM workspaces WHERE id=$1",
+            payload["workspace_id"],
+        )
 
     log.info(
         "oauth_connected",
@@ -365,10 +370,13 @@ async def oauth_callback(
     if provider == "github":
         _kick_initial_sync(payload["workspace_id"], payload["sub"], background)
 
-    response = RedirectResponse(
-        url=f"{fe}/settings/connections?status=connected&provider={provider}",
-        status_code=302,
-    )
+    # Route the callback redirect based on onboarding state.
+    if onboarding_step is not None and onboarding_step < 2:
+        dest = f"{fe}/onboarding/connect?status=connected&provider={provider}"
+    else:
+        dest = f"{fe}/settings/connections?status=connected&provider={provider}"
+
+    response = RedirectResponse(url=dest, status_code=302)
     response.delete_cookie(_STATE_COOKIE_NAME, path="/api/oauth")
     return response
 

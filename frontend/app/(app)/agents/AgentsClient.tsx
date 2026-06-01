@@ -28,14 +28,21 @@ type Exchange = {
   context_md?: string
 }
 
-const STARTER_QUERIES = [
+const DEFAULT_STARTER_QUERIES = [
   'What did I ship across all my ventures this week?',
   'Which open issues are blocking shipping?',
   'Summarize the most active venture right now.',
   'Across my portfolio, what looks risky or stalled?',
 ]
 
-export default function AgentsClient() {
+export default function AgentsClient({
+  starterQueries,
+  onFirstAnswer,
+}: {
+  starterQueries?: string[]
+  onFirstAnswer?: () => void
+} = {}) {
+  const STARTER_QUERIES = starterQueries ?? DEFAULT_STARTER_QUERIES
   const router = useRouter()
   const [query, setQuery] = useState('')
   const [streaming, setStreaming] = useState(false)
@@ -67,6 +74,7 @@ export default function AgentsClient() {
     if (!q.trim() || streaming) return
     setError('')
     setStreaming(true)
+    const isFirst = exchanges.length === 0
     const pending: Exchange = { q, a: '', ts: new Date() }
     setExchanges((prev) => [...prev, pending])
     setQuery('')
@@ -102,6 +110,7 @@ export default function AgentsClient() {
       setError(e instanceof Error ? e.message : 'Unknown error')
     } finally {
       setStreaming(false)
+      if (isFirst && onFirstAnswer) onFirstAnswer()
     }
   }
 
