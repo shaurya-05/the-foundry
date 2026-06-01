@@ -71,8 +71,8 @@ async def list_ventures(auth: AuthContext = Depends(require_auth)):
 
 @router.patch("/api/workspaces/onboarding-step")
 async def update_onboarding_step(req: OnboardingStepRequest, auth: AuthContext = Depends(require_auth)):
-    if req.step < 0:
-        raise HTTPException(status_code=400, detail="step must be non-negative")
+    if req.step < 0 or req.step > 10:
+        raise HTTPException(status_code=400, detail="step must be between 0 and 10")
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute(

@@ -10,6 +10,9 @@ export async function middleware(request: NextRequest) {
     const token = request.cookies.get('foundry_token')?.value
     if (!token) return NextResponse.next()
 
+    // Short-circuit: onboarding already completed, skip the API call
+    if (request.cookies.get('foundry_onboarding_done')?.value) return NextResponse.next()
+
     try {
       const res = await fetch(`${API_URL}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },

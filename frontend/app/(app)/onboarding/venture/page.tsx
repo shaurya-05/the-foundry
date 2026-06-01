@@ -63,7 +63,7 @@ export default function OnboardingVenturePage() {
       // Update the cookie so middleware sees the new step on next dashboard visit
       document.cookie = `foundry_onboarding_done=1; path=/; SameSite=Lax; max-age=31536000`
 
-      router.push('/onboarding/connect')
+      router.push('/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.')
       setSubmitting(false)

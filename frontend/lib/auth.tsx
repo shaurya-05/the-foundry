@@ -48,13 +48,13 @@ const AuthContext = createContext<AuthContextType>({} as AuthContextType)
 function storeTokens(access: string, refresh: string) {
   localStorage.setItem('foundry_token', access)
   localStorage.setItem('foundry_refresh_token', refresh)
-  document.cookie = `foundry_token=${access}; path=/; SameSite=Lax; max-age=3600`
+  document.cookie = `foundry_token=${access}; path=/; SameSite=Lax; Secure; max-age=3600`
 }
 
 function clearTokens() {
   localStorage.removeItem('foundry_token')
   localStorage.removeItem('foundry_refresh_token')
-  document.cookie = 'foundry_token=; path=/; max-age=0'
+  document.cookie = 'foundry_token=; path=/; Secure; max-age=0'
 }
 
 async function tryRefresh(): Promise<string | null> {
@@ -69,7 +69,7 @@ async function tryRefresh(): Promise<string | null> {
     if (!res.ok) return null
     const data = await res.json()
     localStorage.setItem('foundry_token', data.access_token)
-    document.cookie = `foundry_token=${data.access_token}; path=/; SameSite=Lax; max-age=3600`
+    document.cookie = `foundry_token=${data.access_token}; path=/; SameSite=Lax; Secure; max-age=3600`
     return data.access_token
   } catch {
     return null
