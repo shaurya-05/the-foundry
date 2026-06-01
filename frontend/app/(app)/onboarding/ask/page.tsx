@@ -20,7 +20,7 @@ function buildStarterQueries(ventureName: string): string[] {
 
 export default function OnboardingAskPage() {
   const router = useRouter()
-  const { user, loading } = useAuth()
+  const { user, token, loading } = useAuth()
   const [ventureName, setVentureName] = useState('')
   const [fetchedVenture, setFetchedVenture] = useState(false)
   const [showDashboardLink, setShowDashboardLink] = useState(false)
@@ -33,7 +33,6 @@ export default function OnboardingAskPage() {
   useEffect(() => {
     if (!user || fetchedVenture) return
     setFetchedVenture(true)
-    const token = localStorage.getItem('foundry_token')
     if (!token) return
     fetch(`${API_URL}/api/ventures`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -47,19 +46,19 @@ export default function OnboardingAskPage() {
   }, [user, fetchedVenture])
 
   function handleFirstAnswer() {
-    const token = localStorage.getItem('foundry_token')
     if (!token) { setShowDashboardLink(true); return }
     fetch(`${API_URL}/api/workspaces/onboarding-step`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ step: 3 }),
     })
-      .catch(() => {})
-      .finally(() => {
+      .then((res) => {
+        if (!res.ok) return
         const isSecure = typeof window !== 'undefined' && location.protocol === 'https:' ? '; Secure' : ''
         document.cookie = `foundry_onboarding_done=1; path=/; SameSite=Lax${isSecure}; max-age=31536000`
         setShowDashboardLink(true)
       })
+      .catch(() => {})
   }
 
   if (loading || !user) return null

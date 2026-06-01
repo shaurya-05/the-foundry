@@ -11,7 +11,7 @@ import Crease from '@/components/brand/Crease'
 export default function OnboardingConnectPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user, loading } = useAuth()
+  const { user, token, loading } = useAuth()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -33,7 +33,6 @@ export default function OnboardingConnectPage() {
     }
 
     // GitHub returned successfully — advance the onboarding step
-    const token = localStorage.getItem('foundry_token')
     if (!token) return
 
     fetch(`${API_URL}/api/workspaces/onboarding-step`, {
@@ -50,7 +49,6 @@ export default function OnboardingConnectPage() {
   }, [])
 
   async function startConnect() {
-    const token = localStorage.getItem('foundry_token')
     if (!token || busy) return
     setBusy(true)
     setError('')
