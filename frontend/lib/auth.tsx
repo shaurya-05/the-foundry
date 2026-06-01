@@ -55,7 +55,8 @@ function storeTokens(access: string, refresh: string) {
 function clearTokens() {
   localStorage.removeItem('foundry_token')
   localStorage.removeItem('foundry_refresh_token')
-  document.cookie = 'foundry_token=; path=/; SameSite=Lax; max-age=0'
+  const isSecure = typeof window !== 'undefined' && location.protocol === 'https:' ? '; Secure' : ''
+  document.cookie = `foundry_token=; path=/; SameSite=Lax${isSecure}; max-age=0`
 }
 
 async function tryRefresh(): Promise<string | null> {
