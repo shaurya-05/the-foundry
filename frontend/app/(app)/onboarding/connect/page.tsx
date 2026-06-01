@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useAuth } from '@/lib/auth'
+import { useAuth, getToken } from '@/lib/auth'
 import { API_URL } from '@/lib/config'
 import Found3ryWordmark from '@/components/brand/Found3ryWordmark'
 import EyebrowLabel from '@/components/brand/EyebrowLabel'
@@ -33,11 +33,12 @@ export default function OnboardingConnectPage() {
     }
 
     // GitHub returned successfully — advance the onboarding step
-    if (!token) return
+    const t = getToken()
+    if (!t) return
 
     fetch(`${API_URL}/api/workspaces/onboarding-step`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
       body: JSON.stringify({ step: 2 }),
     })
       .then((res) => {
