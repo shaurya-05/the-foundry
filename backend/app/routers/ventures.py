@@ -75,6 +75,12 @@ async def update_onboarding_step(req: OnboardingStepRequest, auth: AuthContext =
         raise HTTPException(status_code=400, detail="step must be between 0 and 10")
     pool = await get_pool()
     async with pool.acquire() as conn:
+        current = await conn.fetchval(
+            "SELECT onboarding_step FROM workspaces WHERE id=$1",
+            auth.workspace_id,
+        )
+        if current is not None and req.step <= current:
+            raise HTTPException(status_code=400, detail="step must advance")
         await conn.execute(
             "UPDATE workspaces SET onboarding_step=$1 WHERE id=$2",
             req.step, auth.workspace_id,
