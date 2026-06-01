@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/lib/auth'
+import { useAuth, getToken } from '@/lib/auth'
 import { API_URL } from '@/lib/config'
 import Found3ryWordmark from '@/components/brand/Found3ryWordmark'
 import EyebrowLabel from '@/components/brand/EyebrowLabel'
@@ -33,9 +33,10 @@ export default function OnboardingAskPage() {
   useEffect(() => {
     if (!user || fetchedVenture) return
     setFetchedVenture(true)
-    if (!token) return
+    const t = getToken()
+    if (!t) return
     fetch(`${API_URL}/api/ventures`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${t}` },
     })
       .then((r) => r.ok ? r.json() : null)
       .then((d) => {
