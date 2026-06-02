@@ -104,8 +104,8 @@ async def create_portal_session(workspace_id: str) -> str:
 async def handle_webhook(payload: bytes, sig_header: str):
     """Process Stripe webhook events."""
     if not STRIPE_WEBHOOK_SECRET:
-        log.warning("stripe_webhook_secret_missing")
-        return
+        log.error("stripe_webhook_secret_missing", detail="Set STRIPE_WEBHOOK_SECRET env var")
+        raise ValueError("Stripe webhook secret not configured")
 
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
