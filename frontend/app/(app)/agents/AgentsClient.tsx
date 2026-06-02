@@ -102,6 +102,7 @@ export default function AgentsClient({
     setExchanges((prev) => [...prev, pending])
     setQuery('')
 
+    let wasLimitExceeded = false
     try {
       for await (const chunk of streamSSE('/api/agent/ask', { query: q })) {
         if (chunk.type === 'context') {
@@ -131,6 +132,7 @@ export default function AgentsClient({
       }
     } catch (e) {
       if (e instanceof LimitExceededError) {
+        wasLimitExceeded = true
         setExchanges((prev) => {
           const copy = [...prev]
           copy[copy.length - 1] = { ...copy[copy.length - 1], limitExceeded: true, upgradeUrl: e.upgradeUrl }
@@ -141,7 +143,7 @@ export default function AgentsClient({
       }
     } finally {
       setStreaming(false)
-      if (isFirst && onFirstAnswer) onFirstAnswer()
+      if (isFirst && !wasLimitExceeded && onFirstAnswer) onFirstAnswer()
     }
   }
 
