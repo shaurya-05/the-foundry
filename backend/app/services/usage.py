@@ -1,10 +1,23 @@
 """Usage tracking and plan limit enforcement."""
+import datetime
 import json
 from app.db.postgres import get_pool
 from app.db.cache import cache_get, cache_set
 import structlog
 
 log = structlog.get_logger()
+
+
+_GROWTH_LIMITS = {
+    "copilot_messages": 500,
+    "agent_runs": 100,
+    "forge_operations": 50,
+    "pipeline_runs": 20,
+    "projects": -1,
+    "knowledge_items": 500,
+    "team_members": 5,
+    "workspaces": 3,
+}
 
 
 async def get_workspace_plan(workspace_id: str) -> dict:
@@ -15,7 +28,25 @@ async def get_workspace_plan(workspace_id: str) -> dict:
         return cached
 
     pool = await get_pool()
+    ws_created_at = None
     async with pool.acquire() as conn:
+        # Check workspaces.plan first — set directly by the billing webhook on payment
+        ws_row = await conn.fetchrow(
+            "SELECT plan, created_at FROM workspaces WHERE id = $1",
+            workspace_id,
+        )
+        if ws_row and ws_row["plan"] == "growth":
+            result = {
+                "plan_id": "growth",
+                "plan_name": "Growth",
+                "limits": _GROWTH_LIMITS,
+                "status": "active",
+            }
+            await cache_set(cache_key, result, ttl=300)
+            return result
+
+        ws_created_at = ws_row["created_at"] if ws_row else None
+
         row = await conn.fetchrow(
             """SELECT p.id, p.name, p.price_monthly, p.limits, s.status, s.billing_cycle,
                       s.current_period_start, s.current_period_end
@@ -25,13 +56,21 @@ async def get_workspace_plan(workspace_id: str) -> dict:
             workspace_id,
         )
     if not row:
-        # Early access: all users get unlimited access (no limits enforced)
-        # When ready to monetize, change -1 values back to Spark limits
-        result = {"plan_id": "early_access", "plan_name": "Early Access", "limits": {
-            "copilot_messages": -1, "agent_runs": -1, "forge_operations": -1,
-            "pipeline_runs": -1, "projects": -1, "knowledge_items": -1,
-            "team_members": 25, "workspaces": -1,
-        }, "status": "active"}
+        # Workspaces created after 2026-06-01 get Spark limits; earlier ones keep unlimited early access
+        cutoff = datetime.date(2026, 6, 1)
+        is_early_access = ws_created_at is None or ws_created_at.date() <= cutoff
+        if is_early_access:
+            result = {"plan_id": "early_access", "plan_name": "Early Access", "limits": {
+                "copilot_messages": -1, "agent_runs": -1, "forge_operations": -1,
+                "pipeline_runs": -1, "projects": -1, "knowledge_items": -1,
+                "team_members": 25, "workspaces": -1,
+            }, "status": "active"}
+        else:
+            result = {"plan_id": "spark", "plan_name": "Spark", "limits": {
+                "copilot_messages": 25, "agent_runs": 10, "forge_operations": 3,
+                "pipeline_runs": 0, "projects": 3, "knowledge_items": 50,
+                "team_members": 1, "workspaces": 1,
+            }, "status": "active"}
     else:
         limits = row["limits"] if isinstance(row["limits"], dict) else json.loads(row["limits"])
         result = {

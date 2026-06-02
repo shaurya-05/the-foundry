@@ -1,14 +1,20 @@
-# Done
+# DONE — Onboarding ask page: onFirstAnswer callback verification [2026-06-02]
 
-## Fix: stale closure in venture-fetch useEffect (ask/page.tsx)
+## Task
+Verify and fix the `onFirstAnswer` callback in `frontend/app/(app)/onboarding/ask/page.tsx` and the `isFirst` capture in `AgentsClient.tsx`.
 
-**File:** `frontend/app/(app)/onboarding/ask/page.tsx`
+## What was already correct
+- `isFirst = exchanges.length === 0` captured on AgentsClient.tsx:99, BEFORE `setExchanges` on line 101 — correct. The `finally` block at line 143 reads the pre-mutation value.
+- Cookie pattern: `foundry_onboarding_done=1; path=/; SameSite=Lax` + conditional `; Secure` based on `location.protocol === 'https:'` — matched spec exactly.
 
-**Problem:** The venture-fetch `useEffect` (deps: `[user, fetchedVenture]`) read `token` from the `useAuth()` closure. Because `useAuth()` hydrates `token` from localStorage asynchronously, `token` is `null` at mount when the effect runs — the fetch never fires.
+## What was fixed
 
-**Fix:**
-- Added `getToken` to the import from `@/lib/auth`
-- Replaced `if (!token) return` + `Bearer ${token}` with `const t = getToken(); if (!t) return` + `Bearer ${t}` inside the venture-fetch `useEffect` only
-- `token` from `useAuth()` left intact in `handleFirstAnswer` (user-triggered, not affected by the hydration race)
+### 1. `getToken()` instead of `useAuth().token` — `ask/page.tsx`
+`handleFirstAnswer` was reading `token` from `useAuth()` destructuring. Per LEARNINGS, `useAuth().token` can be null if hydration hasn't completed. Changed to call `getToken()` (direct localStorage read) inside the function. Removed `token` from the `useAuth()` destructure.
 
-Pattern matches `connect/page.tsx` OAuth callback handler.
+### 2. `router.push('/dashboard')` instead of `setShowDashboardLink(true)` — `ask/page.tsx`
+Success path was calling `setShowDashboardLink(true)` which shows a "Go to dashboard" button. Spec requires `router.push('/dashboard')` — auto-redirect on success. Changed. The `showDashboardLink` state and button remain as a fallback for the no-token edge case only.
+
+## Files changed
+- `frontend/app/(app)/onboarding/ask/page.tsx` — use `getToken()`, auto-redirect on success
+- `frontend/app/(app)/agents/AgentsClient.tsx` — added comment confirming `isFirst` pre-mutation capture

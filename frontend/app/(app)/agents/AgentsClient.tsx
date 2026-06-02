@@ -13,7 +13,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { streamSSE } from '@/lib/streaming'
+import { streamSSE, LimitExceededError } from '@/lib/streaming'
 import Markdown from '@/components/ui/Markdown'
 import EyebrowLabel from '@/components/brand/EyebrowLabel'
 import Crease from '@/components/brand/Crease'
@@ -26,6 +26,8 @@ type Exchange = {
   ts: Date
   context?: { ventures: number; events: number; doc_hits: number; open_tasks: number }
   context_md?: string
+  limitExceeded?: boolean
+  upgradeUrl?: string
 }
 
 const DEFAULT_STARTER_QUERIES = [
@@ -70,10 +72,31 @@ export default function AgentsClient({
     }
   }, [exchanges, streaming])
 
+  async function handleUpgrade() {
+    const token = getToken()
+    if (!token) { router.push('/settings'); return }
+    try {
+      const res = await fetch(`${API_URL}/api/subscription/checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ plan_id: 'pro', billing_cycle: 'monthly' }),
+      })
+      const data = await res.json()
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url
+      } else {
+        router.push('/settings')
+      }
+    } catch {
+      router.push('/settings')
+    }
+  }
+
   async function ask(q: string) {
     if (!q.trim() || streaming) return
     setError('')
     setStreaming(true)
+    // isFirst captured before setExchanges so the finally block reads the pre-mutation value
     const isFirst = exchanges.length === 0
     const pending: Exchange = { q, a: '', ts: new Date() }
     setExchanges((prev) => [...prev, pending])
@@ -107,7 +130,15 @@ export default function AgentsClient({
         }
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unknown error')
+      if (e instanceof LimitExceededError) {
+        setExchanges((prev) => {
+          const copy = [...prev]
+          copy[copy.length - 1] = { ...copy[copy.length - 1], limitExceeded: true, upgradeUrl: e.upgradeUrl }
+          return copy
+        })
+      } else {
+        setError(e instanceof Error ? e.message : 'Unknown error')
+      }
     } finally {
       setStreaming(false)
       if (isFirst && onFirstAnswer) onFirstAnswer()
@@ -163,9 +194,25 @@ export default function AgentsClient({
               <div className="text-base text-ink mb-3">{ex.q}</div>
               <div className="text-xs font-mono uppercase tracking-wider text-arc-cyan-deep mb-1">COFOUND3R</div>
               <div className="text-base text-ink">
-                {ex.a ? <Markdown content={ex.a} streaming={streaming && i === exchanges.length - 1} /> : streaming && i === exchanges.length - 1 ? <span className="text-n600">…</span> : null}
+                {ex.limitExceeded ? null : ex.a ? <Markdown content={ex.a} streaming={streaming && i === exchanges.length - 1} /> : streaming && i === exchanges.length - 1 ? <span className="text-n600">…</span> : null}
               </div>
-              {ex.context && !(streaming && i === exchanges.length - 1) && (
+              {ex.limitExceeded && (
+                <div className="mt-3 border border-n200 bg-vellum p-4">
+                  <div className="text-xs font-mono uppercase tracking-wider text-n600 mb-2">
+                    Spark limit reached
+                  </div>
+                  <div className="text-sm text-ink mb-3">
+                    You've used all your Spark plan messages this month.
+                  </div>
+                  <button
+                    onClick={handleUpgrade}
+                    className="bg-arc-cyan text-ink px-4 py-2 text-xs font-mono uppercase tracking-wider hover:bg-arc-cyan-deep transition-colors"
+                  >
+                    Upgrade to keep going →
+                  </button>
+                </div>
+              )}
+              {ex.context && !ex.limitExceeded && !(streaming && i === exchanges.length - 1) && (
                 <div className="mt-3 border border-n200 bg-vellum">
                   <button
                     onClick={() => setExpandedPanels(prev => ({ ...prev, [i]: !prev[i] }))}

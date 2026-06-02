@@ -1,6 +1,15 @@
 import { API_URL } from '@/lib/config'
 import { getToken } from '@/lib/auth'
 
+export class LimitExceededError extends Error {
+  upgradeUrl: string
+  constructor(upgradeUrl: string) {
+    super('limit_exceeded')
+    this.name = 'LimitExceededError'
+    this.upgradeUrl = upgradeUrl
+  }
+}
+
 function getAuthHeader(): Record<string, string> {
   const token = getToken()
   return token ? { Authorization: `Bearer ${token}` } : {}
@@ -53,6 +62,16 @@ export async function* streamSSE(
         }
       } catch { /* refresh failed */ }
     }
+  }
+
+  if (res.status === 429) {
+    let upgradeUrl = '/settings'
+    try {
+      const data = await res.json()
+      // FastAPI wraps detail: { error, upgrade_url } inside { "detail": {...} }
+      if (data?.detail?.upgrade_url) upgradeUrl = data.detail.upgrade_url
+    } catch { /* ignore parse errors */ }
+    throw new LimitExceededError(upgradeUrl)
   }
 
   if (!res.ok) {

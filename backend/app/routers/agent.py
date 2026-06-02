@@ -43,7 +43,10 @@ async def ask(
     endpoint so the existing copilot UI can consume it without changes.
     """
     if not await check_limit(auth.workspace_id, 'agent_runs'):
-        raise HTTPException(status_code=429, detail='Agent run limit reached')
+        raise HTTPException(
+            status_code=429,
+            detail={'error': 'limit_exceeded', 'plan': 'spark', 'upgrade_url': '/billing/upgrade'},
+        )
 
     pool = await get_pool()
     async with pool.acquire() as conn:

@@ -26,7 +26,10 @@ INTENT_PATTERNS = [
 @router.post("/message")
 async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(require_auth)):
     if not await check_limit(auth.workspace_id, 'copilot_messages'):
-        raise HTTPException(status_code=429, detail='Copilot message limit reached')
+        raise HTTPException(
+            status_code=429,
+            detail={'error': 'limit_exceeded', 'plan': 'spark', 'upgrade_url': '/billing/upgrade'},
+        )
 
     pool = await get_pool()
 

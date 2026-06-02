@@ -5,6 +5,7 @@ import os
 import time
 import uuid
 import sentry_sdk
+from datetime import datetime, timezone
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -67,7 +68,7 @@ from app.routers import (
     knowledge, projects, ideas, tasks, agents,
     copilot, context, notifications, command, launchpad,
     blueprint, workspace, auth, subscription, analytics,
-    oauth, webhooks, agent, ventures,
+    oauth, webhooks, agent, ventures, billing,
 )
 
 @asynccontextmanager
@@ -191,6 +192,7 @@ app.include_router(oauth.router)
 app.include_router(webhooks.router)
 app.include_router(agent.router)
 app.include_router(ventures.router)
+app.include_router(billing.router, prefix="/api")
 
 
 # ─── Health check (deep) ─────────────────────────────────────────────────────
@@ -227,6 +229,15 @@ async def health():
         status_code=status_code,
         content={"status": "ok" if all_ok else "degraded", "checks": checks},
     )
+
+
+@app.get("/api/health")
+async def api_health():
+    return {
+        "status": "ok",
+        "version": app.version,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 # ─── WebSocket auth helper ───────────────────────────────────────────────────

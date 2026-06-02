@@ -20,7 +20,7 @@ function buildStarterQueries(ventureName: string): string[] {
 
 export default function OnboardingAskPage() {
   const router = useRouter()
-  const { user, token, loading } = useAuth()
+  const { user, loading } = useAuth()
   const [ventureName, setVentureName] = useState('')
   const [fetchedVenture, setFetchedVenture] = useState(false)
   const [showDashboardLink, setShowDashboardLink] = useState(false)
@@ -47,17 +47,19 @@ export default function OnboardingAskPage() {
   }, [user, fetchedVenture])
 
   function handleFirstAnswer() {
-    if (!token) { setShowDashboardLink(true); return }
+    // getToken() reads localStorage directly — safe here even if useAuth().token hasn't hydrated yet
+    const t = getToken()
+    if (!t) { setShowDashboardLink(true); return }
     fetch(`${API_URL}/api/workspaces/onboarding-step`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
       body: JSON.stringify({ step: 3 }),
     })
       .then((res) => {
         if (!res.ok) return
         const isSecure = typeof window !== 'undefined' && location.protocol === 'https:' ? '; Secure' : ''
         document.cookie = `foundry_onboarding_done=1; path=/; SameSite=Lax${isSecure}; max-age=31536000`
-        setShowDashboardLink(true)
+        router.push('/dashboard')
       })
       .catch(() => {})
   }
