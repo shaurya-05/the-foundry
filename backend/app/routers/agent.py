@@ -71,6 +71,19 @@ async def ask(
 
         async for text in stream_claude(system, body.query, max_tokens=2400):
             yield f"data: {json.dumps({'type': 'text_delta', 'text': text})}\n\n"
+
+        if ctx["doc_hits"]:
+            citations = [
+                {
+                    "title": d.get("title") or d.get("source_kind") or "Document",
+                    "source_type": d.get("source_kind") or "doc",
+                    "source_url": d.get("source_url") or None,
+                    "excerpt": (d.get("body") or "").strip().replace("\n", " ")[:400],
+                }
+                for d in ctx["doc_hits"]
+            ]
+            yield f"data: {json.dumps({'type': 'citations', 'citations': citations})}\n\n"
+
         yield "data: {\"type\": \"done\"}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

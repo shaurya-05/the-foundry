@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from app.models.schemas import LaunchBriefRequest
-from app.services.claude import stream_sse
+from app.services.claude import stream_claude
 from app.dependencies import AuthContext, require_auth, RequireUsage
 
 router = APIRouter(prefix="/api/launchpad", tags=["launchpad"])
@@ -44,7 +44,7 @@ async def forge_launch_brief(req: LaunchBriefRequest, auth: AuthContext = Depend
 
     async def stream_and_save():
         full_output = []
-        async for chunk in stream_sse(LAUNCH_BRIEF_SYSTEM, f"Concept: {req.concept}", max_tokens=1800):
+        async for chunk in stream_claude(LAUNCH_BRIEF_SYSTEM, f"Concept: {req.concept}", max_tokens=1800):
             full_output.append(chunk)
             yield chunk
         output_text = "".join(full_output)

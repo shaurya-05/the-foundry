@@ -68,7 +68,7 @@ from app.routers import (
     knowledge, projects, ideas, tasks, agents,
     copilot, context, notifications, command, launchpad,
     blueprint, workspace, auth, subscription, analytics,
-    oauth, webhooks, agent, ventures, billing,
+    oauth, webhooks, agent, ventures, billing, admin,
 )
 
 @asynccontextmanager
@@ -193,6 +193,7 @@ app.include_router(webhooks.router)
 app.include_router(agent.router)
 app.include_router(ventures.router)
 app.include_router(billing.router, prefix="/api")
+app.include_router(admin.router)
 
 
 # ─── Health check (deep) ─────────────────────────────────────────────────────

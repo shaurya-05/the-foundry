@@ -22,7 +22,8 @@ export type StreamChunk =
   | { type: 'step_delta'; step: number; text: string }
   | { type: 'step_complete'; step: number; agent: string }
   | { type: 'pipeline_complete'; run_id: string }
-  | { type: 'context'; ventures: number; events: number; doc_hits: number; open_tasks: number }
+  | { type: 'context'; ventures: number; events: number; doc_hits: number; open_tasks: number; context_md?: string }
+  | { type: 'citations'; citations: Array<{ title: string; source_type: string; excerpt: string; source_url?: string }> }
   | { type: 'error'; message: string }
 
 export async function* streamSSE(

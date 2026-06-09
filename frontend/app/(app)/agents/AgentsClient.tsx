@@ -20,12 +20,20 @@ import Crease from '@/components/brand/Crease'
 import { API_URL } from '@/lib/config'
 import { getToken } from '@/lib/auth'
 
+type Citation = {
+  title: string
+  source_type: string
+  excerpt: string
+  source_url?: string
+}
+
 type Exchange = {
   q: string
   a: string
   ts: Date
   context?: { ventures: number; events: number; doc_hits: number; open_tasks: number }
   context_md?: string
+  citations?: Citation[]
   limitExceeded?: boolean
   upgradeUrl?: string
 }
@@ -53,6 +61,8 @@ export default function AgentsClient({
   const [contextPreview, setContextPreview] = useState<{ ventures: number; doc_hits: number; events: number; open_tasks: number } | null>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
   const [expandedPanels, setExpandedPanels] = useState<Record<number, boolean>>({})
+  // citation chips: key is `${exchangeIndex}-${citationIndex}`
+  const [expandedCitations, setExpandedCitations] = useState<Record<string, boolean>>({})
 
   // Surface the "graph empty?" hint: peek at the context preview.
   useEffect(() => {
@@ -124,6 +134,12 @@ export default function AgentsClient({
           setExchanges((prev) => {
             const copy = [...prev]
             copy[copy.length - 1] = { ...copy[copy.length - 1], a: copy[copy.length - 1].a + chunk.text }
+            return copy
+          })
+        } else if (chunk.type === 'citations') {
+          setExchanges((prev) => {
+            const copy = [...prev]
+            copy[copy.length - 1] = { ...copy[copy.length - 1], citations: chunk.citations as Citation[] }
             return copy
           })
         } else if (chunk.type === 'error') {
@@ -240,6 +256,60 @@ export default function AgentsClient({
                       {ex.context_md ?? `${ex.context.ventures} ventures · ${ex.context.doc_hits} docs · ${ex.context.events} events · ${ex.context.open_tasks} open tasks`}
                     </div>
                   )}
+                </div>
+              )}
+              {ex.citations && ex.citations.length > 0 && !ex.limitExceeded && !(streaming && i === exchanges.length - 1) && (
+                <div className="mt-3">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-n600 mb-2">Sources</div>
+                  <div className="flex flex-wrap gap-2">
+                    {ex.citations.map((c, ci) => {
+                      const key = `${i}-${ci}`
+                      const open = !!expandedCitations[key]
+                      return (
+                        <div key={key} className="border border-n200 bg-vellum text-xs font-mono max-w-full">
+                          <button
+                            onClick={() => setExpandedCitations(prev => ({ ...prev, [key]: !prev[key] }))}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 text-n600 hover:text-ink transition-colors w-full text-left"
+                          >
+                            <span className="text-[9px] uppercase tracking-wider border border-n300 px-1 py-0.5 flex-shrink-0">
+                              {c.source_type}
+                            </span>
+                            <span className="truncate max-w-[180px]">{c.title}</span>
+                            {c.source_url && (
+                              <a
+                                href={c.source_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="ml-1 flex-shrink-0 text-n400 hover:text-arc-cyan-deep transition-colors"
+                                title="Open source"
+                              >
+                                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5">
+                                  <path d="M5 2H2v8h8V7M7 2h3v3M10 2L5.5 6.5" />
+                                </svg>
+                              </a>
+                            )}
+                            <svg
+                              className={`w-2.5 h-2.5 flex-shrink-0 ml-auto transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+                              viewBox="0 0 12 12"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M2 4l4 4 4-4" />
+                            </svg>
+                          </button>
+                          {open && c.excerpt && (
+                            <div className="border-t border-n200 px-2.5 py-2 text-[11px] text-n600 leading-relaxed max-w-sm whitespace-pre-wrap">
+                              {c.excerpt}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
             </div>

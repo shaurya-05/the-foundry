@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from app.models.schemas import KnowledgeCreate, KnowledgeItem, KnowledgeQueryRequest
 from app.db.postgres import get_pool
-from app.services.claude import stream_sse, complete_claude
+from app.services.claude import stream_claude, complete_claude
 from app.services.embeddings import embed_text
 from app.services.graph import upsert_knowledge_node
 from app.dependencies import AuthContext, require_auth
@@ -105,7 +105,7 @@ async def query_knowledge(item_id: str, req: KnowledgeQueryRequest, auth: AuthCo
 
     system = QUERY_SYSTEM.format(content=row["content"][:6000])
     return StreamingResponse(
-        stream_sse(system, req.question, max_tokens=1200),
+        stream_claude(system, req.question, max_tokens=1200),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 from app.db.postgres import get_pool
 from app.services.context_engine import generate_insights
 from app.services.graph import get_connections
-from app.services.claude import stream_sse
+from app.services.claude import stream_claude
 from app.dependencies import AuthContext, require_auth
 
 router = APIRouter(prefix="/api/context", tags=["context"])
@@ -26,7 +26,7 @@ Items: {[k['title'] for k in summary['knowledge']]}
 Projects: {[p['title'] for p in summary['projects']]}
 Generate 4 insights."""
     return StreamingResponse(
-        stream_sse(SCAN_SYSTEM, prompt, max_tokens=1200),
+        stream_claude(SCAN_SYSTEM, prompt, max_tokens=1200),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

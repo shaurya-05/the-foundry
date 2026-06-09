@@ -70,12 +70,13 @@ async def send_workspace_invite_email(to: str, token: str, workspace_name: str, 
     await _send(to, subject, html, "workspace_invite")
 
 
-async def _send(to: str, subject: str, html: str, email_type: str):
+async def _send(to: str, subject: str, html: str, email_type: str, from_email: str | None = None):
     client = _get_client()
+    sender = from_email or FROM_EMAIL
     if client:
         try:
             client.Emails.send({
-                "from": FROM_EMAIL,
+                "from": sender,
                 "to": [to],
                 "subject": subject,
                 "html": html,

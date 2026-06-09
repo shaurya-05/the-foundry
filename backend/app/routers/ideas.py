@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from app.models.schemas import IdeaCreate, IdeaForgeRequest, Idea
 from app.db.postgres import get_pool
-from app.services.claude import stream_sse
+from app.services.claude import stream_claude
 from app.services.graph import upsert_idea_node
 from app.dependencies import AuthContext, require_auth, RequireUsage
 
@@ -70,7 +70,7 @@ async def forge_ideas(req: IdeaForgeRequest, auth: AuthContext = Depends(Require
 
     async def stream_and_save():
         full_output = []
-        async for chunk in stream_sse(IDEA_SYSTEM, f"Domain/problem space: {req.domains}", max_tokens=1500):
+        async for chunk in stream_claude(IDEA_SYSTEM, f"Domain/problem space: {req.domains}", max_tokens=1500):
             full_output.append(chunk)
             yield chunk
         output_text = "".join(full_output)
@@ -129,7 +129,7 @@ async def generate_swot(idea_id: str, auth: AuthContext = Depends(require_auth))
 
     async def stream_and_save():
         full_output = []
-        async for chunk in stream_sse(SWOT_SYSTEM, user_prompt, max_tokens=1500):
+        async for chunk in stream_claude(SWOT_SYSTEM, user_prompt, max_tokens=1500):
             full_output.append(chunk)
             yield chunk
 

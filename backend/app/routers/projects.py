@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from app.models.schemas import ProjectCreate, ProjectUpdate, Project
 from app.db.postgres import get_pool
-from app.services.claude import stream_sse, complete_claude
+from app.services.claude import stream_claude, complete_claude
 from app.services.embeddings import embed_text
 from app.services.graph import upsert_project_node
 from app.dependencies import AuthContext, require_auth
@@ -181,7 +181,7 @@ async def forge_project_plan(project_id: str, sections: str = "", auth: AuthCont
 
     async def save_plan_and_stream():
         full_output = []
-        async for chunk in stream_sse(system_prompt, f"Project: {row['title']}", max_tokens=max_tok):
+        async for chunk in stream_claude(system_prompt, f"Project: {row['title']}", max_tokens=max_tok):
             full_output.append(chunk)
             yield chunk
         import json

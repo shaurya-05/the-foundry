@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from app.models.schemas import AgentRunRequest, PipelineRunRequest
 from app.db.postgres import get_pool
-from app.services.claude import stream_sse
+from app.services.claude import stream_claude
 from app.services.context_engine import get_workspace_summary
 from app.dependencies import AuthContext, require_auth
 import uuid, json
@@ -181,7 +181,7 @@ async def run_agent(req: AgentRunRequest, auth: AuthContext = Depends(require_au
 
     async def stream_and_save():
         full_output = []
-        async for chunk in stream_sse(agent["system"], enriched_context, max_tokens=1500):
+        async for chunk in stream_claude(agent["system"], enriched_context, max_tokens=1500):
             full_output.append(chunk)
             yield chunk
         output_text = ""
@@ -250,7 +250,7 @@ async def run_pipeline(req: PipelineRunRequest, auth: AuthContext = Depends(requ
             yield f"data: {json.dumps({'type': 'step_start', 'step': i, 'agent': step['agent'], 'agent_name': agent['name']})}\n\n"
 
             output_text = ""
-            async for chunk in stream_sse(agent["system"], input_text, max_tokens=1200):
+            async for chunk in stream_claude(agent["system"], input_text, max_tokens=1200):
                 if chunk.startswith("data: "):
                     try:
                         data = json.loads(chunk[6:])

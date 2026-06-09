@@ -2,6 +2,7 @@
 import asyncio
 import os
 from celery import Celery
+from celery.schedules import crontab
 
 celery_app = Celery(
     "foundry",
@@ -15,6 +16,13 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    beat_schedule={
+        # Every Monday at 08:00 UTC
+        "weekly-digest-monday-8am": {
+            "task": "digest.send_weekly_digest",
+            "schedule": crontab(hour=8, minute=0, day_of_week=1),
+        },
+    },
 )
 
 
@@ -40,3 +48,7 @@ def github_initial_sync(self, workspace_id: str, user_id: str):
         )
     except Exception as e:
         raise self.retry(exc=e, countdown=60)
+
+
+# Register digest task so the beat scheduler can dispatch it
+import workers.digest_worker  # noqa: F401, E402
