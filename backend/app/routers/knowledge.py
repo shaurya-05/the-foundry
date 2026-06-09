@@ -104,8 +104,13 @@ async def query_knowledge(item_id: str, req: KnowledgeQueryRequest, auth: AuthCo
         raise HTTPException(status_code=404, detail="Not found")
 
     system = QUERY_SYSTEM.format(content=row["content"][:6000])
+
+    async def _sse():
+        async for text in stream_claude(system, req.question, max_tokens=1200):
+            yield f"data: {json.dumps({'type': 'text_delta', 'text': text})}\n\n"
+
     return StreamingResponse(
-        stream_claude(system, req.question, max_tokens=1200),
+        _sse(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

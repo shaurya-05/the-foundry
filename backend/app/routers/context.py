@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from app.db.postgres import get_pool
@@ -25,8 +26,12 @@ async def stream_insights(auth: AuthContext = Depends(require_auth)):
 Items: {[k['title'] for k in summary['knowledge']]}
 Projects: {[p['title'] for p in summary['projects']]}
 Generate 4 insights."""
+    async def _sse():
+        async for text in stream_claude(SCAN_SYSTEM, prompt, max_tokens=1200):
+            yield f"data: {json.dumps({'type': 'text_delta', 'text': text})}\n\n"
+
     return StreamingResponse(
-        stream_claude(SCAN_SYSTEM, prompt, max_tokens=1200),
+        _sse(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

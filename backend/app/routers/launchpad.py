@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from app.models.schemas import LaunchBriefRequest
@@ -43,13 +44,11 @@ async def forge_launch_brief(req: LaunchBriefRequest, auth: AuthContext = Depend
     pool = await get_pool()
 
     async def stream_and_save():
-        full_output = []
-        async for chunk in stream_claude(LAUNCH_BRIEF_SYSTEM, f"Concept: {req.concept}", max_tokens=1800):
-            full_output.append(chunk)
-            yield chunk
-        output_text = "".join(full_output)
-        lines = output_text.split("\n")
-        content = "".join(l[6:] for l in lines if l.startswith("data: ") and l != "data: [DONE]")
+        output_text = ""
+        async for text in stream_claude(LAUNCH_BRIEF_SYSTEM, f"Concept: {req.concept}", max_tokens=1800):
+            output_text += text
+            yield f"data: {json.dumps({'type': 'text_delta', 'text': text})}\n\n"
+        content = output_text
         if content:
             async with pool.acquire() as conn:
                 await conn.execute(

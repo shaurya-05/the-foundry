@@ -8,6 +8,7 @@ from the admin endpoint for manual trigger / testing.
 """
 from __future__ import annotations
 
+import html as _html
 import os
 from datetime import date, datetime, timezone, timedelta
 from typing import Any
@@ -104,6 +105,7 @@ Return only the 5 bullets, one per line, each starting with "• "."""
 # ─── HTML email renderer ──────────────────────────────────────────────────────
 
 def _render_html(workspace_name: str, bullets: str, week_label: str) -> str:
+    safe_workspace_name = _html.escape(workspace_name)
     rows = ""
     for i, line in enumerate(bullets.strip().splitlines()[:5]):
         text = line.lstrip("•").strip()
@@ -115,7 +117,7 @@ def _render_html(workspace_name: str, bullets: str, week_label: str) -> str:
             <td style="padding:14px 20px;border-left:3px solid #E84A0E;background:{bg};
                        color:#F2F2EE;font-family:'IBM Plex Mono',monospace,sans-serif;
                        font-size:13px;line-height:1.7;margin-bottom:4px;">
-              {text}
+              {_html.escape(text)}
             </td>
           </tr>
           <tr><td style="height:4px;font-size:0;line-height:0;">&nbsp;</td></tr>"""
@@ -164,7 +166,7 @@ def _render_html(workspace_name: str, bullets: str, week_label: str) -> str:
       <td style="padding:0 0 28px 0;">
         <h1 style="margin:0;font-family:Georgia,'Times New Roman',serif;
                    font-size:28px;font-weight:900;color:#F2F2EE;line-height:1.15;">
-          {workspace_name}
+          {safe_workspace_name}
         </h1>
       </td>
     </tr>

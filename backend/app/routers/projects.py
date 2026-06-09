@@ -180,20 +180,10 @@ async def forge_project_plan(project_id: str, sections: str = "", auth: AuthCont
     max_tok = min(800 + len(section_list) * 200, 4000)
 
     async def save_plan_and_stream():
-        full_output = []
-        async for chunk in stream_claude(system_prompt, f"Project: {row['title']}", max_tokens=max_tok):
-            full_output.append(chunk)
-            yield chunk
-        import json
         plan_text = ""
-        for chunk in full_output:
-            if chunk.startswith("data: "):
-                try:
-                    data = json.loads(chunk[6:])
-                    if data.get("type") == "text_delta":
-                        plan_text += data.get("text", "")
-                except Exception:
-                    pass
+        async for text in stream_claude(system_prompt, f"Project: {row['title']}", max_tokens=max_tok):
+            plan_text += text
+            yield f"data: {json.dumps({'type': 'text_delta', 'text': text})}\n\n"
         if plan_text:
             import re
             async with pool.acquire() as conn:

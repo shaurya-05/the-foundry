@@ -69,13 +69,11 @@ async def forge_ideas(req: IdeaForgeRequest, auth: AuthContext = Depends(Require
     pool = await get_pool()
 
     async def stream_and_save():
-        full_output = []
-        async for chunk in stream_claude(IDEA_SYSTEM, f"Domain/problem space: {req.domains}", max_tokens=1500):
-            full_output.append(chunk)
-            yield chunk
-        output_text = "".join(full_output)
-        lines = output_text.split("\n")
-        content = "".join(l[6:] for l in lines if l.startswith("data: ") and l != "data: [DONE]")
+        output_text = ""
+        async for text in stream_claude(IDEA_SYSTEM, f"Domain/problem space: {req.domains}", max_tokens=1500):
+            output_text += text
+            yield f"data: {json.dumps({'type': 'text_delta', 'text': text})}\n\n"
+        content = output_text
         if content:
             async with pool.acquire() as conn:
                 await conn.execute(
@@ -128,23 +126,11 @@ async def generate_swot(idea_id: str, auth: AuthContext = Depends(require_auth))
     user_prompt = f"Idea domain: {idea['domains']}\n\nIdea content:\n{idea['content'][:4000]}"
 
     async def stream_and_save():
-        full_output = []
-        async for chunk in stream_claude(SWOT_SYSTEM, user_prompt, max_tokens=1500):
-            full_output.append(chunk)
-            yield chunk
+        swot_text = ""
+        async for text in stream_claude(SWOT_SYSTEM, user_prompt, max_tokens=1500):
+            swot_text += text
+            yield f"data: {json.dumps({'type': 'text_delta', 'text': text})}\n\n"
 
-        # Save SWOT to metadata
-        import json as _json
-        text_parts = []
-        for line in full_output:
-            if isinstance(line, str) and line.startswith("data: ") and line != "data: [DONE]":
-                try:
-                    data = _json.loads(line[6:])
-                    if data.get("type") == "text_delta":
-                        text_parts.append(data.get("text", ""))
-                except Exception:
-                    pass
-        swot_text = "".join(text_parts)
         if swot_text:
             from datetime import datetime
             existing_meta = idea["metadata"] if isinstance(idea["metadata"], dict) else {}
@@ -153,7 +139,7 @@ async def generate_swot(idea_id: str, auth: AuthContext = Depends(require_auth))
             async with pool.acquire() as conn:
                 await conn.execute(
                     "UPDATE ideas SET metadata=$2 WHERE id=$1",
-                    idea_id, _json.dumps(existing_meta),
+                    idea_id, json.dumps(existing_meta),
                 )
                 await conn.execute(
                     """INSERT INTO activity_events (workspace_id, user_id, type, title, entity_type, entity_id)

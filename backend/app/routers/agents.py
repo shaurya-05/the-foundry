@@ -180,19 +180,10 @@ async def run_agent(req: AgentRunRequest, auth: AuthContext = Depends(require_au
     enriched_context = await _build_agent_context(auth.workspace_id, req.context)
 
     async def stream_and_save():
-        full_output = []
-        async for chunk in stream_claude(agent["system"], enriched_context, max_tokens=1500):
-            full_output.append(chunk)
-            yield chunk
         output_text = ""
-        for chunk in full_output:
-            if chunk.startswith("data: "):
-                try:
-                    data = json.loads(chunk[6:])
-                    if data.get("type") == "text_delta":
-                        output_text += data.get("text", "")
-                except Exception:
-                    pass
+        async for text in stream_claude(agent["system"], enriched_context, max_tokens=1500):
+            output_text += text
+            yield f"data: {json.dumps({'type': 'text_delta', 'text': text})}\n\n"
         pool = await get_pool()
         async with pool.acquire() as conn:
             await conn.execute(
@@ -250,15 +241,9 @@ async def run_pipeline(req: PipelineRunRequest, auth: AuthContext = Depends(requ
             yield f"data: {json.dumps({'type': 'step_start', 'step': i, 'agent': step['agent'], 'agent_name': agent['name']})}\n\n"
 
             output_text = ""
-            async for chunk in stream_claude(agent["system"], input_text, max_tokens=1200):
-                if chunk.startswith("data: "):
-                    try:
-                        data = json.loads(chunk[6:])
-                        if data.get("type") == "text_delta":
-                            output_text += data.get("text", "")
-                            yield f"data: {json.dumps({'type': 'step_delta', 'step': i, 'text': data['text']})}\n\n"
-                    except Exception:
-                        pass
+            async for text in stream_claude(agent["system"], input_text, max_tokens=1200):
+                output_text += text
+                yield f"data: {json.dumps({'type': 'step_delta', 'step': i, 'text': text})}\n\n"
             step_outputs.append(output_text)
 
             yield f"data: {json.dumps({'type': 'step_complete', 'step': i, 'agent': step['agent']})}\n\n"
