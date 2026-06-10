@@ -48,10 +48,15 @@ from app.db.postgres import get_pool
 from app.dependencies import AuthContext, require_auth
 from app.services import graph_repo
 from app.services.oauth_encryption import encrypt_token
+from app.services.notion_sync import run_initial_notion_sync
 
 log = structlog.get_logger()
 
 router = APIRouter(prefix="/api/oauth", tags=["oauth"])
+
+
+async def _notion_initial_sync(workspace_id: str, user_id: str, access_token: str):
+    await run_initial_notion_sync(workspace_id, user_id, access_token)
 
 
 # ─── Provider registry ────────────────────────────────────────────────────
@@ -92,6 +97,15 @@ PROVIDERS: dict[str, ProviderConfig] = {
         # repo: read commits/PRs/issues; read:user: identify the GitHub user
         scopes="repo read:user read:org",
         user_url="https://api.github.com/user",
+    ),
+        "notion": ProviderConfig(
+        name="notion",
+        client_id_env="NOTION_OAUTH_CLIENT_ID",
+        client_secret_env="NOTION_OAUTH_CLIENT_SECRET",
+        authorize_url="https://api.notion.com/v1/oauth/authorize",
+        token_url="https://api.notion.com/v1/oauth/token",
+        scopes="",
+        user_url="https://api.notion.com/v1/users/me",
     ),
 }
 
@@ -280,17 +294,35 @@ async def oauth_callback(
     payload = _verify_state(state or "", provider, oauth_csrf)
 
     # Exchange code for token
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        token_resp = await client.post(
-            cfg.token_url,
-            data={
-                "client_id": cfg.client_id,
-                "client_secret": cfg.client_secret,
-                "code": code,
-                "redirect_uri": _callback_url(request, provider),
-            },
-            headers={"Accept": "application/json"},
-        )
+    # Notion uses HTTP Basic auth; others use form body credentials
+    import base64 as _b64
+    if provider == "notion":
+        _creds = _b64.b64encode(f"{cfg.client_id}:{cfg.client_secret}".encode()).decode()
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            token_resp = await client.post(
+                cfg.token_url,
+                json={
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "redirect_uri": _callback_url(request, provider),
+                },
+                headers={
+                    "Authorization": f"Basic {_creds}",
+                    "Accept": "application/json",
+                },
+            )
+    else:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            token_resp = await client.post(
+                cfg.token_url,
+                data={
+                    "client_id": cfg.client_id,
+                    "client_secret": cfg.client_secret,
+                    "code": code,
+                    "redirect_uri": _callback_url(request, provider),
+                },
+                headers={"Accept": "application/json"},
+            )
     if token_resp.status_code >= 400:
         log.error("oauth_token_exchange_failed", provider=provider, status=token_resp.status_code)
         return RedirectResponse(
@@ -329,8 +361,12 @@ async def oauth_callback(
             )
             if ur.status_code == 200:
                 user_json = ur.json()
-                provider_user_id = str(user_json.get("id") or "") or None
-                provider_user_login = user_json.get("login") or user_json.get("username")
+                if provider == "notion":
+                    provider_user_id = str(user_json.get("id") or "") or None
+                    provider_user_login = user_json.get("name") or str(user_json.get("id"))
+                else:
+                    provider_user_id = str(user_json.get("id") or "") or None
+                    provider_user_login = user_json.get("login") or user_json.get("username")
     except Exception as e:
         log.warning("oauth_user_lookup_failed", provider=provider, error=str(e))
 
@@ -369,6 +405,13 @@ async def oauth_callback(
     # Kick off the initial sync so the graph populates without a manual click.
     if provider == "github":
         _kick_initial_sync(payload["workspace_id"], payload["sub"], background)
+    elif provider == "notion":
+        background.add_task(
+            _notion_initial_sync,
+            workspace_id=payload["workspace_id"],
+            user_id=payload["sub"],
+            access_token=access_token,
+        )
 
     # Route the callback redirect based on onboarding state.
     if onboarding_step is not None and onboarding_step < 2:
