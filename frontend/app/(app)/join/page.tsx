@@ -8,7 +8,7 @@ import Found3ryWordmark from '@/components/brand/Found3ryWordmark'
 import EyebrowLabel from '@/components/brand/EyebrowLabel'
 import Crease from '@/components/brand/Crease'
 
-export default function JoinPage() {
+function JoinPageInner() {
   return <Suspense><JoinContent /></Suspense>
 }
 
@@ -190,4 +190,8 @@ const errorStyle: React.CSSProperties = {
   borderBottom: '1px solid var(--color-n200)',
   color: 'var(--color-ink)',
   fontFamily: 'var(--font-plex-mono), monospace', fontSize: 12,
+}
+
+export default function JoinPage() {
+  return <Suspense><JoinPageInner /></Suspense>
 }

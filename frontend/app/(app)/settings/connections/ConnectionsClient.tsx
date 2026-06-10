@@ -14,7 +14,7 @@
  * query param; we read it once and toast on mount.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState , Suspense} from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import { API_URL } from '@/lib/config'
@@ -77,7 +77,7 @@ const PROVIDER_META: Record<string, { label: string; tagline: string; status: 'l
   },
 }
 
-export default function ConnectionsClient() {
+function ConnectionsClientInner() {
   const router = useRouter()
   const search = useSearchParams()
   const { user, loading } = useAuth()
@@ -366,4 +366,8 @@ export default function ConnectionsClient() {
       </div>
     </div>
   )
+}
+
+export default function ConnectionsClient() {
+  return <Suspense><ConnectionsClientInner /></Suspense>
 }

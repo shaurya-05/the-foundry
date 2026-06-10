@@ -8,7 +8,7 @@ import Crease from '@/components/brand/Crease'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
-export default function ResetPasswordPage() {
+function ResetPasswordPageInner() {
   return <Suspense><ResetPasswordContent /></Suspense>
 }
 
@@ -191,4 +191,8 @@ const successStyle: React.CSSProperties = {
   color: 'var(--color-ink)',
   fontFamily: 'var(--font-plex-serif), serif',
   fontStyle: 'italic', fontWeight: 500, fontSize: 14, lineHeight: 1.55,
+}
+
+export default function ResetPasswordPage() {
+  return <Suspense><ResetPasswordPageInner /></Suspense>
 }

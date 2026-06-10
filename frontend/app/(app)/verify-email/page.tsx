@@ -9,7 +9,7 @@ import Crease from '@/components/brand/Crease'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
-export default function VerifyEmailPage() {
+function VerifyEmailPageInner() {
   return <Suspense><VerifyEmailContent /></Suspense>
 }
 
@@ -138,4 +138,8 @@ const primaryBtnStyle: React.CSSProperties = {
   fontFamily: 'var(--font-archivo), system-ui, sans-serif',
   fontWeight: 700, fontSize: 14, letterSpacing: '0.08em', textTransform: 'uppercase',
   transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
+}
+
+export default function VerifyEmailPage() {
+  return <Suspense><VerifyEmailPageInner /></Suspense>
 }

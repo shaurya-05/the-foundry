@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, FormEvent } from 'react'
+import { useState, FormEvent , Suspense} from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import Found3ryWordmark from '@/components/brand/Found3ryWordmark'
@@ -10,7 +10,7 @@ import Crease from '@/components/brand/Crease'
 
 type Tab = 'signin' | 'register'
 
-export default function LoginClient() {
+function LoginClientInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { login, register } = useAuth()
@@ -403,4 +403,8 @@ const termsLinkStyle: React.CSSProperties = {
   textDecorationColor: 'var(--color-arc-cyan)',
   textUnderlineOffset: '0.2em',
   fontWeight: 700,
+}
+
+export default function LoginClient() {
+  return <Suspense><LoginClientInner /></Suspense>
 }
