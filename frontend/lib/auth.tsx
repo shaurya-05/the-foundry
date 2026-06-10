@@ -59,6 +59,11 @@ function clearTokens() {
   document.cookie = `foundry_token=; path=/; SameSite=Lax${isSecure}; max-age=0`
 }
 
+export function getToken(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem('foundry_token')
+}
+
 async function tryRefresh(): Promise<string | null> {
   const refreshToken = localStorage.getItem('foundry_refresh_token')
   if (!refreshToken) return null
