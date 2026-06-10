@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth, getToken } from '@/lib/auth'
 import { API_URL } from '@/lib/config'
@@ -8,7 +8,7 @@ import Found3ryWordmark from '@/components/brand/Found3ryWordmark'
 import EyebrowLabel from '@/components/brand/EyebrowLabel'
 import Crease from '@/components/brand/Crease'
 
-export default function OnboardingConnectPage() {
+function OnboardingConnectInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, token, loading } = useAuth()
@@ -262,4 +262,8 @@ export default function OnboardingConnectPage() {
       </div>
     </div>
   )
+}
+
+export default function OnboardingConnectPage() {
+  return <Suspense><OnboardingConnectInner /></Suspense>
 }
