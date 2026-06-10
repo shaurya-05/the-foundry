@@ -154,7 +154,7 @@ async def security_headers_middleware(request: Request, call_next):
     # Decouple browsing contexts (prevents window.opener attacks) and prevent
     # other origins from embedding our responses as resources.
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
-    response.headers["Cross-Origin-Resource-Policy"] = "same-site"
+    response.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), interest-cohort=()"
     response.headers["Cache-Control"] = "no-store"
     return response
