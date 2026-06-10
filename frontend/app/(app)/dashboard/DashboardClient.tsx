@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { api, KnowledgeItem, Project, Task, Idea, ActivityEvent, WorkspaceMember } from '@/lib/api'
+import { api, KnowledgeItem, Project, Task, ActivityEvent, WorkspaceMember } from '@/lib/api'
 import GlassCard from '@/components/ui/GlassCard'
 import SectionHeader from '@/components/ui/SectionHeader'
 import OnboardingGuide from '@/components/layout/OnboardingGuide'
