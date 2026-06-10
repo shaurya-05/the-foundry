@@ -5,7 +5,7 @@ import {
   useCallback, useRef, ReactNode,
 } from 'react'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.found3ry.com'
 
 export interface WorkspaceMember {
   user_id: string
