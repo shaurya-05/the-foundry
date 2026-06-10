@@ -36,7 +36,6 @@ export default function DashboardClient() {
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
-  const [ideas, setIdeas] = useState<Idea[]>([])
   const [events, setEvents] = useState<ActivityEvent[]>([])
   const [members, setMembers] = useState<WorkspaceMember[]>([])
   const [loading, setLoading] = useState(true)
@@ -49,14 +48,12 @@ export default function DashboardClient() {
       api.knowledge.list(),
       api.projects.list(),
       api.tasks.list(),
-      api.ideas.list(),
       api.context.timeline(20),
       api.workspace.members(),
-    ]).then(([k, p, t, i, ev, m]) => {
+    ]).then(([k, p, t, ev, m]) => {
       setKnowledge(k)
       setProjects(p)
       setTasks(t)
-      setIdeas(i)
       setEvents(ev.events)
       setMembers(m.members)
     }).catch(console.error).finally(() => setLoading(false))
@@ -122,7 +119,6 @@ export default function DashboardClient() {
           { label: 'Open Tasks', value: activeTasks.length, color: 'var(--color-arc-cyan-deep)', href: '/tasks' },
           { label: 'Blocked', value: blockedTasks.length, color: 'var(--color-n600)', href: '/tasks' },
           { label: 'Knowledge', value: knowledge.length, color: 'var(--color-arc-cyan-deep)', href: '/knowledge' },
-          { label: 'Ideas', value: ideas.length, color: 'var(--color-n600)', href: '/ideas' },
         ].map(stat => (
           <Link key={stat.label} href={stat.href} style={{ textDecoration: 'none' }}>
             <GlassCard hover style={{ padding: '14px 16px' }}>

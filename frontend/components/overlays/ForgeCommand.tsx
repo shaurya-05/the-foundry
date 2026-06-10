@@ -21,7 +21,6 @@ const NAV_COMMANDS = [
   { id: 'nav-dashboard', label: 'Go to Dashboard', description: 'The forge floor',   path: '/dashboard' },
   { id: 'nav-knowledge', label: 'Go to Knowledge', description: 'The archive',       path: '/knowledge' },
   { id: 'nav-projects',  label: 'Go to Projects',  description: 'The workshop',      path: '/projects' },
-  { id: 'nav-ideas',     label: 'Go to Ideas',     description: 'The crucible',      path: '/ideas' },
   { id: 'nav-launchpad', label: 'Go to Launchpad', description: 'The launch bay',    path: '/launchpad' },
   { id: 'nav-workspace', label: 'Go to Workspace', description: 'The blueprint',     path: '/workspace' },
   { id: 'nav-tasks',     label: 'Go to Tasks',     description: 'The runsheet',      path: '/tasks' },
@@ -54,11 +53,10 @@ export default function ForgeCommand({ onClose }: ForgeCommandProps) {
     debounceRef.current = setTimeout(async () => {
       setSearching(true)
       try {
-        const [projects, tasks, knowledge, ideas] = await Promise.all([
+        const [projects, tasks, knowledge] = await Promise.all([
           api.projects.list().catch(() => []),
           api.tasks.list().catch(() => []),
           api.knowledge.list().catch(() => []),
-          api.ideas.list().catch(() => []),
         ])
         const q = query.toLowerCase()
         const results: CommandItem[] = []
@@ -87,15 +85,6 @@ export default function ForgeCommand({ onClose }: ForgeCommandProps) {
               id: `know-${k.id}`, label: k.title || 'Untitled', description: `Knowledge · ${k.type || 'note'}`,
               category: 'knowledge',
               action: () => { router.push('/knowledge'); onClose() },
-            })
-          }
-        }
-        for (const i of (ideas as any[])) {
-          if (i.domains?.toLowerCase().includes(q) || i.content?.toLowerCase().includes(q)) {
-            results.push({
-              id: `idea-${i.id}`, label: i.domains || 'Idea', description: `Idea · ${(i.content || '').slice(0, 60)}`,
-              category: 'idea',
-              action: () => { router.push('/ideas'); onClose() },
             })
           }
         }

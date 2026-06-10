@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from app.models.schemas import CopilotMessage, IntentRequest, IntentResponse
 from app.services.claude import stream_claude
+from app.services.ai_router import route_query
 from app.services.context_engine import get_workspace_summary, build_copilot_system, build_project_copilot_system
 from app.services.usage import check_limit, increment_usage
 from app.db.postgres import get_pool
@@ -50,17 +51,23 @@ async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(requi
     async def stream_and_save():
         await increment_usage(auth.workspace_id, 'copilot_messages')
         full_text = []
-        async for text in stream_claude(system, req.message, max_tokens=800):
-            full_text.append(text)
-            payload = json.dumps({"type": "text_delta", "text": text})
+        model_used = "claude-sonnet-4"
+        first = True
+        async for chunk in route_query(system, req.message, max_tokens=800):
+            if first:
+                model_used = chunk
+                first = False
+                continue
+            full_text.append(chunk)
+            payload = json.dumps({"type": "text_delta", "text": chunk})
             yield f"data: {payload}\n\n"
         yield 'data: {"type": "done"}\n\n'
         assistant_text = "".join(full_text)
         if assistant_text:
             async with pool.acquire() as conn:
                 await conn.execute(
-                    "INSERT INTO copilot_messages (workspace_id, user_id, role, content, project_id) VALUES ($1, $2, 'assistant', $3, $4)",
-                    auth.workspace_id, auth.user_id, assistant_text, req.project_id,
+                    "INSERT INTO copilot_messages (workspace_id, user_id, role, content, project_id, model_used) VALUES ($1, $2, 'assistant', $3, $4, $5)",
+                    auth.workspace_id, auth.user_id, assistant_text, req.project_id, model_used,
                 )
 
     return StreamingResponse(

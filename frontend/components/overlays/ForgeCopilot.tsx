@@ -430,19 +430,17 @@ function StarterPrompts({ onSelect }: { onSelect: (p: string) => void }) {
 }
 
 function SignalsTab() {
-  const [summary, setSummary] = useState({ knowledge: 0, projects: 0, tasks: 0, ideas: 0 })
+  const [summary, setSummary] = useState({ knowledge: 0, projects: 0, tasks: 0 })
   useEffect(() => {
     Promise.all([
       api.knowledge.list(),
       api.projects.list(),
       api.tasks.list(),
-      api.ideas.list(),
-    ]).then(([k, p, t, i]) => {
+    ]).then(([k, p, t]) => {
       setSummary({
         knowledge: k.length,
         projects: p.length,
         tasks: t.filter(x => x.status !== 'completed').length,
-        ideas: i.length,
       })
     }).catch(() => {})
   }, [])
@@ -451,7 +449,6 @@ function SignalsTab() {
     { label: 'Archive',       value: summary.knowledge },
     { label: 'Active builds', value: summary.projects },
     { label: 'Runsheet',      value: summary.tasks },
-    { label: 'Crucible',      value: summary.ideas },
   ]
 
   return (
@@ -495,7 +492,6 @@ function SignalsTab() {
 function OpsTab({ onNavigate }: { onNavigate: (path: string) => void }) {
   const quickActions = [
     { label: 'New build',     path: '/projects' },
-    { label: 'Forge ideas',   path: '/ideas' },
     { label: 'Add knowledge', path: '/knowledge' },
     { label: 'View tasks',    path: '/tasks' },
     { label: 'Launch brief',  path: '/launchpad' },

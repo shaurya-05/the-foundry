@@ -65,7 +65,7 @@ ALLOWED_ORIGINS = [o.strip() for o in _origins_env.split(",") if o.strip()] or [
 ]
 
 from app.routers import (
-    knowledge, projects, ideas, tasks, agents,
+    knowledge, projects, tasks, agents,
     copilot, context, notifications, command, launchpad,
     blueprint, workspace, auth, subscription, analytics,
     oauth, webhooks, agent, ventures, billing, admin,
@@ -175,7 +175,6 @@ async def global_exception_handler(request: Request, exc: Exception):
 # Register all routers
 app.include_router(knowledge.router)
 app.include_router(projects.router)
-app.include_router(ideas.router)
 app.include_router(tasks.router)
 app.include_router(agents.router)
 app.include_router(copilot.router)

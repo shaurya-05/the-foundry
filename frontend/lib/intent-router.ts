@@ -20,7 +20,7 @@ const patterns: [RegExp, Intent][] = [
   [/\b(run|start|execute)\s+(pipeline|deep recon|launch readiness|full forge|blueprint design)\b/i, 'run_pipeline'],
   [/\b(create|add|make)\s+(a\s+)?(task|todo)\b/i, 'create_task'],
   [/\b(create|start|new)\s+(a\s+)?(project|build)\b/i, 'create_project'],
-  [/\b(go to|open|navigate|show me)\s+(knowledge|archive|projects|workshop|ideas|crucible|tasks|runsheet|agents|crew|workspace|blueprint|launchpad|context|signal)\b/i, 'navigate'],
+  [/\b(go to|open|navigate|show me)\s+(knowledge|archive|projects|workshop|tasks|runsheet|agents|crew|workspace|blueprint|launchpad|context|signal)\b/i, 'navigate'],
   [/\b(status|overview|what.?s in|how many|workspace state)\b/i, 'workspace_status'],
   [/\b(find|connect|link|related|relationship|connections?)\b/i, 'find_connections'],
   [/\b(analyze|deep dive|review|evaluate|breakdown)\s+(project|build)\b/i, 'analyze_project'],

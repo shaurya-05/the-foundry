@@ -53,13 +53,13 @@ const WALKTHROUGH_STEPS: Step[] = [
       'Add notes, links, documents, and research.',
       'Auto-generated summaries.',
       'Semantic search — find by meaning, not just keywords.',
-      'Knowledge connects to projects and ideas automatically.',
+      'Knowledge connects to projects automatically.',
     ],
     nav: '/knowledge',
   },
   {
     number: '04',
-    title: 'Projects turn raw ideas into plans.',
+    title: 'Projects turn concepts into plans.',
     subtitle: 'Build tracker',
     desc: 'Name a project and the AI generates a full plan with milestones, technical requirements, and actionable tasks — automatically added to your task board.',
     features: [
@@ -82,19 +82,6 @@ const WALKTHROUGH_STEPS: Step[] = [
       'Priority levels: critical, high, medium, low.',
     ],
     nav: '/tasks',
-  },
-  {
-    number: '06',
-    title: 'Ideas turn into evaluated strategy.',
-    subtitle: 'Innovation lab',
-    desc: 'Describe a problem space and the AI generates three distinct startup ideas. Then run a full SWOT on any idea to evaluate it strategically.',
-    features: [
-      'Three distinct ideas per domain.',
-      'One-click SWOT — strengths, weaknesses, opportunities, threats.',
-      'Score ideas 1–10 with next-step recommendations.',
-      'Convert ideas to full projects.',
-    ],
-    nav: '/ideas',
   },
   {
     number: '07',

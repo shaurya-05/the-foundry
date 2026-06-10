@@ -74,12 +74,6 @@ export const api = {
   copilot: {
     history: (projectId?: string) => req<{ id: string; role: string; content: string; created_at: string }[]>('/api/copilot/history' + (projectId ? `?project_id=${projectId}` : '')),
   },
-  ideas: {
-    list: () => req<Idea[]>('/api/ideas'),
-    create: (data: { domains: string; content: string }) => req<Idea>('/api/ideas', { method: 'POST', body: JSON.stringify(data) }),
-    delete: (id: string) => req('/api/ideas/' + id, { method: 'DELETE' }),
-    getSwot: (id: string) => req<{ swot: string; swot_generated_at: string }>('/api/ideas/' + id + '/swot'),
-  },
   tasks: {
     list: (params?: { project_id?: string; status?: string }) => {
       const qs = new URLSearchParams(params as Record<string, string>).toString()
@@ -157,11 +151,6 @@ export const api = {
     setProjectVisibility: (id: string, visibility: string, clearanceLevel?: number) =>
       req<{ id: string; visibility: string; clearance_level: number }>(
         `/api/workspace/projects/${id}/visibility`,
-        { method: 'PATCH', body: JSON.stringify({ visibility, clearance_level: clearanceLevel }) },
-      ),
-    setIdeaVisibility: (id: string, visibility: string, clearanceLevel?: number) =>
-      req<{ id: string; visibility: string; clearance_level: number }>(
-        `/api/workspace/ideas/${id}/visibility`,
         { method: 'PATCH', body: JSON.stringify({ visibility, clearance_level: clearanceLevel }) },
       ),
     setKnowledgeVisibility: (id: string, visibility: string) =>
@@ -280,7 +269,6 @@ export interface ParsedCommand {
 
 export interface RelatedItems {
   knowledge: { id: string; title: string; summary?: string; type: string }[]
-  ideas: { id: string; domains: string }[]
   tasks: { id: string; title: string; status: string }[]
 }
 
