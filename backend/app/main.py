@@ -196,6 +196,11 @@ app.include_router(admin.router)
 
 
 # ─── Health check (deep) ─────────────────────────────────────────────────────
+
+@app.get("/api/debug/origins")
+async def debug_origins():
+    return {"allowed_origins": ALLOWED_ORIGINS}
+
 @app.get("/health")
 async def health():
     checks = {"api": "ok"}
