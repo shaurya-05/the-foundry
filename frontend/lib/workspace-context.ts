@@ -1,4 +1,4 @@
-import type { KnowledgeItem, Project, Idea, Task } from './api'
+import type { KnowledgeItem, Project, Task } from './api'
 
 export interface WorkspaceState {
   knowledge: KnowledgeItem[]
