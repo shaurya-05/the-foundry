@@ -182,3 +182,31 @@ async def trigger_digest(_: HTTPBasicCredentials = Depends(_require_admin)):
     result = await run_weekly_digest()
     log.info("admin_digest_trigger", **result)
     return {"ok": True, **result}
+
+@router.get("/stats/model-usage")
+async def model_usage_stats(_: HTTPBasicCredentials = Depends(_require_admin)):
+    """Returns breakdown of AI model usage across all copilot messages."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT 
+                COALESCE(model_used, 'claude-sonnet-4') as model,
+                COUNT(*) as count,
+                ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) as pct
+            FROM copilot_messages
+            WHERE role = 'assistant'
+            GROUP BY model_used
+            ORDER BY count DESC
+            """
+        )
+        total = await conn.fetchval(
+            "SELECT COUNT(*) FROM copilot_messages WHERE role = 'assistant'"
+        )
+    return {
+        "total": total,
+        "breakdown": [
+            {"model": r["model"], "count": r["count"], "pct": float(r["pct"])}
+            for r in rows
+        ]
+    }
