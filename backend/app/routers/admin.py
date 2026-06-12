@@ -42,6 +42,16 @@ async def admin_dashboard(_: HTTPBasicCredentials = Depends(_require_admin)):
         paid_conversions = await conn.fetchval(
             "SELECT COUNT(*) FROM workspaces WHERE plan = 'growth'"
         )
+        # Model usage breakdown
+        model_rows = await conn.fetch(
+            """
+            SELECT COALESCE(model_used, 'claude-sonnet-4') as model, COUNT(*) as count
+            FROM copilot_messages WHERE role = 'assistant'
+            GROUP BY model_used ORDER BY count DESC
+            """
+        )
+        total_messages = int(await conn.fetchval("SELECT COUNT(*) FROM copilot_messages WHERE role = 'assistant'") or 0)
+
         # Recent signups for the table
         recent_rows = await conn.fetch(
             """SELECT name, plan, onboarding_step, onboarding_completed_at, created_at
@@ -72,6 +82,16 @@ async def admin_dashboard(_: HTTPBasicCredentials = Depends(_require_admin)):
             f"<td style='color:#888'>{ts}</td>"
             f"</tr>"
         )
+
+    MODEL_COLORS = {"claude-sonnet-4": "#9FDEFA", "gpt-4o-mini": "#74AA9C", "perplexity-sonar": "#E84A0E", "gemini-1.5-flash": "#F4B942"}
+
+    def _model_bar(r):
+        m = r["model"]; c = r["count"]
+        pct = round(c / total_messages * 100, 1) if total_messages else 0
+        col = MODEL_COLORS.get(m, "#666")
+        return f"<div style='margin-bottom:12px'><div style='display:flex;justify-content:space-between;margin-bottom:4px'><span style='font-size:12px'>{_html.escape(m)}</span><span style='font-size:12px;color:#888'>{c} ({pct}%)</span></div><div style='background:#2a2a28;height:8px;border-radius:2px'><div style='background:{col};width:{pct}%;height:8px;border-radius:2px'></div></div></div>"
+
+    model_chart_html = "".join(_model_bar(r) for r in model_rows) + f"<div style='font-size:11px;color:#555;margin-top:8px'>{total_messages} total messages</div>" if model_rows else "<div style='color:#555;font-size:12px'>No messages yet.</div>"
 
     rows_html = "".join(_row_html(r) for r in recent_rows)
 
@@ -150,6 +170,11 @@ async def admin_dashboard(_: HTTPBasicCredentials = Depends(_require_admin)):
     <div class="card-value accent">{paid_conversions}</div>
     <div class="card-sub">{conversion_pct}% conversion rate</div>
   </div>
+</div>
+
+<h2>AI Router — Model Usage</h2>
+<div style="margin-bottom:48px">
+  {model_chart_html}
 </div>
 
 <h2>Recent Workspaces</h2>
