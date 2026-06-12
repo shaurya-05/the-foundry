@@ -73,7 +73,7 @@ const PROVIDER_META: Record<string, { label: string; tagline: string; status: 'l
   notion: {
     label: 'Notion',
     tagline: 'Docs, databases, decision logs across portfolio workspaces.',
-    status: 'soon',
+    status: 'live',
   },
 }
 
