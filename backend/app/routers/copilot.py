@@ -111,3 +111,20 @@ async def classify_intent(req: IntentRequest, auth: AuthContext = Depends(requir
         if re.search(pattern, msg):
             return IntentResponse(intent=intent, confidence=0.9)
     return IntentResponse(intent="query", confidence=0.7)
+
+@router.get("/threads")
+async def get_threads(auth: AuthContext = Depends(require_auth)):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT DISTINCT ON (thread_id) thread_id as id,
+                   SUBSTRING(content, 1, 60) as title,
+                   created_at
+            FROM copilot_messages
+            WHERE workspace_id=$1 AND role='user' AND thread_id IS NOT NULL
+            ORDER BY thread_id, created_at ASC
+            """,
+            auth.workspace_id,
+        )
+    return [{"id": str(r["id"]), "title": r["title"] or "Untitled", "created_at": r["created_at"].isoformat()} for r in rows]

@@ -1,345 +1,212 @@
 'use client'
 
-/**
- * COFOUND3R — the single operator-grade agent surface.
- *
- * Phase 2 §3 DELETE list: four-agent specialist UI is gone. One input
- * box, one streaming answer, one context-preamble pill showing what
- * the agent has access to (ventures, events, doc hits, open tasks).
- *
- * Backed by POST /api/agent/ask which reads the workspace graph built
- * by the connector ingestion pipeline.
- */
-
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { streamSSE, LimitExceededError } from '@/lib/streaming'
 import Markdown from '@/components/ui/Markdown'
-import EyebrowLabel from '@/components/brand/EyebrowLabel'
-import Crease from '@/components/brand/Crease'
 import { API_URL } from '@/lib/config'
 import { getToken } from '@/lib/auth'
 
-type Citation = {
-  title: string
-  source_type: string
-  excerpt: string
-  source_url?: string
-}
-
 type Exchange = {
-  q: string
-  a: string
-  ts: Date
-  context?: { ventures: number; events: number; doc_hits: number; open_tasks: number }
-  context_md?: string
-  citations?: Citation[]
-  limitExceeded?: boolean
-  upgradeUrl?: string
+  q: string; a: string; ts: Date; model?: string; limitExceeded?: boolean; upgradeUrl?: string
 }
+type Thread = { id: string; title: string; created_at: string }
 
-const DEFAULT_STARTER_QUERIES = [
-  'What did I ship across all my ventures this week?',
-  'Which open issues are blocking shipping?',
-  'Summarize the most active venture right now.',
-  'Across my portfolio, what looks risky or stalled?',
+const MODELS = [
+  { id: 'auto', label: 'Auto', desc: 'Best model for the task' },
+  { id: 'claude-sonnet-4', label: 'Claude', desc: 'Strategic reasoning' },
+  { id: 'gpt-4o-mini', label: 'GPT-4o Mini', desc: 'Fast factual answers' },
+  { id: 'perplexity-sonar', label: 'Perplexity', desc: 'Live web search' },
 ]
 
-export default function AgentsClient({
-  starterQueries,
-  onFirstAnswer,
-}: {
-  starterQueries?: string[]
-  onFirstAnswer?: () => void
-} = {}) {
-  const STARTER_QUERIES = starterQueries ?? DEFAULT_STARTER_QUERIES
+const STARTERS = [
+  'What should I focus on this week?',
+  'Review my current strategy and find gaps.',
+  'What are the biggest risks to my venture right now?',
+  'Help me prepare for an investor conversation.',
+]
+
+export default function AgentsClient() {
   const router = useRouter()
   const [query, setQuery] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [exchanges, setExchanges] = useState<Exchange[]>([])
   const [error, setError] = useState('')
-  const [contextPreview, setContextPreview] = useState<{ ventures: number; doc_hits: number; events: number; open_tasks: number } | null>(null)
+  const [threads, setThreads] = useState<Thread[]>([])
+  const [activeThread, setActiveThread] = useState<string | null>(null)
+  const [selectedModel, setSelectedModel] = useState('auto')
+  const [showModelPicker, setShowModelPicker] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const scrollerRef = useRef<HTMLDivElement>(null)
-  const [expandedPanels, setExpandedPanels] = useState<Record<number, boolean>>({})
-  // citation chips: key is `${exchangeIndex}-${citationIndex}`
-  const [expandedCitations, setExpandedCitations] = useState<Record<string, boolean>>({})
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
-  // Surface the "graph empty?" hint: peek at the context preview.
+  useEffect(() => { loadThreads() }, [])
   useEffect(() => {
-    const token = getToken()
-    if (!token) return
-    fetch(`${API_URL}/api/agent/context?q=portfolio`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setContextPreview(d.counts))
-      .catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    if (scrollerRef.current) {
-      scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight
-    }
+    if (scrollerRef.current) scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight
   }, [exchanges, streaming])
 
-  async function handleUpgrade() {
-    const token = getToken()
-    if (!token) { router.push('/settings'); return }
+  async function loadThreads() {
+    const token = getToken(); if (!token) return
     try {
-      const res = await fetch(`${API_URL}/api/subscription/checkout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ plan_id: 'pro', billing_cycle: 'monthly' }),
-      })
-      const data = await res.json()
-      if (data.checkout_url) {
-        window.location.href = data.checkout_url
-      } else {
-        router.push('/settings')
+      const res = await fetch(API_URL + '/api/copilot/threads', { headers: { Authorization: 'Bearer ' + token } })
+      if (res.ok) setThreads(await res.json())
+    } catch {}
+  }
+
+  async function loadThread(threadId: string) {
+    const token = getToken(); if (!token) return
+    try {
+      const res = await fetch(API_URL + '/api/copilot/history?thread_id=' + threadId + '&limit=50', { headers: { Authorization: 'Bearer ' + token } })
+      if (res.ok) {
+        const msgs = await res.json()
+        const rebuilt: Exchange[] = []
+        for (let i = 0; i < msgs.length; i += 2) {
+          if (msgs[i] && msgs[i + 1]) rebuilt.push({ q: msgs[i].content, a: msgs[i + 1].content, ts: new Date(msgs[i].created_at), model: msgs[i + 1].model_used })
+        }
+        setExchanges(rebuilt); setActiveThread(threadId)
       }
-    } catch {
-      router.push('/settings')
-    }
+    } catch {}
+  }
+
+  async function handleUpgrade() {
+    const token = getToken(); if (!token) { router.push('/settings'); return }
+    try {
+      const res = await fetch(API_URL + '/api/subscription/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ plan_id: 'pro', billing_cycle: 'monthly' }) })
+      const data = await res.json()
+      if (data.checkout_url) window.location.href = data.checkout_url; else router.push('/settings')
+    } catch { router.push('/settings') }
   }
 
   async function ask(q: string) {
     if (!q.trim() || streaming) return
-    setError('')
-    setStreaming(true)
-    // isFirst captured before setExchanges so the finally block reads the pre-mutation value
-    const isFirst = exchanges.length === 0
-    const pending: Exchange = { q, a: '', ts: new Date() }
-    setExchanges((prev) => [...prev, pending])
+    setError(''); setStreaming(true)
+    setExchanges(prev => [...prev, { q, a: '', ts: new Date() }])
     setQuery('')
-
-    let wasLimitExceeded = false
     try {
-      for await (const chunk of streamSSE('/api/agent/ask', { query: q })) {
-        if (chunk.type === 'context') {
-          setExchanges((prev) => {
-            const copy = [...prev]
-            copy[copy.length - 1] = {
-              ...copy[copy.length - 1],
-              context: {
-                ventures: chunk.ventures,
-                events: chunk.events,
-                doc_hits: chunk.doc_hits,
-                open_tasks: chunk.open_tasks,
-              },
-              context_md: chunk.context_md as string | undefined,
-            }
-            return copy
-          })
-        } else if (chunk.type === 'text_delta') {
-          setExchanges((prev) => {
-            const copy = [...prev]
-            copy[copy.length - 1] = { ...copy[copy.length - 1], a: copy[copy.length - 1].a + chunk.text }
-            return copy
-          })
-        } else if (chunk.type === 'citations') {
-          setExchanges((prev) => {
-            const copy = [...prev]
-            copy[copy.length - 1] = { ...copy[copy.length - 1], citations: chunk.citations as Citation[] }
-            return copy
-          })
-        } else if (chunk.type === 'error') {
-          setError(chunk.message)
-        }
+      for await (const chunk of streamSSE('/api/copilot/message', { message: q, thread_id: activeThread, model_override: selectedModel === 'auto' ? undefined : selectedModel })) {
+        if (chunk.type === 'thread_id' && chunk.thread_id) { setActiveThread(chunk.thread_id); loadThreads() }
+        else if (chunk.type === 'text_delta') setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], a: c[c.length-1].a + chunk.text }; return c })
+        else if (chunk.type === 'model_used') setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], model: chunk.model }; return c })
       }
-    } catch (e) {
-      if (e instanceof LimitExceededError) {
-        wasLimitExceeded = true
-        setExchanges((prev) => {
-          const copy = [...prev]
-          copy[copy.length - 1] = { ...copy[copy.length - 1], limitExceeded: true, upgradeUrl: e.upgradeUrl }
-          return copy
-        })
-      } else {
-        setError(e instanceof Error ? e.message : 'Unknown error')
-      }
-    } finally {
-      setStreaming(false)
-      if (isFirst && !wasLimitExceeded && onFirstAnswer) onFirstAnswer()
-    }
+    } catch (e: any) {
+      if (e instanceof LimitExceededError) setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], limitExceeded: true, upgradeUrl: e.upgradeUrl }; return c })
+      else setError(e instanceof Error ? e.message : 'Unknown error')
+    } finally { setStreaming(false) }
   }
 
-  const noGraph = contextPreview && contextPreview.ventures === 0
+  const selectedModelLabel = MODELS.find(m => m.id === selectedModel)?.label ?? 'Auto'
 
   return (
-    <div className="min-h-screen bg-off-white px-6 py-12 font-archivo">
-      <div className="mx-auto max-w-3xl">
-        <EyebrowLabel number="01" keyword="The agent" />
-        <h1 className="font-archivo-black text-4xl text-ink leading-none mt-2 mb-2">
-          COFOUND3R.
-        </h1>
-        <p className="text-n600 text-base max-w-xl">
-          One agent, your entire portfolio. Asks across every venture you've connected — by name.
-        </p>
-        <div className="mt-4"><Crease /></div>
-
-        {noGraph && (
-          <div className="mt-6 border border-n200 bg-vellum p-4">
-            <div className="text-sm text-ink mb-2">
-              Your workspace graph is empty. Connect a tool to give COFOUND3R something to read.
-            </div>
-            <button
-              onClick={() => router.push('/settings/connections')}
-              className="bg-arc-cyan text-ink px-3 py-1.5 text-xs font-mono uppercase tracking-wider hover:bg-arc-cyan-deep transition-colors"
-            >
-              Open connections →
+    <div style={{ display: 'flex', height: '100vh', background: 'var(--color-off-white)', overflow: 'hidden' }}>
+      {sidebarOpen && (
+        <div style={{ width: 240, minWidth: 240, borderRight: '1px solid var(--color-n200)', background: 'var(--color-vellum)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+          <div style={{ padding: '16px 14px 12px', borderBottom: '1px solid var(--color-n200)' }}>
+            <button onClick={() => { setExchanges([]); setActiveThread(null); setQuery(''); inputRef.current?.focus() }} style={{ width: '100%', padding: '8px 12px', background: 'var(--color-ink)', color: 'var(--color-off-white)', border: 'none', borderRadius: 2, fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>
+              + New chat
             </button>
           </div>
-        )}
-
-        {exchanges.length === 0 && !noGraph && (
-          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {STARTER_QUERIES.map((s) => (
-              <button
-                key={s}
-                onClick={() => ask(s)}
-                className="text-left border border-n200 bg-vellum p-3 text-sm text-ink hover:border-arc-cyan-deep transition-colors"
-              >
-                {s}
-              </button>
-            ))}
+          <div style={{ flex: 1, overflow: 'auto', padding: '8px' }}>
+            {threads.length === 0
+              ? <div style={{ padding: '12px 6px', fontFamily: 'var(--font-plex-mono)', fontSize: 11, color: 'var(--color-n400)' }}>No chats yet</div>
+              : threads.map(t => (
+                <button key={t.id} onClick={() => loadThread(t.id)} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', marginBottom: 2, background: activeThread === t.id ? 'var(--color-off-white)' : 'transparent', borderLeft: activeThread === t.id ? '2px solid var(--color-arc-cyan)' : '2px solid transparent', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-archivo)', fontSize: 12, color: 'var(--color-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                  {t.title || 'Untitled chat'}
+                  <div style={{ fontFamily: 'var(--font-plex-mono)', fontSize: 9, color: 'var(--color-n400)', marginTop: 2 }}>{new Date(t.created_at).toLocaleDateString()}</div>
+                </button>
+              ))
+            }
           </div>
-        )}
+        </div>
+      )}
 
-        <div ref={scrollerRef} className="mt-8 space-y-6 max-h-[60vh] overflow-y-auto pr-2">
-          {exchanges.map((ex, i) => (
-            <div key={i}>
-              <div className="text-xs font-mono uppercase tracking-wider text-n600 mb-1">You</div>
-              <div className="text-base text-ink mb-3">{ex.q}</div>
-              <div className="text-xs font-mono uppercase tracking-wider text-arc-cyan-deep mb-1">COFOUND3R</div>
-              <div className="text-base text-ink">
-                {ex.limitExceeded ? null : ex.a ? <Markdown content={ex.a} streaming={streaming && i === exchanges.length - 1} /> : streaming && i === exchanges.length - 1 ? <span className="text-n600">…</span> : null}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ padding: '14px 24px', borderBottom: '1px solid var(--color-n200)', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--color-vellum)' }}>
+          <button onClick={() => setSidebarOpen(o => !o)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-n600)', padding: 4 }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="1.5" rx="0.75" fill="currentColor" /><rect x="1" y="7.25" width="14" height="1.5" rx="0.75" fill="currentColor" /><rect x="1" y="11.5" width="14" height="1.5" rx="0.75" fill="currentColor" /></svg>
+          </button>
+          <div style={{ fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 14, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-ink)' }}>COFOUND3R</div>
+          <div style={{ marginLeft: 'auto', position: 'relative' }}>
+            <button onClick={() => setShowModelPicker(o => !o)} style={{ padding: '5px 12px', border: '1px solid var(--color-n200)', borderRadius: 2, background: 'transparent', cursor: 'pointer', fontFamily: 'var(--font-plex-mono)', fontSize: 11, color: 'var(--color-n600)', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 6 }}>
+              {selectedModelLabel}
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
+            </button>
+            {showModelPicker && (
+              <div style={{ position: 'absolute', right: 0, top: '110%', zIndex: 100, background: 'var(--color-vellum)', border: '1px solid var(--color-n200)', borderRadius: 2, minWidth: 200, boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}>
+                {MODELS.map(m => (
+                  <button key={m.id} onClick={() => { setSelectedModel(m.id); setShowModelPicker(false) }} style={{ width: '100%', textAlign: 'left', padding: '10px 14px', background: selectedModel === m.id ? 'var(--color-off-white)' : 'transparent', border: 'none', borderBottom: '1px solid var(--color-n200)', cursor: 'pointer' }}>
+                    <div style={{ fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 12, color: 'var(--color-ink)' }}>{m.label}</div>
+                    <div style={{ fontFamily: 'var(--font-plex-mono)', fontSize: 10, color: 'var(--color-n600)', marginTop: 2 }}>{m.desc}</div>
+                  </button>
+                ))}
               </div>
-              {ex.limitExceeded && (
-                <div className="mt-3 border border-n200 bg-vellum p-4">
-                  <div className="text-xs font-mono uppercase tracking-wider text-n600 mb-2">
-                    Spark limit reached
-                  </div>
-                  <div className="text-sm text-ink mb-3">
-                    You've used all your Spark plan messages this month.
-                  </div>
-                  <button
-                    onClick={handleUpgrade}
-                    className="bg-arc-cyan text-ink px-4 py-2 text-xs font-mono uppercase tracking-wider hover:bg-arc-cyan-deep transition-colors"
-                  >
-                    Upgrade to keep going →
-                  </button>
-                </div>
-              )}
-              {ex.context && !ex.limitExceeded && !(streaming && i === exchanges.length - 1) && (
-                <div className="mt-3 border border-n200 bg-vellum">
-                  <button
-                    onClick={() => setExpandedPanels(prev => ({ ...prev, [i]: !prev[i] }))}
-                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-mono uppercase tracking-wider text-n600 hover:text-ink transition-colors"
-                  >
-                    <span>
-                      What I read — {ex.context.ventures} ventures · {ex.context.doc_hits} docs · {ex.context.events} events · {ex.context.open_tasks} open tasks
-                    </span>
-                    <svg
-                      className={`w-3 h-3 flex-shrink-0 transition-transform duration-150 ${expandedPanels[i] ? 'rotate-180' : ''}`}
-                      viewBox="0 0 12 12"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M2 4l4 4 4-4" />
-                    </svg>
-                  </button>
-                  {expandedPanels[i] && (
-                    <div className="border-t border-n200 px-3 py-2 text-[11px] font-mono text-n600 whitespace-pre-wrap leading-relaxed">
-                      {ex.context_md ?? `${ex.context.ventures} ventures · ${ex.context.doc_hits} docs · ${ex.context.events} events · ${ex.context.open_tasks} open tasks`}
-                    </div>
-                  )}
-                </div>
-              )}
-              {ex.citations && ex.citations.length > 0 && !ex.limitExceeded && !(streaming && i === exchanges.length - 1) && (
-                <div className="mt-3">
-                  <div className="text-[10px] font-mono uppercase tracking-wider text-n600 mb-2">Sources</div>
-                  <div className="flex flex-wrap gap-2">
-                    {ex.citations.map((c, ci) => {
-                      const key = `${i}-${ci}`
-                      const open = !!expandedCitations[key]
-                      return (
-                        <div key={key} className="border border-n200 bg-vellum text-xs font-mono max-w-full">
-                          <button
-                            onClick={() => setExpandedCitations(prev => ({ ...prev, [key]: !prev[key] }))}
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 text-n600 hover:text-ink transition-colors w-full text-left"
-                          >
-                            <span className="text-[9px] uppercase tracking-wider border border-n300 px-1 py-0.5 flex-shrink-0">
-                              {c.source_type}
-                            </span>
-                            <span className="truncate max-w-[180px]">{c.title}</span>
-                            {c.source_url && (
-                              <a
-                                href={c.source_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="ml-1 flex-shrink-0 text-n400 hover:text-arc-cyan-deep transition-colors"
-                                title="Open source"
-                              >
-                                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5">
-                                  <path d="M5 2H2v8h8V7M7 2h3v3M10 2L5.5 6.5" />
-                                </svg>
-                              </a>
-                            )}
-                            <svg
-                              className={`w-2.5 h-2.5 flex-shrink-0 ml-auto transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
-                              viewBox="0 0 12 12"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.5"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M2 4l4 4 4-4" />
-                            </svg>
-                          </button>
-                          {open && c.excerpt && (
-                            <div className="border-t border-n200 px-2.5 py-2 text-[11px] text-n600 leading-relaxed max-w-sm whitespace-pre-wrap">
-                              {c.excerpt}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
+            )}
+          </div>
         </div>
 
-        {error && <div className="mt-4 text-sm text-signal">{error}</div>}
+        <div ref={scrollerRef} style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
+          {exchanges.length === 0 && (
+            <div>
+              <div style={{ fontFamily: 'var(--font-plex-serif)', fontWeight: 500, fontStyle: 'italic', fontSize: 28, color: 'var(--color-ink)', marginBottom: 8 }}>What are you building?</div>
+              <div style={{ fontFamily: 'var(--font-plex-mono)', fontSize: 12, color: 'var(--color-n600)', marginBottom: 32 }}>Your AI co-founder. Ask anything about your startup.</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, maxWidth: 560 }}>
+                {STARTERS.map(s => (
+                  <button key={s} onClick={() => ask(s)} style={{ textAlign: 'left', padding: '12px 14px', border: '1px solid var(--color-n200)', background: 'var(--color-vellum)', borderRadius: 2, cursor: 'pointer', fontFamily: 'var(--font-archivo)', fontSize: 13, color: 'var(--color-ink)', lineHeight: 1.5 }}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div style={{ maxWidth: 720 }}>
+            {exchanges.map((ex, i) => (
+              <div key={i} style={{ marginBottom: 32 }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                  <div style={{ maxWidth: '80%', padding: '10px 14px', background: 'var(--color-ink)', color: 'var(--color-off-white)', borderRadius: 2, fontFamily: 'var(--font-archivo)', fontSize: 14, lineHeight: 1.6 }}>{ex.q}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 2, background: 'var(--color-arc-cyan)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 10, color: 'var(--color-ink)', letterSpacing: '0.04em' }}>C3R</div>
+                  <div style={{ flex: 1 }}>
+                    {ex.limitExceeded ? (
+                      <div style={{ border: '1px solid var(--color-n200)', background: 'var(--color-vellum)', padding: 16, borderRadius: 2 }}>
+                        <div style={{ fontFamily: 'var(--font-plex-mono)', fontSize: 11, color: 'var(--color-n600)', marginBottom: 8, textTransform: 'uppercase' }}>Spark limit reached</div>
+                        <div style={{ fontFamily: 'var(--font-archivo)', fontSize: 13, color: 'var(--color-ink)', marginBottom: 12 }}>You have used all your messages this month.</div>
+                        <button onClick={handleUpgrade} style={{ padding: '8px 16px', background: 'var(--color-arc-cyan)', border: 'none', borderRadius: 2, fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 12, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Upgrade</button>
+                      </div>
+                    ) : ex.a ? (
+                      <div style={{ fontFamily: 'var(--font-archivo)', fontSize: 14, lineHeight: 1.7, color: 'var(--color-ink)' }}>
+                        <Markdown content={ex.a} streaming={streaming && i === exchanges.length - 1} />
+                      </div>
+                    ) : streaming && i === exchanges.length - 1 ? (
+                      <span style={{ color: 'var(--color-n400)', fontFamily: 'var(--font-plex-mono)', fontSize: 13 }}>Thinking</span>
+                    ) : null}
+                    {ex.model && ex.model !== 'claude-sonnet-4' && (
+                      <div style={{ marginTop: 6, fontFamily: 'var(--font-plex-mono)', fontSize: 10, color: 'var(--color-n400)' }}>via {ex.model}</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {error && <div style={{ color: 'var(--color-signal)', fontFamily: 'var(--font-plex-mono)', fontSize: 12, marginTop: 8 }}>{error}</div>}
+        </div>
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            ask(query)
-          }}
-          className="mt-6 flex gap-2"
-        >
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            disabled={streaming}
-            placeholder="Ask anything across your portfolio…"
-            className="flex-1 bg-vellum border border-n200 px-3 py-2.5 text-sm text-ink focus:outline-none focus:border-arc-cyan-deep"
-          />
-          <button
-            type="submit"
-            disabled={streaming || !query.trim()}
-            className="bg-arc-cyan text-ink px-5 py-2.5 text-xs font-mono uppercase tracking-wider hover:bg-arc-cyan-deep transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {streaming ? 'Thinking…' : 'Ask →'}
-          </button>
-        </form>
+        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--color-n200)', background: 'var(--color-vellum)' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', maxWidth: 720 }}>
+            <textarea ref={inputRef} value={query}
+              onChange={e => { setQuery(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 160) + 'px' }}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(query) } }}
+              disabled={streaming}
+              placeholder="Ask your co-founder anything"
+              rows={1}
+              style={{ flex: 1, padding: '10px 14px', border: '1px solid var(--color-n200)', background: 'var(--color-off-white)', borderRadius: 2, resize: 'none', fontFamily: 'var(--font-archivo)', fontSize: 14, color: 'var(--color-ink)', outline: 'none', lineHeight: 1.5, minHeight: 42, maxHeight: 160 }}
+              onFocus={e => (e.target.style.borderColor = 'var(--color-arc-cyan-deep)')}
+              onBlur={e => (e.target.style.borderColor = 'var(--color-n200)')}
+            />
+            <button onClick={() => ask(query)} disabled={streaming || !query.trim()} style={{ padding: '10px 20px', background: streaming || !query.trim() ? 'var(--color-n200)' : 'var(--color-ink)', color: streaming || !query.trim() ? 'var(--color-n600)' : 'var(--color-off-white)', border: 'none', borderRadius: 2, cursor: streaming || !query.trim() ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap', height: 42 }}>
+              {streaming ? '...' : 'Send'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )
