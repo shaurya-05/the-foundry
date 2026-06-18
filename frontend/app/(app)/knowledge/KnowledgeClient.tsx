@@ -24,6 +24,10 @@ export default function KnowledgeClient() {
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ title: '', content: '', type: 'text', tags: '', source_url: '' })
   const [saving, setSaving] = useState(false)
+  const [uploadMode, setUploadMode] = useState<'text' | 'file' | 'url'>('text')
+  const [urlInput, setUrlInput] = useState('')
+  const [fetchingUrl, setFetchingUrl] = useState(false)
+  const [uploadingFile, setUploadingFile] = useState(false)
   const [queryItem, setQueryItem] = useState<KnowledgeItem | null>(null)
   const [question, setQuestion] = useState('')
   const [answer, setAnswer] = useState('')
@@ -50,6 +54,42 @@ export default function KnowledgeClient() {
       setForm({ title: '', content: '', type: 'text', tags: '', source_url: '' })
     } catch (e) { console.error(e) }
     finally { setSaving(false) }
+  }
+
+  async function fetchUrl() {
+    if (!urlInput.trim()) return
+    setFetchingUrl(true)
+    try {
+      const token = localStorage.getItem('foundry_token')
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://api.found3ry.com'}/api/knowledge/fetch-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ url: urlInput.trim() }),
+      })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.detail || 'Failed') }
+      const item = await res.json()
+      setItems(prev => [item, ...prev])
+      setUrlInput('')
+    } catch (e: any) { alert(e.message || 'Failed to fetch URL') }
+    finally { setFetchingUrl(false) }
+  }
+
+  async function uploadFile(file: File) {
+    setUploadingFile(true)
+    try {
+      const token = localStorage.getItem('foundry_token')
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://api.found3ry.com'}/api/knowledge/upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.detail || 'Upload failed') }
+      const item = await res.json()
+      setItems(prev => [item, ...prev])
+    } catch (e: any) { alert(e.message || 'Upload failed') }
+    finally { setUploadingFile(false) }
   }
 
   async function remove(id: string) {
@@ -94,50 +134,58 @@ export default function KnowledgeClient() {
               Ingest Knowledge
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <input
-                className="forge-input"
-                placeholder="Title"
-                value={form.title}
-                onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-              />
-              <textarea
-                className="forge-input"
-                placeholder="Paste content, URLs, raw notes..."
-                rows={5}
-                value={form.content}
-                onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
-              />
-              <select
-                className="forge-input"
-                value={form.type}
-                onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
-                style={{ cursor: 'pointer' }}
-              >
-                <option value="text">TEXT</option>
-                <option value="url">URL</option>
-                <option value="pdf">PDF</option>
-                <option value="note">NOTE</option>
-              </select>
-              <input
-                className="forge-input"
-                placeholder="Tags (comma separated)"
-                value={form.tags}
-                onChange={e => setForm(f => ({ ...f, tags: e.target.value }))}
-              />
-              <input
-                className="forge-input"
-                placeholder="Source URL (optional)"
-                value={form.source_url}
-                onChange={e => setForm(f => ({ ...f, source_url: e.target.value }))}
-              />
-              <button
-                onClick={create}
-                disabled={saving || !form.title || !form.content}
-                className="btn btn-primary"
-                style={{ width: '100%', justifyContent: 'center' }}
-              >
-                {saving ? 'PROCESSING...' : '+ ADD TO ARCHIVE'}
-              </button>
+              {/* Mode tabs */}
+              <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+                {(['text', 'file', 'url'] as const).map(m => (
+                  <button key={m} onClick={() => setUploadMode(m)}
+                    style={{ flex: 1, padding: '5px 0', border: '1px solid var(--color-n200)', borderRadius: 2, background: uploadMode === m ? 'var(--color-ink)' : 'transparent', color: uploadMode === m ? 'var(--color-off-white)' : 'var(--color-n600)', fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                    {m === 'text' ? 'Paste' : m === 'file' ? 'Upload' : 'URL'}
+                  </button>
+                ))}
+              </div>
+
+              {uploadMode === 'text' && (
+                <>
+                  <input className="forge-input" placeholder="Title" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+                  <textarea className="forge-input" placeholder="Paste content, notes, research..." rows={5} value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} />
+                  <input className="forge-input" placeholder="Tags (comma separated)" value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} />
+                  <button onClick={create} disabled={saving || !form.title || !form.content} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+                    {saving ? 'PROCESSING...' : '+ ADD TO ARCHIVE'}
+                  </button>
+                </>
+              )}
+
+              {uploadMode === 'file' && (
+                <>
+                  <div
+                    style={{ border: '2px dashed var(--color-n200)', borderRadius: 4, padding: '24px 16px', textAlign: 'center', cursor: 'pointer', background: 'var(--color-vellum)' }}
+                    onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--color-arc-cyan-deep)' }}
+                    onDragLeave={e => { e.currentTarget.style.borderColor = 'var(--color-n200)' }}
+                    onDrop={e => { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--color-n200)'; const f = e.dataTransfer.files[0]; if (f) uploadFile(f) }}
+                    onClick={() => document.getElementById('file-upload-input')?.click()}
+                  >
+                    <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--color-n600)', marginBottom: 6 }}>
+                      {uploadingFile ? 'Uploading...' : 'Drop file here or click to browse'}
+                    </div>
+                    <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--color-n400)' }}>PDF, TXT, MD — max 10MB</div>
+                    <input id="file-upload-input" type="file" accept=".pdf,.txt,.md,.csv" style={{ display: 'none' }}
+                      onChange={e => { const f = e.target.files?.[0]; if (f) uploadFile(f); e.target.value = '' }} />
+                  </div>
+                </>
+              )}
+
+              {uploadMode === 'url' && (
+                <>
+                  <input className="forge-input" placeholder="https://..." value={urlInput} onChange={e => setUrlInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') fetchUrl() }} />
+                  <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--color-n400)' }}>
+                    We'll fetch and extract the content automatically
+                  </div>
+                  <button onClick={fetchUrl} disabled={fetchingUrl || !urlInput.trim()} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+                    {fetchingUrl ? 'FETCHING...' : 'FETCH URL'}
+                  </button>
+                </>
+              )}
             </div>
           </GlassCard>
 
