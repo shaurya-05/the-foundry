@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import StreamingResponse
 from app.models.schemas import KnowledgeCreate, KnowledgeItem, KnowledgeQueryRequest
 from app.db.postgres import get_pool
@@ -191,11 +191,10 @@ def _row_to_knowledge(row) -> KnowledgeItem:
 
 @router.post("/upload")
 async def upload_file(
-    file: "UploadFile",
+    file: UploadFile = File(...),
     auth: AuthContext = Depends(require_auth),
 ):
     """Upload a file (PDF, txt, md) and store as a knowledge item."""
-    from fastapi import UploadFile
     import io
 
     ALLOWED = {"application/pdf", "text/plain", "text/markdown", "text/csv"}
