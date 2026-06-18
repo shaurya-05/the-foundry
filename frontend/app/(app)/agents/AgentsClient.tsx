@@ -97,9 +97,9 @@ export default function AgentsClient() {
   const selectedModelLabel = MODELS.find(m => m.id === selectedModel)?.label ?? 'Auto'
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 0px)', maxHeight: '100vh', background: 'var(--color-off-white)', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flex: '1', minHeight: 0, background: 'var(--color-off-white)', overflow: 'hidden' }}>
       {sidebarOpen && (
-        <div style={{ width: 240, minWidth: 240, borderRight: '1px solid var(--color-n200)', background: 'var(--color-vellum)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+        <div style={{ width: 240, minWidth: 240, borderRight: '1px solid var(--color-n200)', background: 'var(--color-vellum)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
           <div style={{ padding: '16px 14px 12px', borderBottom: '1px solid var(--color-n200)' }}>
             <button onClick={() => { setExchanges([]); setActiveThread(null); setQuery(''); inputRef.current?.focus() }} style={{ width: '100%', padding: '8px 12px', background: 'var(--color-ink)', color: 'var(--color-off-white)', border: 'none', borderRadius: 2, fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>
               + New chat

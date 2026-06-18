@@ -89,9 +89,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <main
           style={{
             flex: 1,
-            overflow: 'auto',
-            padding: '24px',
+            overflow: pathname === '/agents' ? 'hidden' : 'auto',
+            padding: pathname === '/agents' ? '0' : '24px',
             background: 'var(--color-off-white)',
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
           {children}

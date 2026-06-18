@@ -188,3 +188,103 @@ def _row_to_knowledge(row) -> KnowledgeItem:
         metadata=(json.loads(row["metadata"]) if isinstance(row["metadata"], str) else dict(row["metadata"])) if row["metadata"] else {},
         created_at=row["created_at"],
     )
+
+@router.post("/upload")
+async def upload_file(
+    file: "UploadFile",
+    auth: AuthContext = Depends(require_auth),
+):
+    """Upload a file (PDF, txt, md) and store as a knowledge item."""
+    from fastapi import UploadFile
+    import io
+
+    ALLOWED = {"application/pdf", "text/plain", "text/markdown", "text/csv"}
+    MAX_BYTES = 10 * 1024 * 1024  # 10MB
+
+    content_bytes = await file.read()
+    if len(content_bytes) > MAX_BYTES:
+        raise HTTPException(status_code=413, detail="File too large (max 10MB)")
+
+    # Extract text
+    text = ""
+    if file.content_type == "application/pdf":
+        try:
+            import pypdf
+            reader = pypdf.PdfReader(io.BytesIO(content_bytes))
+            text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Could not parse PDF")
+    else:
+        try:
+            text = content_bytes.decode("utf-8", errors="ignore")
+        except Exception:
+            raise HTTPException(status_code=400, detail="Could not read file")
+
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="File appears to be empty")
+
+    title = file.filename or "Uploaded file"
+    pool = await get_pool()
+    summary = await complete_claude(SUMMARY_SYSTEM, text[:3000], max_tokens=200)
+    embedding = await embed_text(title + " " + text[:2000])
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO knowledge_items
+               (workspace_id, user_id, title, content, summary, type, tags, embedding, source_url)
+               VALUES ($1, $2, $3, $4, $5, 'document', '{}', $6::vector, NULL)
+               RETURNING *""",
+            auth.workspace_id, auth.user_id, title, text, summary, str(embedding)
+        )
+        await log_activity(conn, auth.workspace_id, auth.user_id,
+                          "knowledge_added", f"Uploaded: {title}", None, str(row["id"]))
+        from app.db.cache import cache_invalidate
+        await cache_invalidate(f"knowledge_list:{auth.workspace_id}", f"ws_summary:{auth.workspace_id}")
+        return _row_to_knowledge(row)
+
+
+@router.post("/fetch-url")
+async def fetch_url(
+    req: dict,
+    auth: AuthContext = Depends(require_auth),
+):
+    """Fetch a URL and store its content as a knowledge item."""
+    import httpx as _httpx
+    url = req.get("url", "").strip()
+    if not url or not url.startswith("http"):
+        raise HTTPException(status_code=400, detail="Invalid URL")
+
+    try:
+        async with _httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            resp = await client.get(url, headers={"User-Agent": "FOUND3RY/1.0"})
+            resp.raise_for_status()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Could not fetch URL: {e}")
+
+    # Strip HTML tags simply
+    import re
+    html = resp.text
+    text = re.sub(r"<[^>]+>", " ", html)
+    text = re.sub(r"\s+", " ", text).strip()[:20000]
+
+    if not text:
+        raise HTTPException(status_code=400, detail="No readable content found")
+
+    title = url.split("/")[-1] or url
+    pool = await get_pool()
+    summary = await complete_claude(SUMMARY_SYSTEM, text[:3000], max_tokens=200)
+    embedding = await embed_text(title + " " + text[:2000])
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO knowledge_items
+               (workspace_id, user_id, title, content, summary, type, tags, embedding, source_url)
+               VALUES ($1, $2, $3, $4, $5, 'url', '{}', $6::vector, $7)
+               RETURNING *""",
+            auth.workspace_id, auth.user_id, title, text, summary, str(embedding), url
+        )
+        await log_activity(conn, auth.workspace_id, auth.user_id,
+                          "knowledge_added", f"Fetched: {url[:60]}", None, str(row["id"]))
+        from app.db.cache import cache_invalidate
+        await cache_invalidate(f"knowledge_list:{auth.workspace_id}", f"ws_summary:{auth.workspace_id}")
+        return _row_to_knowledge(row)
