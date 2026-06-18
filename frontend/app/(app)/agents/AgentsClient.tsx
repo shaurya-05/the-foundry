@@ -97,7 +97,7 @@ export default function AgentsClient() {
   const selectedModelLabel = MODELS.find(m => m.id === selectedModel)?.label ?? 'Auto'
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: 'var(--color-off-white)', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: 'calc(100vh - 0px)', maxHeight: '100vh', background: 'var(--color-off-white)', overflow: 'hidden' }}>
       {sidebarOpen && (
         <div style={{ width: 240, minWidth: 240, borderRight: '1px solid var(--color-n200)', background: 'var(--color-vellum)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
           <div style={{ padding: '16px 14px 12px', borderBottom: '1px solid var(--color-n200)' }}>

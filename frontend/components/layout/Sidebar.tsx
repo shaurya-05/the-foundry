@@ -15,12 +15,9 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', sublabel: 'Overview',         icon: <DashIcon /> },
-  { href: '/knowledge', label: 'Knowledge', sublabel: 'Research and docs', icon: <ArchiveIcon /> },
-  { href: '/projects',  label: 'Projects',  sublabel: 'Build tracker',    icon: <WorkshopIcon /> },
-  { href: '/tasks',     label: 'Tasks',     sublabel: 'Task board',       icon: <TaskIcon /> },
-  { href: '/agents',    label: 'COFOUND3R', sublabel: 'Portfolio agent',  icon: <AgentsIcon /> },
-  { href: '/insights',  label: 'Insights',  sublabel: 'Cross-entity scan', icon: <InsightsIcon /> },
+  { href: '/agents',    label: 'COFOUND3R', sublabel: 'Your AI co-founder', icon: <AgentsIcon /> },
+  { href: '/knowledge', label: 'Knowledge', sublabel: 'Research and docs',  icon: <ArchiveIcon /> },
+  { href: '/dashboard', label: 'Dashboard', sublabel: 'Overview',           icon: <DashIcon /> },
 ]
 
 export default function Sidebar({ onCopilot }: { onCopilot: () => void }) {
