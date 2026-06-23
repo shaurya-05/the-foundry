@@ -235,10 +235,7 @@ async def oauth_authorize_url(
     if provider == "google":
         params["access_type"] = "offline"
         params["prompt"] = "consent"
-        params.pop("allow_signup", None)
-    if provider == "google":
-        params["access_type"] = "offline"
-        params["prompt"] = "consent"
+        params["response_type"] = "code"
         params.pop("allow_signup", None)
     url = f"{cfg.authorize_url}?{urllib.parse.urlencode(params)}"
     response = JSONResponse({"authorize_url": url})
@@ -266,10 +263,7 @@ async def oauth_start(
     if provider == "google":
         params["access_type"] = "offline"
         params["prompt"] = "consent"
-        params.pop("allow_signup", None)
-    if provider == "google":
-        params["access_type"] = "offline"
-        params["prompt"] = "consent"
+        params["response_type"] = "code"
         params.pop("allow_signup", None)
     url = f"{cfg.authorize_url}?{urllib.parse.urlencode(params)}"
     response = RedirectResponse(url=url, status_code=302)
