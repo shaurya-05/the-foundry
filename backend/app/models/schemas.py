@@ -143,7 +143,8 @@ class PipelineRunStatus(BaseModel):
 class CopilotMessage(BaseModel):
     message: str
     project_id: Optional[str] = None
-    workspace_context: Optional[Dict[str, Any]] = {}
+    thread_id: Optional[str] = None
+    model_override: Optional[str] = None
 
 class IntentRequest(BaseModel):
     message: str
