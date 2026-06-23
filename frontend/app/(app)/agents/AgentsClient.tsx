@@ -28,6 +28,44 @@ const STARTERS = [
 ]
 
 
+
+function SaveToDrive({ q, a }: { q: string; a: string }) {
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState<string | null>(null)
+
+  async function save() {
+    setSaving(true)
+    try {
+      const token = localStorage.getItem('foundry_token')
+      const res = await fetch('https://api.found3ry.com/api/copilot/save-to-drive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ title: q.slice(0, 60), content: `${q}\n\n${a}` }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setSaved(data.url)
+      } else {
+        const d = await res.json()
+        alert(d.detail || 'Failed to save')
+      }
+    } catch { alert('Failed to save to Drive') }
+    finally { setSaving(false) }
+  }
+
+  if (saved) return (
+    <a href={saved} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, padding: '4px 10px', border: '1px solid var(--color-n200)', borderRadius: 2, fontFamily: 'var(--font-plex-mono)', fontSize: 10, color: 'var(--color-n600)', textDecoration: 'none', letterSpacing: '0.06em' }}>
+      ↗ Open in Drive
+    </a>
+  )
+
+  return (
+    <button onClick={save} disabled={saving} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, padding: '4px 10px', border: '1px solid var(--color-n200)', borderRadius: 2, background: 'transparent', cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-plex-mono)', fontSize: 10, color: 'var(--color-n600)', letterSpacing: '0.06em' }}>
+      {saving ? 'Saving...' : 'Save to Drive'}
+    </button>
+  )
+}
+
 function CouncilPopout({ perspectives }: { perspectives: { model: string; response: string }[] }) {
   const [open, setOpen] = useState(false)
   return (
@@ -119,6 +157,7 @@ export default function AgentsClient() {
         if (chunk.type === 'thread_id' && chunk.thread_id) { setActiveThread(chunk.thread_id); loadThreads() }
         else if (chunk.type === 'text_delta') setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], a: c[c.length-1].a + chunk.text }; return c })
         else if (chunk.type === 'model_used') setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], model: chunk.model }; return c })
+        else if (chunk.type === 'council') setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], council: chunk.perspectives }; return c })
         else if (chunk.type === 'council') setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], council: chunk.perspectives }; return c })
       }
     } catch (e: any) {
@@ -217,6 +256,9 @@ export default function AgentsClient() {
                     )}
                     {ex.council && ex.council.length > 0 && (
                       <CouncilPopout perspectives={ex.council} />
+                    )}
+                    {ex.a && !ex.limitExceeded && (
+                      <SaveToDrive q={ex.q} a={ex.a} />
                     )}
                   </div>
                 </div>

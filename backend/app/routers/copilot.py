@@ -144,3 +144,17 @@ async def get_threads(auth: AuthContext = Depends(require_auth)):
             auth.workspace_id,
         )
     return [{"id": str(r["id"]), "title": r["title"] or "Untitled", "created_at": r["created_at"].isoformat()} for r in rows]
+
+@router.post("/save-to-drive")
+async def save_to_drive(req: dict, auth: AuthContext = Depends(require_auth)):
+    """Save a COFOUND3R response to Google Drive as a Doc."""
+    from app.services.google_drive import create_doc
+    title = req.get("title", "COFOUND3R Response")
+    content = req.get("content", "")
+    if not content:
+        raise HTTPException(status_code=400, detail="No content to save")
+    try:
+        result = await create_doc(auth.workspace_id, auth.user_id, title, content)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

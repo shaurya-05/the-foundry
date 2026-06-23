@@ -75,6 +75,11 @@ const PROVIDER_META: Record<string, { label: string; tagline: string; status: 'l
     tagline: 'Docs, databases, decision logs across portfolio workspaces.',
     status: 'live',
   },
+  google: {
+    label: 'Google Drive',
+    tagline: 'Create Docs from COFOUND3R responses. Sync files into Knowledge.',
+    status: 'live',
+  },
 }
 
 function ConnectionsClientInner() {

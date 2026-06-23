@@ -107,6 +107,15 @@ PROVIDERS: dict[str, ProviderConfig] = {
         scopes="",
         user_url="https://api.notion.com/v1/users/me",
     ),
+    "google": ProviderConfig(
+        name="google",
+        client_id_env="GOOGLE_OAUTH_CLIENT_ID",
+        client_secret_env="GOOGLE_OAUTH_CLIENT_SECRET",
+        authorize_url="https://accounts.google.com/o/oauth2/v2/auth",
+        token_url="https://oauth2.googleapis.com/token",
+        scopes="https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/documents email profile",
+        user_url="https://www.googleapis.com/oauth2/v3/userinfo",
+    ),
 }
 
 
@@ -223,6 +232,14 @@ async def oauth_authorize_url(
         "state": state,
         "allow_signup": "false",
     }
+    if provider == "google":
+        params["access_type"] = "offline"
+        params["prompt"] = "consent"
+        params.pop("allow_signup", None)
+    if provider == "google":
+        params["access_type"] = "offline"
+        params["prompt"] = "consent"
+        params.pop("allow_signup", None)
     url = f"{cfg.authorize_url}?{urllib.parse.urlencode(params)}"
     response = JSONResponse({"authorize_url": url})
     _set_csrf_cookie(response, nonce)
@@ -246,6 +263,14 @@ async def oauth_start(
         "state": state,
         "allow_signup": "false",
     }
+    if provider == "google":
+        params["access_type"] = "offline"
+        params["prompt"] = "consent"
+        params.pop("allow_signup", None)
+    if provider == "google":
+        params["access_type"] = "offline"
+        params["prompt"] = "consent"
+        params.pop("allow_signup", None)
     url = f"{cfg.authorize_url}?{urllib.parse.urlencode(params)}"
     response = RedirectResponse(url=url, status_code=302)
     _set_csrf_cookie(response, nonce)
@@ -310,6 +335,19 @@ async def oauth_callback(
                     "Authorization": f"Basic {_creds}",
                     "Accept": "application/json",
                 },
+            )
+    elif provider == "google":
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            token_resp = await client.post(
+                cfg.token_url,
+                data={
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "client_id": cfg.client_id,
+                    "client_secret": cfg.client_secret,
+                    "redirect_uri": _callback_url(request, provider),
+                },
+                headers={"Accept": "application/json"},
             )
     else:
         async with httpx.AsyncClient(timeout=15.0) as client:
