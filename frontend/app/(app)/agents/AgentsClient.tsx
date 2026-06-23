@@ -9,6 +9,7 @@ import { getToken } from '@/lib/auth'
 
 type Exchange = {
   q: string; a: string; ts: Date; model?: string; limitExceeded?: boolean; upgradeUrl?: string
+  council?: { model: string; response: string }[]
 }
 type Thread = { id: string; title: string; created_at: string }
 
@@ -25,6 +26,37 @@ const STARTERS = [
   'What are the biggest risks to my venture right now?',
   'Help me prepare for an investor conversation.',
 ]
+
+
+function CouncilPopout({ perspectives }: { perspectives: { model: string; response: string }[] }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ marginTop: 8 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', border: '1px solid var(--color-n200)', borderRadius: 2, background: 'transparent', cursor: 'pointer', fontFamily: 'var(--font-plex-mono)', fontSize: 10, color: 'var(--color-n600)', letterSpacing: '0.06em' }}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="currentColor" strokeWidth="1.2"/><path d="M3 5h4M5 3v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+        {open ? 'Hide' : 'Other perspectives'}
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}><path d="M1 2.5l3 3 3-3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+      </button>
+      {open && (
+        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {perspectives.map((p, i) => (
+            <div key={i} style={{ border: '1px solid var(--color-n200)', borderRadius: 2, overflow: 'hidden' }}>
+              <div style={{ padding: '6px 12px', background: 'var(--color-vellum)', borderBottom: '1px solid var(--color-n200)', fontFamily: 'var(--font-plex-mono)', fontSize: 10, color: 'var(--color-n600)', letterSpacing: '0.06em' }}>
+                {p.model}
+              </div>
+              <div style={{ padding: '10px 12px', fontFamily: 'var(--font-archivo)', fontSize: 13, color: 'var(--color-ink)', lineHeight: 1.6 }}>
+                {p.response}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function AgentsClient() {
   const router = useRouter()
@@ -87,6 +119,7 @@ export default function AgentsClient() {
         if (chunk.type === 'thread_id' && chunk.thread_id) { setActiveThread(chunk.thread_id); loadThreads() }
         else if (chunk.type === 'text_delta') setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], a: c[c.length-1].a + chunk.text }; return c })
         else if (chunk.type === 'model_used') setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], model: chunk.model }; return c })
+        else if (chunk.type === 'council') setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], council: chunk.perspectives }; return c })
       }
     } catch (e: any) {
       if (e instanceof LimitExceededError) setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], limitExceeded: true, upgradeUrl: e.upgradeUrl }; return c })
@@ -179,8 +212,11 @@ export default function AgentsClient() {
                     ) : streaming && i === exchanges.length - 1 ? (
                       <span style={{ color: 'var(--color-n400)', fontFamily: 'var(--font-plex-mono)', fontSize: 13 }}>Thinking</span>
                     ) : null}
-                    {ex.model && ex.model !== 'claude-sonnet-4' && (
+                    {ex.model && (
                       <div style={{ marginTop: 6, fontFamily: 'var(--font-plex-mono)', fontSize: 10, color: 'var(--color-n400)' }}>via {ex.model}</div>
+                    )}
+                    {ex.council && ex.council.length > 0 && (
+                      <CouncilPopout perspectives={ex.council} />
                     )}
                   </div>
                 </div>
