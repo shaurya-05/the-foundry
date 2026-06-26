@@ -12,9 +12,79 @@ Model selection based on published benchmarks:
 import os
 import json
 import asyncio
+import time
 import httpx
+import structlog
 from anthropic import AsyncAnthropic
 from openai import AsyncOpenAI
+
+log = structlog.get_logger()
+
+# Cost per million tokens (input/output) — updated June 2025
+MODEL_COSTS = {
+    "claude-sonnet-4":  {"input": 3.00,  "output": 15.00},
+    "claude-haiku-4-5": {"input": 0.25,  "output": 1.25},
+    "gpt-4o-mini":      {"input": 0.15,  "output": 0.60},
+    "perplexity-sonar": {"input": 1.00,  "output": 1.00},
+    "gemini-1.5-flash": {"input": 0.075, "output": 0.30},
+}
+
+def estimate_tokens(text: str) -> int:
+    """Rough token estimate — ~4 chars per token."""
+    return max(1, len(text) // 4)
+
+def log_model_usage(model: str, prompt: str, response: str, latency_ms: float, query_type: str = "unknown"):
+    input_tokens = estimate_tokens(prompt)
+    output_tokens = estimate_tokens(response)
+    costs = MODEL_COSTS.get(model, {"input": 0, "output": 0})
+    cost_usd = (input_tokens * costs["input"] + output_tokens * costs["output"]) / 1_000_000
+    # Efficiency score: quality proxy / cost — higher is better
+    # Using output tokens per dollar as a simple efficiency metric
+    efficiency = output_tokens / max(cost_usd, 0.000001)
+    stats = {
+        "model": model,
+        "query_type": query_type,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "total_tokens": input_tokens + output_tokens,
+        "cost_usd": round(cost_usd, 6),
+        "latency_ms": round(latency_ms, 1),
+        "efficiency_score": round(efficiency, 0),
+        "tokens_per_second": round(output_tokens / max(latency_ms / 1000, 0.001), 1),
+    }
+    log.info("model_usage", **stats)
+
+    # Async DB write — fire and forget
+    try:
+        import asyncio as _asyncio
+        from app.db.postgres import get_pool as _get_pool
+        async def _write():
+            try:
+                pool = await _get_pool()
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        """INSERT INTO model_usage_log
+                           (model, query_type, input_tokens, output_tokens, cost_usd, latency_ms, efficiency_score, tokens_per_second)
+                           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""",
+                        model, query_type, input_tokens, output_tokens,
+                        round(cost_usd, 6), round(latency_ms, 1),
+                        int(round(efficiency, 0)), round(output_tokens / max(latency_ms / 1000, 0.001), 1),
+                    )
+            except Exception:
+                pass
+        _asyncio.ensure_future(_write())
+    except Exception:
+        pass
+
+    return {
+        "model": model,
+        "query_type": query_type,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "cost_usd": round(cost_usd, 6),
+        "latency_ms": round(latency_ms, 1),
+        "efficiency_score": round(efficiency, 0),
+    }
 
 def _anthropic():
     return AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
@@ -206,6 +276,20 @@ async def route_query(system: str, message: str, max_tokens: int = 1200, model_o
     else:
         label = await classify_query(message)
         model_used, handler = ROUTE_MAP[label]
+
     yield model_used
+
+    start = time.time()
+    full_response = []
     async for text in handler(system, message, max_tokens):
+        full_response.append(text)
         yield text
+
+    latency_ms = (time.time() - start) * 1000
+    log_model_usage(
+        model=model_used,
+        prompt=system[:500] + message,
+        response="".join(full_response),
+        latency_ms=latency_ms,
+        query_type=label,
+    )

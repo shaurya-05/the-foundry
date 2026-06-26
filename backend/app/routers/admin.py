@@ -235,3 +235,40 @@ async def model_usage_stats(_: HTTPBasicCredentials = Depends(_require_admin)):
             for r in rows
         ]
     }
+
+@router.get("/admin/model-stats")
+async def model_stats(_: HTTPBasicCredentials = Depends(_require_admin)):
+    """Detailed model usage breakdown with cost and efficiency metrics."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT
+                model,
+                query_type,
+                COUNT(*) as calls,
+                SUM(input_tokens) as total_input_tokens,
+                SUM(output_tokens) as total_output_tokens,
+                SUM(cost_usd) as total_cost_usd,
+                AVG(latency_ms) as avg_latency_ms,
+                AVG(efficiency_score) as avg_efficiency,
+                AVG(tokens_per_second) as avg_tokens_per_second
+            FROM model_usage_log
+            GROUP BY model, query_type
+            ORDER BY total_cost_usd DESC
+            """
+        )
+    return [
+        {
+            "model": r["model"],
+            "query_type": r["query_type"],
+            "calls": r["calls"],
+            "total_input_tokens": r["total_input_tokens"],
+            "total_output_tokens": r["total_output_tokens"],
+            "total_cost_usd": round(float(r["total_cost_usd"] or 0), 4),
+            "avg_latency_ms": round(float(r["avg_latency_ms"] or 0), 1),
+            "avg_efficiency": round(float(r["avg_efficiency"] or 0), 0),
+            "avg_tokens_per_second": round(float(r["avg_tokens_per_second"] or 0), 1),
+        }
+        for r in rows
+    ]
