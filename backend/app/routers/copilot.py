@@ -69,13 +69,8 @@ async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(requi
             payload = json.dumps({"type": "text_delta", "text": chunk})
             yield f"data: {payload}\n\n"
 
-        # Get council perspectives (non-primary models) in background
-        try:
-            perspectives = await get_council_perspectives(system, req.message)
-            if perspectives:
-                yield f"data: {json.dumps({'type': 'council', 'perspectives': perspectives})}\n\n"
-        except Exception:
-            pass
+        # Council temporarily disabled for debugging
+        pass
 
         yield 'data: {"type": "done"}\n\n'
         assistant_text = "".join(full_text)
