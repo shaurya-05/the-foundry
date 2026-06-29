@@ -20,13 +20,15 @@ from openai import AsyncOpenAI
 
 log = structlog.get_logger()
 
-# Cost per million tokens (input/output) — updated June 2025
+# Cost per million tokens (input/output) — verified June 2026
+# Sources: Anthropic pricing page, OpenAI pricing, Perplexity docs, Google AI Studio
 MODEL_COSTS = {
-    "claude-sonnet-4":  {"input": 3.00,  "output": 15.00},
-    "claude-haiku-4-5": {"input": 0.25,  "output": 1.25},
-    "gpt-4o-mini":      {"input": 0.15,  "output": 0.60},
-    "perplexity-sonar": {"input": 1.00,  "output": 1.00},
-    "gemini-1.5-flash": {"input": 0.075, "output": 0.30},
+    "claude-sonnet-4":  {"input": 3.00,  "output": 15.00, "request_fee": 0.0},
+    "claude-haiku-4-5": {"input": 1.00,  "output": 5.00,  "request_fee": 0.0},
+    "gpt-4o-mini":      {"input": 0.15,  "output": 0.60,  "request_fee": 0.0},
+    "perplexity-sonar": {"input": 1.00,  "output": 1.00,  "request_fee": 0.005},  # $5/1K requests low context
+    "gemini-1.5-flash": {"input": 0.075, "output": 0.30,  "request_fee": 0.0},
+    "gemini-2.5-flash": {"input": 0.30,  "output": 2.50,  "request_fee": 0.0},
 }
 
 def estimate_tokens(text: str) -> int:
@@ -37,7 +39,7 @@ def log_model_usage(model: str, prompt: str, response: str, latency_ms: float, q
     input_tokens = estimate_tokens(prompt)
     output_tokens = estimate_tokens(response)
     costs = MODEL_COSTS.get(model, {"input": 0, "output": 0})
-    cost_usd = (input_tokens * costs["input"] + output_tokens * costs["output"]) / 1_000_000
+    cost_usd = (input_tokens * costs["input"] + output_tokens * costs["output"]) / 1_000_000 + costs.get("request_fee", 0.0)
     # Efficiency score: quality proxy / cost — higher is better
     # Using output tokens per dollar as a simple efficiency metric
     efficiency = output_tokens / max(cost_usd, 0.000001)
