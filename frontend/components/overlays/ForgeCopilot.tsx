@@ -31,6 +31,7 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
+  const [status, setStatus] = useState<string>('')
   const [tab, setTab] = useState<'intel' | 'signals' | 'ops'>('intel')
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -55,12 +56,16 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
     ])
 
     setStreaming(true)
+    setStatus('')
     const responseId = Date.now() + 'r'
 
     try {
       let full = ''
       for await (const chunk of streamSSE('/api/copilot/message', { message: msg })) {
-        if (chunk.type === 'text_delta') {
+        if (chunk.type === 'status') {
+          setStatus(chunk.text)
+        } else if (chunk.type === 'text_delta') {
+          if (status) setStatus('')  // clear once real content starts
           full += chunk.text
           setMessages(prev => {
             const filtered = prev.filter(m => m.role !== 'typing')
@@ -76,6 +81,7 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
       setMessages(prev => prev.filter(m => m.role !== 'typing'))
     } finally {
       setStreaming(false)
+      setStatus('')
     }
   }
 
@@ -204,6 +210,30 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
               flexShrink: 0,
             }}
           >
+            {status && (
+              <div
+                style={{
+                  marginBottom: 8,
+                  fontSize: 11,
+                  fontFamily: 'var(--font-plex-mono), monospace',
+                  color: 'var(--color-n600)',
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <span
+                  style={{
+                    width: 6, height: 6, borderRadius: '50%',
+                    background: 'var(--color-arc-cyan-deep)',
+                    animation: 'pulse 1.2s ease-in-out infinite',
+                  }}
+                />
+                {status}
+              </div>
+            )}
             <div
               style={{
                 display: 'flex',

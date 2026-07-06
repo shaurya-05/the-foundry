@@ -70,6 +70,13 @@ async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(requi
         # Emit thread_id first so frontend can track it
         yield f"data: {json.dumps({'type': 'thread_id', 'thread_id': thread_id})}\n\n"
 
+        # A queue lets us multiplex status events from the resilience wrapper
+        # into the SSE stream without racing the main async-for loop.
+        status_q: asyncio.Queue = asyncio.Queue()
+
+        async def _on_status(text: str) -> None:
+            await status_q.put(text)
+
         # Kick off the council in the background. It runs alongside the
         # primary answer so the total wall-clock is max(primary, council)
         # not sum. Was previously `await`-ed which blocked the SSE stream
@@ -78,7 +85,16 @@ async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(requi
             get_council_perspectives(system, req.message)
         )
 
-        async for chunk in route_query(system, req.message, max_tokens=1200, model_override=req.model_override):
+        async for chunk in route_query(
+            system, req.message, max_tokens=1200,
+            model_override=req.model_override,
+            on_status=_on_status,
+        ):
+            # Drain any status events the wrapper queued (retries, fallbacks)
+            while not status_q.empty():
+                st = status_q.get_nowait()
+                yield f"data: {json.dumps({'type': 'status', 'text': st})}\n\n"
+
             if first:
                 model_used = chunk
                 first = False
@@ -87,6 +103,10 @@ async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(requi
             full_text.append(chunk)
             payload = json.dumps({"type": "text_delta", "text": chunk})
             yield f"data: {payload}\n\n"
+
+        # Flush any status events that arrived after the last chunk
+        while not status_q.empty():
+            yield f"data: {json.dumps({'type': 'status', 'text': status_q.get_nowait()})}\n\n"
 
         # Primary is done. Give council a bounded window to finish, then
         # move on. We don't want a slow council keeping the SSE stream

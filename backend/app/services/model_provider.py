@@ -400,6 +400,187 @@ def get_provider(label: str) -> ModelProvider:
     return MODEL_REGISTRY[label]
 
 
+# ─── Resilience wrapper ──────────────────────────────────────────────────────
+#
+# One call site for "route this through the model layer with proper failure
+# handling." Same-provider retry once on transient errors, then walk
+# FALLBACK_ORDER for the next configured provider. Caller only sees the
+# stream from the first provider that actually delivers content.
+
+FALLBACK_ORDER = ["STRATEGIC", "FACTUAL", "RESEARCH", "DOCUMENT"]
+
+# Substrings that suggest a transient error worth retrying same-provider once.
+# Everything else (auth, quota, bad request) skips retry and falls through
+# to the next provider immediately.
+_TRANSIENT_MARKERS = (
+    "timeout",
+    "TimeoutError",
+    "readtimeout",
+    "connecttimeout",
+    "connection reset",
+    "ConnectionError",
+    "ServerDisconnected",
+    "503",
+    "502",
+    "504",
+    "overloaded",
+    "rate_limit",
+    "RateLimitError",
+    "Try again",
+)
+
+
+def _is_transient(error: str) -> bool:
+    if not error:
+        return False
+    e = error.lower()
+    return any(m.lower() in e for m in _TRANSIENT_MARKERS)
+
+
+def _next_configured_label(exclude: set[str]) -> Optional[str]:
+    """Pick the next label to try, skipping already-tried + unconfigured."""
+    for candidate in FALLBACK_ORDER:
+        if candidate in exclude:
+            continue
+        p = MODEL_REGISTRY.get(candidate)
+        if p is None:
+            continue
+        is_conf = getattr(p, "is_configured", None)
+        if callable(is_conf) and not is_conf():
+            continue
+        return candidate
+    return None
+
+
+async def call_with_resilience(
+    label: str,
+    messages: list[dict[str, str]],
+    *,
+    max_tokens: int = 1200,
+    stream: bool = True,
+    per_call_timeout_s: float = 45.0,
+    on_status=None,   # Optional[Callable[[str], Awaitable[None]]]
+) -> AsyncIterator[ModelResponse]:
+    """
+    Streaming call with same-provider transient retry + cross-provider
+    fallback. Every yielded ModelResponse's `.model_used` and `.provider`
+    reflect the provider that ACTUALLY delivered that chunk (so the
+    caller can label the response correctly even if fallback fired).
+
+    Contract with the caller:
+        - Yields content chunks from the FIRST provider that streams
+          any content (retry-then-fallback under the hood is invisible).
+        - Terminal yield has is_final=True.
+        - If every provider fails, terminal yield has .error set.
+
+    on_status: optional async callback invoked when we retry or fall
+        back, with a short human-readable message. Copilot forwards
+        these into the SSE stream as `{"type": "status", ...}`.
+    """
+    if label not in MODEL_REGISTRY:
+        yield ModelResponse(
+            is_final=True,
+            error=f"unknown label: {label}",
+        )
+        return
+
+    tried: set[str] = set()
+    current_label = label
+    last_error: Optional[str] = None
+    attempted_same_provider_retry = False
+
+    async def _emit_status(text: str) -> None:
+        if on_status is not None:
+            try:
+                await on_status(text)
+            except Exception:
+                pass
+
+    while True:
+        provider = MODEL_REGISTRY[current_label]
+        tried.add(current_label)
+
+        streamed_any = False
+        this_error: Optional[str] = None
+        stats = {"tokens_in": None, "tokens_out": None, "latency_ms": None}
+
+        try:
+            provider_iter = provider.complete(
+                messages,
+                stream=stream,
+                max_tokens=max_tokens,
+                timeout_s=per_call_timeout_s,
+            )
+            async for chunk in provider_iter:
+                if chunk.error and not streamed_any:
+                    this_error = chunk.error
+                    break
+                if chunk.content:
+                    streamed_any = True
+                    yield chunk
+                if chunk.is_final:
+                    stats["tokens_in"] = chunk.tokens_in
+                    stats["tokens_out"] = chunk.tokens_out
+                    stats["latency_ms"] = chunk.latency_ms
+        except Exception as e:
+            this_error = f"{type(e).__name__}: {str(e)[:200]}"
+
+        if streamed_any:
+            # Success — emit terminal with stats and stop.
+            yield ModelResponse(
+                model_used=provider.model,
+                provider=provider.provider_name,
+                is_final=True,
+                tokens_in=stats["tokens_in"],
+                tokens_out=stats["tokens_out"],
+                latency_ms=stats["latency_ms"],
+            )
+            return
+
+        last_error = this_error or last_error
+        log.warning(
+            "provider_failed",
+            label=current_label,
+            model=provider.model,
+            error=(this_error or "no content streamed")[:200],
+        )
+
+        # Same-provider transient retry once
+        if (
+            not attempted_same_provider_retry
+            and this_error
+            and _is_transient(this_error)
+        ):
+            attempted_same_provider_retry = True
+            await _emit_status(f"retrying {provider.provider_name}...")
+            log.info("provider_retry_same", label=current_label, model=provider.model)
+            continue
+
+        # Fall through to next provider
+        next_label = _next_configured_label(tried)
+        if next_label is None:
+            # Everyone failed. Terminal error.
+            yield ModelResponse(
+                model_used=provider.model,
+                provider=provider.provider_name,
+                is_final=True,
+                error=last_error or "no working model available",
+            )
+            return
+
+        next_provider = MODEL_REGISTRY[next_label]
+        await _emit_status(f"switching to {next_provider.provider_name}...")
+        log.info(
+            "provider_fallback",
+            from_label=current_label,
+            from_model=provider.model,
+            to_label=next_label,
+            to_model=next_provider.model,
+        )
+        current_label = next_label
+        attempted_same_provider_retry = False  # reset for the new provider
+
+
 async def registry_health() -> dict[str, dict[str, Any]]:
     """Snapshot of every provider's readiness. Used by admin dashboard."""
     out: dict[str, dict[str, Any]] = {}

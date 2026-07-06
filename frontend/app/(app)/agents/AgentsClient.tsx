@@ -100,6 +100,7 @@ export default function AgentsClient() {
   const router = useRouter()
   const [query, setQuery] = useState('')
   const [streaming, setStreaming] = useState(false)
+  const [status, setStatus] = useState<string>('')
   const [exchanges, setExchanges] = useState<Exchange[]>([])
   const [error, setError] = useState('')
   const [threads, setThreads] = useState<Thread[]>([])
@@ -149,20 +150,21 @@ export default function AgentsClient() {
 
   async function ask(q: string) {
     if (!q.trim() || streaming) return
-    setError(''); setStreaming(true)
+    setError(''); setStreaming(true); setStatus('')
     setExchanges(prev => [...prev, { q, a: '', ts: new Date() }])
     setQuery('')
     try {
       for await (const chunk of streamSSE('/api/copilot/message', { message: q, thread_id: activeThread, model_override: selectedModel === 'auto' ? undefined : selectedModel })) {
         if (chunk.type === 'thread_id' && chunk.thread_id) { setActiveThread(chunk.thread_id); loadThreads() }
-        else if (chunk.type === 'text_delta') setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], a: c[c.length-1].a + chunk.text }; return c })
+        else if (chunk.type === 'status') setStatus(chunk.text)
+        else if (chunk.type === 'text_delta') { if (status) setStatus(''); setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], a: c[c.length-1].a + chunk.text }; return c }) }
         else if (chunk.type === 'model_used') setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], model: chunk.model }; return c })
         else if (chunk.type === 'council') setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], council: chunk.perspectives }; return c })
       }
     } catch (e: any) {
       if (e instanceof LimitExceededError) setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], limitExceeded: true, upgradeUrl: e.upgradeUrl }; return c })
       else setError(e instanceof Error ? e.message : 'Unknown error')
-    } finally { setStreaming(false) }
+    } finally { setStreaming(false); setStatus('') }
   }
 
   const selectedModelLabel = MODELS.find(m => m.id === selectedModel)?.label ?? 'Auto'
@@ -268,6 +270,12 @@ export default function AgentsClient() {
         </div>
 
         <div style={{ padding: '16px 24px', borderTop: '1px solid var(--color-n200)', background: 'var(--color-vellum)' }}>
+          {status && (
+            <div style={{ marginBottom: 8, fontSize: 11, fontFamily: 'var(--font-plex-mono), monospace', color: 'var(--color-n600)', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6, maxWidth: 720 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-arc-cyan-deep)' }} />
+              {status}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', maxWidth: 720 }}>
             <textarea ref={inputRef} value={query}
               onChange={e => { setQuery(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 160) + 'px' }}

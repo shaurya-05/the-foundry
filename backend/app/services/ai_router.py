@@ -22,7 +22,7 @@ from typing import AsyncIterator, Optional
 
 import structlog
 
-from app.services.model_provider import MODEL_REGISTRY, ModelResponse
+from app.services.model_provider import MODEL_REGISTRY, ModelResponse, call_with_resilience
 
 log = structlog.get_logger()
 
@@ -230,41 +230,27 @@ def _label_from_override(model_override: Optional[str]) -> Optional[str]:
     return aliases.get(model_override)
 
 
-FALLBACK_ORDER = ["STRATEGIC", "FACTUAL", "RESEARCH", "DOCUMENT"]
-
-
-def _next_fallback_label(exclude: set[str]) -> Optional[str]:
-    """Pick the next label to try, skipping ones already tried in this request."""
-    for candidate in FALLBACK_ORDER:
-        if candidate in exclude:
-            continue
-        # Only fall back to a provider whose credentials look sane.
-        p = MODEL_REGISTRY[candidate]
-        is_conf = getattr(p, "is_configured", None)
-        if callable(is_conf) and not is_conf():
-            continue
-        return candidate
-    return None
-
-
 async def route_query(
     system: str,
     message: str,
     max_tokens: int = 1200,
     model_override: Optional[str] = None,
+    on_status=None,   # Optional[Callable[[str], Awaitable[None]]]
 ) -> AsyncIterator[str]:
     """
     Classify and stream from the best model.
 
-    First yield is always the model id string (for copilot.py to emit
-    as a `model_used` SSE event). Subsequent yields are text deltas.
-    Preserves the exact contract of the pre-refactor route_query.
+    First yield is the model id string (for copilot.py to emit as a
+    `model_used` SSE event). Subsequent yields are text deltas.
 
-    Fallback policy: if a provider emits an error chunk before any text
-    streams, we try the next working provider in FALLBACK_ORDER — never
-    retrying a provider that already failed this request. If every
-    fallback fails, yield a plain-text error message so the UI shows
-    something instead of going silent.
+    Failure handling is delegated to model_provider.call_with_resilience
+    — same-provider transient retry once, then cross-provider fallback.
+    If every provider fails, we yield a visible error message so the UI
+    never goes silent.
+
+    on_status: optional async callback the caller can pass in to
+    forward "retrying openai...", "switching to perplexity..." into
+    their own SSE stream as `{"type": "status"}` events.
     """
     label = _label_from_override(model_override) or await classify_query(message)
     if label not in VALID_LABELS:
@@ -281,78 +267,39 @@ async def route_query(
 
     start = time.time()
     full_response: list[str] = []
+    final_model_used = model_id
+    final_provider_name = provider.provider_name
     provider_tokens_in: Optional[int] = None
     provider_tokens_out: Optional[int] = None
     provider_latency: Optional[float] = None
-    tried: set[str] = {label}
-    last_error: Optional[str] = None
+    got_content = False
 
-    async def _drain(prov, active_label: str):
-        """Consume one provider's stream. Yields deltas, returns (streamed_any, error, stats)."""
-        streamed_any = False
-        error: Optional[str] = None
-        stats = {"tokens_in": None, "tokens_out": None, "latency_ms": None}
-        async for chunk in prov.complete(
-            messages, stream=True, max_tokens=max_tokens, timeout_s=45.0,
-        ):
-            if chunk.error and not streamed_any:
-                error = chunk.error
-                log.warning(
-                    "route_query_provider_error",
-                    label=active_label, model=prov.model, error=error,
-                )
-                break
-            if chunk.content:
-                streamed_any = True
-                full_response.append(chunk.content)
-                yield ("text", chunk.content)
-            if chunk.is_final:
-                stats["tokens_in"] = chunk.tokens_in
-                stats["tokens_out"] = chunk.tokens_out
-                stats["latency_ms"] = chunk.latency_ms
-        yield ("done", (streamed_any, error, stats))
-
-    active_label = label
-    active_provider = provider
-
-    while True:
-        streamed_any = False
-        this_error: Optional[str] = None
-        async for kind, payload in _drain(active_provider, active_label):
-            if kind == "text":
-                yield payload
-            else:
-                streamed_any, this_error, stats = payload
-                provider_tokens_in = stats["tokens_in"]
-                provider_tokens_out = stats["tokens_out"]
-                provider_latency = stats["latency_ms"]
-        if streamed_any:
-            model_id = active_provider.model
-            label = active_label
-            break
-        # Nothing streamed; pick a different provider.
-        last_error = this_error or last_error
-        next_label = _next_fallback_label(tried)
-        if not next_label:
-            # Every provider failed. Surface something visible so the UI
-            # doesn't appear frozen.
-            note = last_error or "no working model available"
-            msg = f"⚠️ Every model provider failed to respond ({note[:160]}). Please try again."
-            full_response.append(msg)
-            yield msg
-            break
-        tried.add(next_label)
-        active_label = next_label
-        active_provider = MODEL_REGISTRY[next_label]
-        log.info(
-            "route_query_falling_back",
-            from_label=label if not tried - {label, next_label} else "chain",
-            to_label=next_label, to_model=active_provider.model,
-        )
+    async for chunk in call_with_resilience(
+        label, messages,
+        max_tokens=max_tokens,
+        per_call_timeout_s=45.0,
+        on_status=on_status,
+    ):
+        if chunk.content:
+            got_content = True
+            full_response.append(chunk.content)
+            yield chunk.content
+        if chunk.is_final:
+            final_model_used = chunk.model_used or model_id
+            final_provider_name = chunk.provider or provider.provider_name
+            provider_tokens_in = chunk.tokens_in
+            provider_tokens_out = chunk.tokens_out
+            provider_latency = chunk.latency_ms
+            if chunk.error and not got_content:
+                # Total failure — surface something visible so the UI
+                # never appears frozen.
+                msg = f"⚠️ Every model provider failed to respond ({chunk.error[:160]}). Please try again."
+                full_response.append(msg)
+                yield msg
 
     latency_ms = provider_latency if provider_latency is not None else (time.time() - start) * 1000
     log_model_usage(
-        model=model_id,
+        model=final_model_used,
         prompt=system[:500] + message,
         response="".join(full_response),
         latency_ms=latency_ms,
