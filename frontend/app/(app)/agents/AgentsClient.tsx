@@ -158,7 +158,6 @@ export default function AgentsClient() {
         else if (chunk.type === 'text_delta') setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], a: c[c.length-1].a + chunk.text }; return c })
         else if (chunk.type === 'model_used') setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], model: chunk.model }; return c })
         else if (chunk.type === 'council') setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], council: chunk.perspectives }; return c })
-        else if (chunk.type === 'council') setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], council: chunk.perspectives }; return c })
       }
     } catch (e: any) {
       if (e instanceof LimitExceededError) setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], limitExceeded: true, upgradeUrl: e.upgradeUrl }; return c })

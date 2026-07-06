@@ -1,5 +1,12 @@
+import asyncio
+import json
+import re
+from typing import Optional
+
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
+
 from app.models.schemas import CopilotMessage, IntentRequest, IntentResponse
 from app.services.claude import stream_claude
 from app.services.ai_router import route_query, get_council_perspectives
@@ -7,9 +14,13 @@ from app.services.context_engine import get_workspace_summary, build_copilot_sys
 from app.services.usage import check_limit, increment_usage
 from app.db.postgres import get_pool
 from app.dependencies import AuthContext, require_auth
-from typing import Optional
-import json
-import re
+
+log = structlog.get_logger()
+
+# Max time we wait AFTER the primary answer completes for the council task
+# to finish. Council is fire-and-forget from the primary stream's POV —
+# never blocks a text_delta yield.
+COUNCIL_WAIT_S = 10.0
 
 router = APIRouter(prefix="/api/copilot", tags=["copilot"])
 
@@ -59,6 +70,14 @@ async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(requi
         # Emit thread_id first so frontend can track it
         yield f"data: {json.dumps({'type': 'thread_id', 'thread_id': thread_id})}\n\n"
 
+        # Kick off the council in the background. It runs alongside the
+        # primary answer so the total wall-clock is max(primary, council)
+        # not sum. Was previously `await`-ed which blocked the SSE stream
+        # and produced empty responses — that regression is dead.
+        council_task = asyncio.create_task(
+            get_council_perspectives(system, req.message)
+        )
+
         async for chunk in route_query(system, req.message, max_tokens=1200, model_override=req.model_override):
             if first:
                 model_used = chunk
@@ -69,8 +88,20 @@ async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(requi
             payload = json.dumps({"type": "text_delta", "text": chunk})
             yield f"data: {payload}\n\n"
 
-        # Council temporarily disabled for debugging
-        pass
+        # Primary is done. Give council a bounded window to finish, then
+        # move on. We don't want a slow council keeping the SSE stream
+        # open indefinitely.
+        try:
+            if not council_task.done():
+                yield f"data: {json.dumps({'type': 'status', 'text': 'gathering second opinions...'})}\n\n"
+            perspectives = await asyncio.wait_for(council_task, timeout=COUNCIL_WAIT_S)
+            if perspectives:
+                yield f"data: {json.dumps({'type': 'council', 'perspectives': perspectives})}\n\n"
+        except asyncio.TimeoutError:
+            log.info("council_timeout", thread_id=thread_id, wait_s=COUNCIL_WAIT_S)
+            council_task.cancel()
+        except Exception as e:
+            log.warning("council_error", thread_id=thread_id, error=str(e)[:200])
 
         yield 'data: {"type": "done"}\n\n'
         assistant_text = "".join(full_text)
