@@ -29,6 +29,7 @@ log = structlog.get_logger()
 # ─── Cost table (per million tokens) — verified June 2026 ────────────────────
 MODEL_COSTS = {
     "claude-sonnet-4":              {"input": 3.00,  "output": 15.00, "request_fee": 0.0},
+    "claude-sonnet-4-6":            {"input": 3.00,  "output": 15.00, "request_fee": 0.0},
     "claude-sonnet-4-20250514":     {"input": 3.00,  "output": 15.00, "request_fee": 0.0},
     "claude-haiku-4-5":             {"input": 1.00,  "output": 5.00,  "request_fee": 0.0},
     "claude-haiku-4-5-20251001":    {"input": 1.00,  "output": 5.00,  "request_fee": 0.0},
@@ -229,6 +230,23 @@ def _label_from_override(model_override: Optional[str]) -> Optional[str]:
     return aliases.get(model_override)
 
 
+FALLBACK_ORDER = ["STRATEGIC", "FACTUAL", "RESEARCH", "DOCUMENT"]
+
+
+def _next_fallback_label(exclude: set[str]) -> Optional[str]:
+    """Pick the next label to try, skipping ones already tried in this request."""
+    for candidate in FALLBACK_ORDER:
+        if candidate in exclude:
+            continue
+        # Only fall back to a provider whose credentials look sane.
+        p = MODEL_REGISTRY[candidate]
+        is_conf = getattr(p, "is_configured", None)
+        if callable(is_conf) and not is_conf():
+            continue
+        return candidate
+    return None
+
+
 async def route_query(
     system: str,
     message: str,
@@ -240,13 +258,13 @@ async def route_query(
 
     First yield is always the model id string (for copilot.py to emit
     as a `model_used` SSE event). Subsequent yields are text deltas.
-    Preserves the exact contract of the pre-refactor route_query — no
-    downstream changes required.
+    Preserves the exact contract of the pre-refactor route_query.
 
-    On provider failure we transparently fall back to STRATEGIC (Claude
-    Sonnet). Phase 2 formalizes this with a proper timeout+retry+fallback
-    wrapper; this is the minimum needed to keep the stream un-broken
-    during the refactor.
+    Fallback policy: if a provider emits an error chunk before any text
+    streams, we try the next working provider in FALLBACK_ORDER — never
+    retrying a provider that already failed this request. If every
+    fallback fails, yield a plain-text error message so the UI shows
+    something instead of going silent.
     """
     label = _label_from_override(model_override) or await classify_query(message)
     if label not in VALID_LABELS:
@@ -266,42 +284,71 @@ async def route_query(
     provider_tokens_in: Optional[int] = None
     provider_tokens_out: Optional[int] = None
     provider_latency: Optional[float] = None
-    fell_back = False
+    tried: set[str] = {label}
+    last_error: Optional[str] = None
 
-    async for chunk in provider.complete(
-        messages, stream=True, max_tokens=max_tokens, timeout_s=45.0,
-    ):
-        if chunk.error and not full_response:
-            # Nothing streamed yet — fall back to STRATEGIC.
-            log.warning(
-                "route_query_fallback",
-                from_label=label, from_model=model_id, error=chunk.error,
-            )
-            fell_back = True
-            break
-        if chunk.content:
-            full_response.append(chunk.content)
-            yield chunk.content
-        if chunk.is_final:
-            provider_tokens_in = chunk.tokens_in
-            provider_tokens_out = chunk.tokens_out
-            provider_latency = chunk.latency_ms
-
-    if fell_back:
-        # Retry once on STRATEGIC.
-        strategic = MODEL_REGISTRY["STRATEGIC"]
-        async for chunk in strategic.complete(
+    async def _drain(prov, active_label: str):
+        """Consume one provider's stream. Yields deltas, returns (streamed_any, error, stats)."""
+        streamed_any = False
+        error: Optional[str] = None
+        stats = {"tokens_in": None, "tokens_out": None, "latency_ms": None}
+        async for chunk in prov.complete(
             messages, stream=True, max_tokens=max_tokens, timeout_s=45.0,
         ):
+            if chunk.error and not streamed_any:
+                error = chunk.error
+                log.warning(
+                    "route_query_provider_error",
+                    label=active_label, model=prov.model, error=error,
+                )
+                break
             if chunk.content:
+                streamed_any = True
                 full_response.append(chunk.content)
-                yield chunk.content
+                yield ("text", chunk.content)
             if chunk.is_final:
-                provider_tokens_in = chunk.tokens_in
-                provider_tokens_out = chunk.tokens_out
-                provider_latency = chunk.latency_ms
-        model_id = strategic.model
-        label = "STRATEGIC"
+                stats["tokens_in"] = chunk.tokens_in
+                stats["tokens_out"] = chunk.tokens_out
+                stats["latency_ms"] = chunk.latency_ms
+        yield ("done", (streamed_any, error, stats))
+
+    active_label = label
+    active_provider = provider
+
+    while True:
+        streamed_any = False
+        this_error: Optional[str] = None
+        async for kind, payload in _drain(active_provider, active_label):
+            if kind == "text":
+                yield payload
+            else:
+                streamed_any, this_error, stats = payload
+                provider_tokens_in = stats["tokens_in"]
+                provider_tokens_out = stats["tokens_out"]
+                provider_latency = stats["latency_ms"]
+        if streamed_any:
+            model_id = active_provider.model
+            label = active_label
+            break
+        # Nothing streamed; pick a different provider.
+        last_error = this_error or last_error
+        next_label = _next_fallback_label(tried)
+        if not next_label:
+            # Every provider failed. Surface something visible so the UI
+            # doesn't appear frozen.
+            note = last_error or "no working model available"
+            msg = f"⚠️ Every model provider failed to respond ({note[:160]}). Please try again."
+            full_response.append(msg)
+            yield msg
+            break
+        tried.add(next_label)
+        active_label = next_label
+        active_provider = MODEL_REGISTRY[next_label]
+        log.info(
+            "route_query_falling_back",
+            from_label=label if not tried - {label, next_label} else "chain",
+            to_label=next_label, to_model=active_provider.model,
+        )
 
     latency_ms = provider_latency if provider_latency is not None else (time.time() - start) * 1000
     log_model_usage(

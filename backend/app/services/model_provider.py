@@ -364,7 +364,10 @@ class AnthropicProvider(ModelProvider):
 # Phase 4 won't route to it.
 
 MODEL_REGISTRY: dict[str, ModelProvider] = {
-    "STRATEGIC": AnthropicProvider(model="claude-sonnet-4-20250514"),
+    # Sonnet 4.6 is the current production Sonnet id. `claude-sonnet-4-20250514`
+    # was deprecated and returns 404 on newer API keys — that was the smoking
+    # gun for the "responses stop after first message" bug.
+    "STRATEGIC": AnthropicProvider(model="claude-sonnet-4-6"),
     "FACTUAL": OpenAICompatibleProvider(
         api_key_env="OPENAI_API_KEY",
         model="gpt-4o-mini",
