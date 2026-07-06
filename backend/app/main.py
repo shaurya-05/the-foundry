@@ -221,7 +221,7 @@ async def health():
 
     try:
         from app.db.neo4j import get_driver
-        driver = get_driver()
+        driver = await get_driver()
         async with driver.session() as session:
             await session.run("RETURN 1")
         checks["neo4j"] = "ok"
