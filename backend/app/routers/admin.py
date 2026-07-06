@@ -83,6 +83,48 @@ async def admin_dashboard(_: HTTPBasicCredentials = Depends(_require_admin)):
             f"</tr>"
         )
 
+    # ─── Health snapshot ─────────────────────────────────────────────────
+    from app.services.model_provider import registry_health
+    from app.services import circuit_breaker
+    provider_snapshot = await registry_health()
+    connector_snapshot = await circuit_breaker.all_status()
+    providers_healthy = sum(1 for v in provider_snapshot.values() if v.get("healthy"))
+    connectors_tripped = sum(1 for c in connector_snapshot if c.get("state") == "open")
+
+    def _health_row(label, provider, model, healthy):
+        color = "#5FD3A3" if healthy else "#E84A0E"
+        badge = "OK" if healthy else "DOWN"
+        return (
+            f"<tr>"
+            f"<td>{_html.escape(label)}</td>"
+            f"<td style='color:#888'>{_html.escape(provider)}</td>"
+            f"<td style='color:#888;font-size:12px'>{_html.escape(model)}</td>"
+            f"<td style='color:{color};font-weight:600;text-align:right'>{badge}</td>"
+            f"</tr>"
+        )
+
+    def _connector_row(c):
+        state = c.get("state", "unknown")
+        color = {"closed": "#5FD3A3", "open": "#E84A0E", "unknown": "#888"}.get(state, "#888")
+        recent = c.get("recent_failures", 0)
+        cooldown = c.get("cooldown_remaining_s", 0)
+        note = f"{recent} recent failure{'' if recent == 1 else 's'}"
+        if state == "open" and cooldown:
+            note += f" · cooldown {cooldown}s"
+        return (
+            f"<tr>"
+            f"<td>{_html.escape(c.get('connector','—'))}</td>"
+            f"<td style='color:#888'>{_html.escape(note)}</td>"
+            f"<td style='color:{color};font-weight:600;text-align:right;text-transform:uppercase'>{_html.escape(state)}</td>"
+            f"</tr>"
+        )
+
+    provider_rows_html = "".join(
+        _health_row(label, v.get("provider", "—"), v.get("model", "—"), v.get("healthy", False))
+        for label, v in provider_snapshot.items()
+    )
+    connector_rows_html = "".join(_connector_row(c) for c in connector_snapshot)
+
     MODEL_COLORS = {"claude-sonnet-4": "#9FDEFA", "gpt-4o-mini": "#74AA9C", "perplexity-sonar": "#E84A0E", "gemini-1.5-flash": "#F4B942"}
 
     def _model_bar(r):
@@ -172,6 +214,51 @@ async def admin_dashboard(_: HTTPBasicCredentials = Depends(_require_admin)):
   </div>
 </div>
 
+<h2>System Health</h2>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+  <div class="card">
+    <div class="card-label">Providers Healthy</div>
+    <div class="card-value" style="color:{'#5FD3A3' if providers_healthy == len(provider_snapshot) else '#E84A0E'}">{providers_healthy}/{len(provider_snapshot)}</div>
+    <div class="card-sub">Credentialed model providers</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Connectors Tripped</div>
+    <div class="card-value" style="color:{'#5FD3A3' if connectors_tripped == 0 else '#E84A0E'}">{connectors_tripped}</div>
+    <div class="card-sub">Circuit breakers currently open</div>
+  </div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:48px">
+  <div>
+    <table>
+      <thead>
+        <tr>
+          <th>Label</th>
+          <th>Provider</th>
+          <th>Model</th>
+          <th style="text-align:right">State</th>
+        </tr>
+      </thead>
+      <tbody>
+        {provider_rows_html}
+      </tbody>
+    </table>
+  </div>
+  <div>
+    <table>
+      <thead>
+        <tr>
+          <th>Connector</th>
+          <th>Failures</th>
+          <th style="text-align:right">State</th>
+        </tr>
+      </thead>
+      <tbody>
+        {connector_rows_html}
+      </tbody>
+    </table>
+  </div>
+</div>
+
 <h2>AI Router — Model Usage</h2>
 <div style="margin-bottom:48px">
   {model_chart_html}
@@ -235,6 +322,56 @@ async def model_usage_stats(_: HTTPBasicCredentials = Depends(_require_admin)):
             for r in rows
         ]
     }
+
+@router.get("/api/admin/health")
+async def admin_health(_: HTTPBasicCredentials = Depends(_require_admin)):
+    """
+    Deep health snapshot — providers + connectors + infra.
+
+    Returns whether each provider is credentialed and each connector's
+    circuit-breaker state, so we spot dead providers (like the Sonnet
+    404 that killed copilot for weeks) before a user hits them.
+    """
+    from app.services.model_provider import registry_health
+    from app.services import circuit_breaker
+    from app.db.redis import get_redis
+
+    provider_snapshot = await registry_health()
+    connector_snapshot = await circuit_breaker.all_status()
+
+    # Infra health
+    infra = {"postgres": "unknown", "redis": "unknown"}
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.fetchval("SELECT 1")
+        infra["postgres"] = "ok"
+    except Exception as e:
+        infra["postgres"] = f"error: {str(e)[:80]}"
+    try:
+        r = await get_redis()
+        await r.ping()
+        infra["redis"] = "ok"
+    except Exception as e:
+        infra["redis"] = f"error: {str(e)[:80]}"
+
+    healthy_providers = sum(1 for v in provider_snapshot.values() if v.get("healthy"))
+    tripped_connectors = sum(1 for c in connector_snapshot if c.get("state") == "open")
+
+    return {
+        "summary": {
+            "providers_healthy": healthy_providers,
+            "providers_total": len(provider_snapshot),
+            "connectors_tripped": tripped_connectors,
+            "connectors_total": len(connector_snapshot),
+            "postgres": infra["postgres"],
+            "redis": infra["redis"],
+        },
+        "providers": provider_snapshot,
+        "connectors": connector_snapshot,
+        "infra": infra,
+    }
+
 
 @router.get("/admin/model-stats")
 async def model_stats(_: HTTPBasicCredentials = Depends(_require_admin)):

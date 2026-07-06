@@ -331,6 +331,11 @@ async def run_initial_github_sync(
     Designed to be called from a Celery task OR from a FastAPI endpoint
     via BackgroundTasks for small workspaces.
     """
+    from app.services import circuit_breaker
+    if await circuit_breaker.is_open("github"):
+        log.info("github_sync_short_circuited", workspace_id=workspace_id)
+        return {"status": "skipped", "reason": "github circuit breaker open"}
+
     pool = await get_pool()
 
     # 1) Pull the encrypted token + connection_id
@@ -383,6 +388,12 @@ async def run_initial_github_sync(
     except Exception as e:
         error = f"{type(e).__name__}: {e}"
         log.error("github_initial_sync_failed", error=error)
+        from app.services import circuit_breaker as _cb
+        await _cb.record_failure("github", reason=error[:120])
+
+    if not error:
+        from app.services import circuit_breaker as _cb
+        await _cb.record_success("github")
 
     async with pool.acquire() as conn:
         await _update_sync_job(
