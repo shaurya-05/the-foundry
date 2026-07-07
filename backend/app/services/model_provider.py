@@ -44,12 +44,102 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Optional
+from urllib.parse import urlparse
 
 import structlog
 from anthropic import AsyncAnthropic
 from openai import AsyncOpenAI
 
 log = structlog.get_logger()
+
+
+# ─── Outbound allowlist ──────────────────────────────────────────────────────
+# Before any provider call fires, we check the target base_url's host
+# against this allowlist. Cheap now; becomes critical once the Phase 3
+# agent loop is making autonomous model calls without a human triggering
+# each one.
+#
+# Set MODEL_PROVIDER_ALLOWLIST env to override (comma-separated). Default
+# covers every host currently referenced by MODEL_REGISTRY plus the
+# implicit "no base_url" cases (Anthropic SDK, plain OpenAI).
+
+_DEFAULT_ALLOWLIST = (
+    "api.anthropic.com",
+    "api.openai.com",
+    "api.perplexity.ai",
+    "generativelanguage.googleapis.com",
+    "api.together.xyz",
+    "api.fireworks.ai",
+)
+
+
+def _allowlist() -> tuple[str, ...]:
+    env = os.getenv("MODEL_PROVIDER_ALLOWLIST", "").strip()
+    if not env:
+        return _DEFAULT_ALLOWLIST
+    return tuple(h.strip() for h in env.split(",") if h.strip())
+
+
+def _host_of(url: Optional[str]) -> Optional[str]:
+    if not url:
+        return None
+    try:
+        return urlparse(url).hostname
+    except Exception:
+        return None
+
+
+def _check_allowlisted(base_url: Optional[str], provider_name: str, model: str) -> Optional[str]:
+    """Returns None if allowed; error string if not."""
+    if base_url is None:
+        # SDKs that connect to their own default endpoint (Anthropic, plain
+        # OpenAI) — those defaults are api.anthropic.com and api.openai.com
+        # respectively, both allowlisted by default.
+        return None
+    host = _host_of(base_url)
+    if not host:
+        return f"unparseable base_url: {base_url!r}"
+    allowed = _allowlist()
+    # Match exact host or any suffix (so `*.googleapis.com` covers
+    # `generativelanguage.googleapis.com`, etc.)
+    if any(host == a or host.endswith("." + a) for a in allowed):
+        return None
+    log.warning(
+        "provider_call_blocked_by_allowlist",
+        host=host, provider=provider_name, model=model,
+    )
+    return f"host {host!r} not in MODEL_PROVIDER_ALLOWLIST"
+
+
+# ─── Model-specific quirks ───────────────────────────────────────────────────
+# Some model IDs need special parameter handling. Centralized here so
+# call sites don't need to remember which knob applies to which model.
+#
+# Keys are model-id prefixes (matched with startswith); values are dicts:
+#   use_max_completion_tokens: bool  (OpenAI o1/o3 family requires this
+#     instead of max_tokens)
+#   no_temperature: bool             (some reasoning models reject
+#     temperature)
+#   no_streaming: bool               (rare; forces stream=False even if
+#     caller asked for streaming)
+
+_MODEL_QUIRKS: dict[str, dict[str, bool]] = {
+    # OpenAI reasoning models — different token param, no temperature
+    "o1":  {"use_max_completion_tokens": True, "no_temperature": True},
+    "o3":  {"use_max_completion_tokens": True, "no_temperature": True},
+    "o4":  {"use_max_completion_tokens": True, "no_temperature": True},
+    # Perplexity sonar doesn't respect temperature the same way; harmless
+    # to skip
+    "sonar": {"no_temperature": True},
+}
+
+
+def _quirks_for(model: str) -> dict[str, bool]:
+    out: dict[str, bool] = {}
+    for prefix, q in _MODEL_QUIRKS.items():
+        if model.startswith(prefix):
+            out.update(q)
+    return out
 
 
 # ─── Response shape ──────────────────────────────────────────────────────────
@@ -157,6 +247,18 @@ class OpenAICompatibleProvider(ModelProvider):
         timeout_s: float = 30.0,
     ) -> AsyncIterator[ModelResponse]:
         start = time.time()
+
+        # Allowlist guard — reject calls to non-allowlisted hosts before
+        # opening a connection.
+        blocked = _check_allowlisted(self._base_url, self.provider_name, self.model)
+        if blocked:
+            yield ModelResponse(
+                model_used=self.model, provider=self.provider_name,
+                is_final=True, error=blocked,
+                latency_ms=(time.time() - start) * 1000,
+            )
+            return
+
         client = self._client_or_none()
         if client is None:
             yield ModelResponse(
@@ -166,14 +268,24 @@ class OpenAICompatibleProvider(ModelProvider):
             )
             return
 
+        # Apply per-model quirks. Anything not in the quirks table
+        # passes through with the standard OpenAI wire params.
+        quirks = _quirks_for(self.model)
+        token_kw = "max_completion_tokens" if quirks.get("use_max_completion_tokens") else "max_tokens"
+        if quirks.get("no_streaming"):
+            stream = False
+        request_kwargs: dict[str, Any] = {
+            "model": self.model,
+            token_kw: max_tokens,
+            "messages": messages,
+            "timeout": timeout_s,
+        }
+
         try:
             if stream:
                 response = await client.chat.completions.create(
-                    model=self.model,
-                    max_tokens=max_tokens,
                     stream=True,
-                    messages=messages,
-                    timeout=timeout_s,
+                    **request_kwargs,
                 )
                 async for chunk in response:
                     if not chunk.choices:
@@ -193,11 +305,8 @@ class OpenAICompatibleProvider(ModelProvider):
                 )
             else:
                 response = await client.chat.completions.create(
-                    model=self.model,
-                    max_tokens=max_tokens,
                     stream=False,
-                    messages=messages,
-                    timeout=timeout_s,
+                    **request_kwargs,
                 )
                 text = response.choices[0].message.content or ""
                 usage = getattr(response, "usage", None)
@@ -282,6 +391,18 @@ class AnthropicProvider(ModelProvider):
         timeout_s: float = 30.0,
     ) -> AsyncIterator[ModelResponse]:
         start = time.time()
+
+        # Allowlist guard — Anthropic SDK defaults to api.anthropic.com,
+        # which _check_allowlisted treats as allowed via base_url=None.
+        blocked = _check_allowlisted(None, self.provider_name, self.model)
+        if blocked:
+            yield ModelResponse(
+                model_used=self.model, provider=self.provider_name,
+                is_final=True, error=blocked,
+                latency_ms=(time.time() - start) * 1000,
+            )
+            return
+
         client = self._client_or_none()
         if client is None:
             yield ModelResponse(
@@ -363,10 +484,12 @@ class AnthropicProvider(ModelProvider):
 # unconfigured; is_configured() returns False so the A/B mechanism in
 # Phase 4 won't route to it.
 
-MODEL_REGISTRY: dict[str, ModelProvider] = {
-    # Sonnet 4.6 is the current production Sonnet id. `claude-sonnet-4-20250514`
-    # was deprecated and returns 404 on newer API keys — that was the smoking
-    # gun for the "responses stop after first message" bug.
+# ─── Fallback registry (used until load_registry_from_db populates) ─────────
+# Kept in code so the app boots and serves requests even before migration
+# 014 has been applied, and so tests can run offline. Once the DB is
+# populated and loaded, these values are overridden.
+
+_FALLBACK_REGISTRY: dict[str, ModelProvider] = {
     "STRATEGIC": AnthropicProvider(model="claude-sonnet-4-6"),
     "FACTUAL": OpenAICompatibleProvider(
         api_key_env="OPENAI_API_KEY",
@@ -393,6 +516,249 @@ MODEL_REGISTRY: dict[str, ModelProvider] = {
         base_url=os.getenv("OSS_CLASSIFIER_BASE_URL"),
     ),
 }
+
+# Live registry — starts as the fallback, replaced in-place when
+# load_registry_from_db() succeeds. Callers reference MODEL_REGISTRY[label]
+# and always get the current value.
+MODEL_REGISTRY: dict[str, ModelProvider] = dict(_FALLBACK_REGISTRY)
+
+# Cached raw registry rows (for admin dashboard + measured_fitness writes).
+_registry_rows: list[dict[str, Any]] = []
+_registry_last_loaded: Optional[float] = None
+_registry_lock = asyncio.Lock()
+
+
+def _provider_from_row(row: dict[str, Any]) -> Optional[ModelProvider]:
+    """Instantiate the correct ModelProvider subclass from a DB row."""
+    try:
+        cls = row.get("provider_class")
+        model = row.get("model_name")
+        api_key_env = row.get("api_key_env_var")
+        base_url = row.get("base_url") or None
+        provider_name = row.get("provider_name") or "unknown"
+        if not model or not api_key_env:
+            return None
+        if cls == "anthropic":
+            return AnthropicProvider(model=model, provider_name=provider_name)
+        if cls == "openai_compatible":
+            return OpenAICompatibleProvider(
+                api_key_env=api_key_env,
+                model=model,
+                provider_name=provider_name,
+                base_url=base_url,
+            )
+        log.warning("registry_unknown_provider_class", provider_class=cls, label=row.get("label"))
+        return None
+    except Exception as e:
+        log.warning("registry_row_instantiation_failed", error=str(e)[:200], row=row)
+        return None
+
+
+async def load_registry_from_db() -> dict[str, ModelProvider]:
+    """
+    Load active rows from model_registry and rebuild MODEL_REGISTRY.
+
+    Called on startup and on manual refresh. Silently falls back to the
+    hard-coded _FALLBACK_REGISTRY if the DB table doesn't exist yet
+    (migration 014 not applied) or if any error occurs — so the app is
+    always callable even in a partial-deploy state.
+    """
+    global MODEL_REGISTRY, _registry_rows, _registry_last_loaded
+    try:
+        # Local import to avoid a circular dep at module load (postgres
+        # depends on env, which loads before this module in dev).
+        from app.db.postgres import get_pool
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT label, provider_name, provider_class, base_url, api_key_env_var,
+                       model_name, capability_tags, priority, is_active,
+                       measured_fitness, notes
+                FROM model_registry
+                WHERE is_active
+                ORDER BY label, priority DESC
+                """
+            )
+    except Exception as e:
+        # Table missing, DB unavailable, etc. — keep the fallback registry.
+        async with _registry_lock:
+            if not _registry_rows:
+                _registry_rows = []
+        log.info(
+            "model_registry_using_fallback",
+            reason=f"{type(e).__name__}: {str(e)[:120]}",
+        )
+        return MODEL_REGISTRY
+
+    new_registry: dict[str, ModelProvider] = {}
+    raw_rows: list[dict[str, Any]] = []
+    for r in rows:
+        row = dict(r)
+        raw_rows.append(row)
+        # Prefer higher priority within a label; the unique-active index
+        # already ensures only one active row per label, but ordering is
+        # cheap insurance.
+        if row["label"] in new_registry:
+            continue
+        provider = _provider_from_row(row)
+        if provider is not None:
+            new_registry[row["label"]] = provider
+
+    if not new_registry:
+        log.warning("model_registry_empty_after_load; keeping fallback")
+        return MODEL_REGISTRY
+
+    async with _registry_lock:
+        MODEL_REGISTRY.clear()
+        MODEL_REGISTRY.update(new_registry)
+        _registry_rows = raw_rows
+        _registry_last_loaded = time.time()
+
+    log.info(
+        "model_registry_loaded",
+        rows=len(raw_rows), labels=sorted(new_registry.keys()),
+    )
+    return MODEL_REGISTRY
+
+
+async def registry_rows() -> list[dict[str, Any]]:
+    """Snapshot of the raw registry rows (for admin dashboard)."""
+    if not _registry_rows:
+        await load_registry_from_db()
+    return list(_registry_rows)
+
+
+async def registry_last_loaded_iso() -> Optional[str]:
+    if _registry_last_loaded is None:
+        return None
+    import datetime as _dt
+    return _dt.datetime.fromtimestamp(_registry_last_loaded, tz=_dt.timezone.utc).isoformat()
+
+
+# ─── measured_fitness (P1.5.e) ───────────────────────────────────────────────
+#
+# Compute rolling-window aggregates from model_usage_log and write them
+# back to model_registry.measured_fitness (JSONB). Routing decisions can
+# reference this via load_registry_from_db() — vendor benchmarks stay
+# out of the decision loop.
+#
+# Metrics per model_name (aggregated across query_types):
+#     calls_7d        — call count in the last 7 days
+#     avg_latency_ms  — mean per-call latency
+#     p95_latency_ms  — 95th percentile latency
+#     avg_cost_usd    — mean cost per call
+#     avg_tps         — mean tokens/sec (throughput proxy)
+#     efficiency      — mean tokens per USD
+#     last_seen       — timestamp of most recent call
+# Plus a nested per-query-type breakdown.
+
+async def refresh_measured_fitness(window_days: int = 7) -> dict[str, Any]:
+    """
+    Recompute measured_fitness for every model_name that has activity in
+    the last `window_days`, and write it to the model_registry row that
+    matches (label happens to be the query_type in current usage, but we
+    match by model_name — the label→model mapping is what the registry
+    owns).
+
+    Returns a summary of what was updated.
+    """
+    from app.db.postgres import get_pool
+    import json as _json
+
+    updates: dict[str, dict[str, Any]] = {}
+
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT
+                    model,
+                    query_type,
+                    COUNT(*)                                        AS calls,
+                    AVG(latency_ms)                                 AS avg_latency_ms,
+                    percentile_disc(0.95) WITHIN GROUP (ORDER BY latency_ms) AS p95_latency_ms,
+                    AVG(cost_usd)                                   AS avg_cost_usd,
+                    AVG(tokens_per_second)                          AS avg_tps,
+                    AVG(efficiency_score)                           AS avg_efficiency,
+                    MAX(created_at)                                 AS last_seen
+                FROM model_usage_log
+                WHERE created_at > NOW() - ($1 || ' days')::interval
+                GROUP BY model, query_type
+                """,
+                str(window_days),
+            )
+
+            # Aggregate rows grouped by model_name (union across query_types)
+            per_model: dict[str, dict[str, Any]] = {}
+            for r in rows:
+                m = r["model"]
+                per_type = per_model.setdefault(m, {
+                    "window_days": window_days,
+                    "calls_total": 0,
+                    "by_query_type": {},
+                    "avg_latency_ms": 0.0,
+                    "p95_latency_ms": 0.0,
+                    "avg_cost_usd": 0.0,
+                    "avg_tps": 0.0,
+                    "avg_efficiency": 0.0,
+                    "last_seen": None,
+                })
+                per_type["calls_total"] += int(r["calls"])
+                per_type["by_query_type"][r["query_type"]] = {
+                    "calls": int(r["calls"]),
+                    "avg_latency_ms": round(float(r["avg_latency_ms"] or 0), 1),
+                    "p95_latency_ms": round(float(r["p95_latency_ms"] or 0), 1),
+                    "avg_cost_usd": round(float(r["avg_cost_usd"] or 0), 6),
+                    "avg_tps": round(float(r["avg_tps"] or 0), 1),
+                    "avg_efficiency": round(float(r["avg_efficiency"] or 0), 0),
+                }
+                # Take last-seen and running max over per-type maxima
+                if r["last_seen"] and (per_type["last_seen"] is None or r["last_seen"] > per_type["last_seen"]):
+                    per_type["last_seen"] = r["last_seen"]
+
+            # Compute unweighted means across query_types (simple; can be
+            # weighted by call count in a follow-up if needed)
+            for m, agg in per_model.items():
+                by_qt = agg["by_query_type"]
+                if not by_qt:
+                    continue
+                n = len(by_qt)
+                agg["avg_latency_ms"] = round(sum(v["avg_latency_ms"] for v in by_qt.values()) / n, 1)
+                agg["p95_latency_ms"] = round(max(v["p95_latency_ms"] for v in by_qt.values()), 1)
+                agg["avg_cost_usd"] = round(sum(v["avg_cost_usd"] for v in by_qt.values()) / n, 6)
+                agg["avg_tps"] = round(sum(v["avg_tps"] for v in by_qt.values()) / n, 1)
+                agg["avg_efficiency"] = round(sum(v["avg_efficiency"] for v in by_qt.values()) / n, 0)
+                if agg["last_seen"] is not None:
+                    agg["last_seen"] = agg["last_seen"].isoformat()
+
+            # Write back to model_registry.measured_fitness for matching rows
+            for model_name, fitness in per_model.items():
+                await conn.execute(
+                    """
+                    UPDATE model_registry
+                    SET measured_fitness = $2::jsonb
+                    WHERE model_name = $1
+                    """,
+                    model_name, _json.dumps(fitness),
+                )
+                updates[model_name] = {
+                    "calls": fitness["calls_total"],
+                    "p95_latency_ms": fitness["p95_latency_ms"],
+                }
+    except Exception as e:
+        log.warning("refresh_measured_fitness_failed", error=str(e)[:200])
+        return {"error": str(e)[:200], "updates": {}}
+
+    # Refresh in-memory registry so new callers see updated fitness
+    await load_registry_from_db()
+
+    log.info(
+        "measured_fitness_refreshed",
+        models=len(updates), window_days=window_days,
+    )
+    return {"updates": updates, "window_days": window_days}
 
 
 def get_provider(label: str) -> ModelProvider:

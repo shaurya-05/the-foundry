@@ -112,16 +112,22 @@ def log_model_usage(
 
 
 # ─── Classifier + format addendum ────────────────────────────────────────────
+#
+# Per P1.5.d: the classifier prompt no longer names a "best model" for each
+# label. The model→label mapping lives in MODEL_REGISTRY (Phase 1) and, from
+# P1.5.e onward, is chosen by observed measured_fitness — not by benchmark
+# citations. The classifier's job is to describe the SHAPE of the query;
+# picking which provider serves that shape happens downstream.
 
 CLASSIFIER_PROMPT = """You are a query router for an AI system. Classify this founder query into exactly one category. Reply with only the label, nothing else.
 
-STRATEGIC — Use when: multi-step reasoning required, business model critique, investor/fundraising prep, competitive positioning, go-to-market strategy, product decisions with tradeoffs, ambiguous situations requiring judgment. Best model: Claude Sonnet 4 (MMLU 88.7%, strongest on nuanced reasoning per Anthropic 2025 evals).
+STRATEGIC — Multi-step reasoning, business-model critique, fundraising or investor prep, competitive positioning, go-to-market strategy, product tradeoffs, ambiguous judgment calls.
 
-FACTUAL — Use when: single-fact lookup, definition, quick summary of known concept, template fill, formatting request, yes/no with brief explanation, math calculation. Best model: GPT-4o Mini (82% MMLU, 3x faster, optimal for structured retrieval per OpenAI 2024 evals).
+FACTUAL — Single-fact lookup, definition, quick summary of a known concept, template fill, formatting request, yes/no with brief explanation, math.
 
-RESEARCH — Use when: market sizing, competitor landscape, industry trends, current events, pricing data, "what is X currently doing", anything requiring information newer than training data. Best model: Perplexity Sonar (live web index, best recall on time-sensitive queries per Perplexity 2025).
+RESEARCH — Market sizing, competitor landscape, industry trends, current events, pricing data, anything requiring information newer than the model's training data.
 
-DOCUMENT — Use when: analyzing uploaded documents, reviewing pitch decks, summarizing long reports, cross-referencing multiple sources, tasks where full document context is needed. Best model: Gemini 1.5 Flash (1M token window, strongest long-context performance per Google 2024 evals).
+DOCUMENT — Analyzing an uploaded document, reviewing a pitch deck, summarizing a long report, cross-referencing multiple sources, tasks where full document context is needed.
 
 Default to STRATEGIC if ambiguous — never route ambiguous queries to cheaper models.
 
@@ -173,37 +179,68 @@ def _inject_format(system: str) -> str:
     return system + FORMAT_ADDENDUM
 
 
-# ─── Council ──────────────────────────────────────────────────────────────────
-# Runs two secondary models in parallel and returns their perspectives.
-# The Phase 2 fix (make this non-blocking on the SSE stream) lands in
-# copilot.py — this function itself stays the same shape.
+# ─── Council — seat, don't retrain (P1.5.f) ───────────────────────────────────
+#
+# Previously the council ran two DIFFERENT models (STRATEGIC + FACTUAL) in
+# parallel to produce alternative perspectives. Per P1.5.f — "seat, don't
+# retrain" — we now call the SAME STRATEGIC model N times with different
+# curated context slices instead of standing up multiple models. This:
+#   - stays cheaper and faster (one provider, one warm connection)
+#   - avoids council results drifting when we swap the underlying
+#     FACTUAL model
+#   - keeps the perspectives semantically distinct via prompt lens, not
+#     model choice
+#
+# Each entry in COUNCIL_LENSES is a (label, system-prompt-addendum) pair.
+# The primary answer runs the base prompt; the council runs the same
+# base prompt with each lens appended.
 
-COUNCIL_LABELS = ["STRATEGIC", "FACTUAL"]
+COUNCIL_LENSES = [
+    (
+        "consistency-check",
+        "Adopt this lens: audit the primary answer's internal consistency. "
+        "What claims contradict each other, or contradict the workspace "
+        "context above? If you find no contradictions, say so briefly.",
+    ),
+    (
+        "cost-risk",
+        "Adopt this lens: focus purely on downside — capital burn, wasted "
+        "cycles, opportunity cost, execution risk. What is the single "
+        "highest-cost mistake the user could make acting on this question?",
+    ),
+]
 
 
-async def _collect_response(label: str, system: str, message: str) -> dict:
-    provider = MODEL_REGISTRY[label]
+async def _run_lens(lens_label: str, lens_addendum: str, system: str, message: str) -> dict:
+    """Run the STRATEGIC model with the base system prompt + a lens addendum."""
+    provider = MODEL_REGISTRY["STRATEGIC"]
+    lens_system = _inject_format(system) + "\n\n---\nLENS: " + lens_addendum
     messages = [
-        {"role": "system", "content": _inject_format(system)},
+        {"role": "system", "content": lens_system},
         {"role": "user", "content": message},
     ]
     parts = []
     err = None
-    async for chunk in provider.complete(messages, stream=True, max_tokens=600):
+    async for chunk in provider.complete(messages, stream=True, max_tokens=500):
         if chunk.error:
             err = chunk.error
             break
         if chunk.content:
             parts.append(chunk.content)
     if err:
-        return {"model": provider.model, "response": f"[{provider.provider_name} unavailable: {err[:80]}]"}
-    return {"model": provider.model, "response": "".join(parts)}
+        return {"model": lens_label, "response": f"[{lens_label} unavailable: {err[:80]}]"}
+    return {"model": lens_label, "response": "".join(parts)}
 
 
 async def get_council_perspectives(system: str, message: str) -> list[dict]:
-    """Run 2 secondary models in parallel and return their perspectives."""
+    """
+    Run N lenses in parallel on the STRATEGIC model and return their
+    perspectives. Each perspective's `model` field is the LENS name
+    (e.g. 'consistency-check'), not a model id — the frontend already
+    treats it as a display label.
+    """
     results = await asyncio.gather(
-        *(_collect_response(label, system, message) for label in COUNCIL_LABELS),
+        *(_run_lens(label, addendum, system, message) for label, addendum in COUNCIL_LENSES),
         return_exceptions=True,
     )
     return [r for r in results if isinstance(r, dict)]

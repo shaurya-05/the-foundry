@@ -326,18 +326,20 @@ async def model_usage_stats(_: HTTPBasicCredentials = Depends(_require_admin)):
 @router.get("/api/admin/health")
 async def admin_health(_: HTTPBasicCredentials = Depends(_require_admin)):
     """
-    Deep health snapshot — providers + connectors + infra.
+    Deep health snapshot — providers + connectors + infra + fitness.
 
-    Returns whether each provider is credentialed and each connector's
-    circuit-breaker state, so we spot dead providers (like the Sonnet
-    404 that killed copilot for weeks) before a user hits them.
+    Returns whether each provider is credentialed, each connector's
+    circuit-breaker state, and each model's rolling measured_fitness
+    from model_usage_log.
     """
-    from app.services.model_provider import registry_health
+    from app.services.model_provider import registry_health, registry_rows, registry_last_loaded_iso
     from app.services import circuit_breaker
     from app.db.redis import get_redis
 
     provider_snapshot = await registry_health()
     connector_snapshot = await circuit_breaker.all_status()
+    reg_rows = await registry_rows()
+    reg_loaded_at = await registry_last_loaded_iso()
 
     # Infra health
     infra = {"postgres": "unknown", "redis": "unknown"}
@@ -366,11 +368,58 @@ async def admin_health(_: HTTPBasicCredentials = Depends(_require_admin)):
             "connectors_total": len(connector_snapshot),
             "postgres": infra["postgres"],
             "redis": infra["redis"],
+            "registry_loaded_at": reg_loaded_at,
+            "registry_rows": len(reg_rows),
         },
         "providers": provider_snapshot,
         "connectors": connector_snapshot,
         "infra": infra,
+        "registry": [
+            {
+                "label": r["label"],
+                "provider_name": r["provider_name"],
+                "model_name": r["model_name"],
+                "priority": r["priority"],
+                "measured_fitness": r["measured_fitness"] if isinstance(r["measured_fitness"], dict)
+                                    else _safe_json_loads(r["measured_fitness"]),
+            }
+            for r in reg_rows
+        ],
     }
+
+
+def _safe_json_loads(v):
+    if v is None:
+        return {}
+    if isinstance(v, dict):
+        return v
+    try:
+        import json as _j
+        return _j.loads(v)
+    except Exception:
+        return {}
+
+
+@router.post("/api/admin/registry/refresh")
+async def admin_registry_refresh(_: HTTPBasicCredentials = Depends(_require_admin)):
+    """Force a reload of MODEL_REGISTRY from the DB (after editing rows)."""
+    from app.services.model_provider import load_registry_from_db
+    reg = await load_registry_from_db()
+    return {"loaded": list(reg.keys())}
+
+
+@router.post("/api/admin/fitness/refresh")
+async def admin_fitness_refresh(
+    _: HTTPBasicCredentials = Depends(_require_admin),
+    window_days: int = 7,
+):
+    """
+    Recompute measured_fitness for every model with recent activity and
+    write it back to model_registry.
+    """
+    from app.services.model_provider import refresh_measured_fitness
+    result = await refresh_measured_fitness(window_days=window_days)
+    return result
 
 
 @router.get("/admin/model-stats")

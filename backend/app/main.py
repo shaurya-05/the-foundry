@@ -80,6 +80,14 @@ async def lifespan(app: FastAPI):
         await init_graph()
     except Exception as e:
         log.warning("neo4j_init_failed", error=str(e))
+    # Load MODEL_REGISTRY from the database (P1.5.c). If the migration
+    # hasn't been applied yet, the loader silently keeps the hard-coded
+    # fallback registry so the app still boots.
+    try:
+        from app.services.model_provider import load_registry_from_db
+        await load_registry_from_db()
+    except Exception as e:
+        log.warning("model_registry_load_failed", error=str(e))
     log.info("startup_complete", origins=ALLOWED_ORIGINS, environment=ENVIRONMENT)
     yield
     await close_pool()
