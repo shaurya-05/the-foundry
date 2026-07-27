@@ -12,6 +12,9 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./backend/migrations/000_local_extensions.sql:/docker-entrypoint-initdb.d/000_local_extensions.sql
+      - ./backend/migrations/000b_local_copilot_thread_id.sql:/docker-entrypoint-initdb.d/000b_local_copilot_thread_id.sql
+      - ./backend/migrations/000c_local_copilot_model_used.sql:/docker-entrypoint-initdb.d/000c_local_copilot_model_used.sql
       - ./backend/migrations/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql
       - ./backend/migrations/002_collab_visibility.sql:/docker-entrypoint-initdb.d/002_collab_visibility.sql
       - ./backend/migrations/003_auth.sql:/docker-entrypoint-initdb.d/003_auth.sql
@@ -21,6 +24,11 @@ services:
       - ./backend/migrations/007_project_chat.sql:/docker-entrypoint-initdb.d/007_project_chat.sql
       - ./backend/migrations/008_task_assignment.sql:/docker-entrypoint-initdb.d/008_task_assignment.sql
       - ./backend/migrations/009_workspace_graph.sql:/docker-entrypoint-initdb.d/009_workspace_graph.sql
+      - ./backend/migrations/010_onboarding.sql:/docker-entrypoint-initdb.d/010_onboarding.sql
+      - ./backend/migrations/011_workspace_plan.sql:/docker-entrypoint-initdb.d/011_workspace_plan.sql
+      - ./backend/migrations/012_onboarding_completed_at.sql:/docker-entrypoint-initdb.d/012_onboarding_completed_at.sql
+      - ./backend/migrations/013_weekly_digest.sql:/docker-entrypoint-initdb.d/013_weekly_digest.sql
+      - ./backend/migrations/014_model_registry.sql:/docker-entrypoint-initdb.d/014_model_registry.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U foundry -d foundry_db"]
       interval: 10s

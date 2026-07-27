@@ -323,6 +323,49 @@ async def model_usage_stats(_: HTTPBasicCredentials = Depends(_require_admin)):
         ]
     }
 
+async def _ollama_status(reg_rows: list) -> dict:
+    """
+    Local-agent-loop (Stage 7): warm/VRAM state for any registry row
+    backed by Ollama. Queries Ollama's native /api/ps (not the
+    OpenAI-compat endpoint — that surface doesn't expose loaded-model
+    state). Best-effort: Ollama being unreachable is reported, not
+    raised — this block must never break the rest of /api/admin/health.
+    """
+    import httpx
+
+    ollama_labels = [r for r in reg_rows if r["provider_name"] == "ollama"]
+    if not ollama_labels:
+        return {"configured": False}
+
+    base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+    ps_url = base_url.rsplit("/v1", 1)[0].rstrip("/") + "/api/ps"
+
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.get(ps_url)
+            resp.raise_for_status()
+            loaded = {m["model"]: m for m in resp.json().get("models", [])}
+    except Exception as e:
+        return {"configured": True, "reachable": False, "error": str(e)[:160]}
+
+    labels = {}
+    for r in ollama_labels:
+        m = loaded.get(r["model_name"])
+        labels[r["label"]] = {
+            "model_name": r["model_name"],
+            "warm": m is not None,
+            "size_vram_bytes": m["size_vram"] if m else None,
+            "expires_at": m.get("expires_at") if m else None,
+        }
+
+    return {
+        "configured": True,
+        "reachable": True,
+        "loaded_models_total": len(loaded),
+        "labels": labels,
+    }
+
+
 @router.get("/api/admin/health")
 async def admin_health(_: HTTPBasicCredentials = Depends(_require_admin)):
     """
@@ -340,6 +383,7 @@ async def admin_health(_: HTTPBasicCredentials = Depends(_require_admin)):
     connector_snapshot = await circuit_breaker.all_status()
     reg_rows = await registry_rows()
     reg_loaded_at = await registry_last_loaded_iso()
+    ollama_snapshot = await _ollama_status(reg_rows)
 
     # Infra health
     infra = {"postgres": "unknown", "redis": "unknown"}
@@ -374,6 +418,7 @@ async def admin_health(_: HTTPBasicCredentials = Depends(_require_admin)):
         "providers": provider_snapshot,
         "connectors": connector_snapshot,
         "infra": infra,
+        "ollama": ollama_snapshot,
         "registry": [
             {
                 "label": r["label"],
