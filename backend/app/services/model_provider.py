@@ -551,6 +551,33 @@ if os.getenv("USE_LOCAL_CLASSIFIER") == "1":
         base_url=_ollama_base, model=_ollama_model,
     )
 
+# ─── Local Ollama override (Stage 9 of local-model migration) ────────────────
+# Same pattern as USE_LOCAL_CLASSIFIER above, for the FACTUAL tier.
+# qwen2.5:7b-instruct chosen over llama3.1:8b via a real benchmark
+# (scripts/benchmark_factual_candidates.py) — both scored 5/5 on
+# correctness, qwen won decisively on latency (677ms vs 2250ms avg).
+#
+# Env knobs:
+#     USE_LOCAL_FACTUAL    "1" to activate the swap (default off)
+#     OLLAMA_BASE_URL      defaults to http://localhost:11434/v1 (shared)
+#     OLLAMA_API_KEY       defaults to "ollama-local" (shared)
+#     OLLAMA_FACTUAL_MODEL defaults to qwen2.5:7b-instruct
+
+if os.getenv("USE_LOCAL_FACTUAL") == "1":
+    _ollama_base = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+    _ollama_model = os.getenv("OLLAMA_FACTUAL_MODEL", "qwen2.5:7b-instruct")
+    os.environ.setdefault("OLLAMA_API_KEY", "ollama-local")
+    _FALLBACK_REGISTRY["FACTUAL"] = OpenAICompatibleProvider(
+        api_key_env="OLLAMA_API_KEY",
+        model=_ollama_model,
+        provider_name="ollama",
+        base_url=_ollama_base,
+    )
+    log.info(
+        "local_factual_enabled",
+        base_url=_ollama_base, model=_ollama_model,
+    )
+
 # Live registry — starts as the fallback, replaced in-place when
 # load_registry_from_db() succeeds. Callers reference MODEL_REGISTRY[label]
 # and always get the current value.
@@ -655,6 +682,14 @@ async def load_registry_from_db() -> dict[str, ModelProvider]:
                 MODEL_REGISTRY["CLASSIFIER"] = override
                 log.info(
                     "classifier_override_applied_post_load",
+                    model=override.model, base_url=override._base_url,
+                )
+        if os.getenv("USE_LOCAL_FACTUAL") == "1" and "FACTUAL" in _FALLBACK_REGISTRY:
+            override = _FALLBACK_REGISTRY["FACTUAL"]
+            if isinstance(override, OpenAICompatibleProvider) and override.provider_name == "ollama":
+                MODEL_REGISTRY["FACTUAL"] = override
+                log.info(
+                    "factual_override_applied_post_load",
                     model=override.model, base_url=override._base_url,
                 )
         _registry_rows = raw_rows
