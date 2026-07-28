@@ -100,6 +100,12 @@ async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(requi
                 first = False
                 yield f"data: {json.dumps({'type': 'model_used', 'model': model_used})}\n\n"
                 continue
+            if isinstance(chunk, tuple) and chunk[0] == "model_used":
+                # route_query() fell back to a different provider than the
+                # one it named in the first yield -- correct the record.
+                model_used = chunk[1]
+                yield f"data: {json.dumps({'type': 'model_used', 'model': model_used})}\n\n"
+                continue
             full_text.append(chunk)
             payload = json.dumps({"type": "text_delta", "text": chunk})
             yield f"data: {payload}\n\n"

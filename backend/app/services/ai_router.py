@@ -273,12 +273,16 @@ async def route_query(
     max_tokens: int = 1200,
     model_override: Optional[str] = None,
     on_status=None,   # Optional[Callable[[str], Awaitable[None]]]
-) -> AsyncIterator[str]:
+) -> AsyncIterator[str | tuple[str, str]]:
     """
     Classify and stream from the best model.
 
     First yield is the model id string (for copilot.py to emit as a
-    `model_used` SSE event). Subsequent yields are text deltas.
+    `model_used` SSE event). Subsequent yields are text deltas (str),
+    except for one possible final `("model_used", <model>)` tuple if
+    call_with_resilience fell back to a different provider than the one
+    named in the first yield -- callers should treat a tuple yield as a
+    correction to the model_used they already emitted, not text content.
 
     Failure handling is delegated to model_provider.call_with_resilience
     — same-provider transient retry once, then cross-provider fallback.
@@ -333,6 +337,17 @@ async def route_query(
                 msg = f"⚠️ Every model provider failed to respond ({chunk.error[:160]}). Please try again."
                 full_response.append(msg)
                 yield msg
+
+    # call_with_resilience can fall back to a different provider than the
+    # one named in the first yield above (e.g. STRATEGIC's Anthropic key
+    # missing -> silently answered by FACTUAL instead). Without this,
+    # callers that only read the first yield as "the model" report a
+    # model that never actually generated the content -- both the SSE
+    # model_used event and the persisted copilot_messages.model_used
+    # column end up wrong. Re-yield the label so copilot.py can correct
+    # both.
+    if final_model_used != model_id:
+        yield ("model_used", final_model_used)
 
     latency_ms = provider_latency if provider_latency is not None else (time.time() - start) * 1000
     log_model_usage(

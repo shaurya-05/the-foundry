@@ -33,6 +33,7 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
   const [streaming, setStreaming] = useState(false)
   const [status, setStatus] = useState<string>('')
   const [tab, setTab] = useState<'intel' | 'signals' | 'ops'>('intel')
+  const [activeThread, setActiveThread] = useState<string | undefined>(undefined)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const router = useRouter()
@@ -61,8 +62,10 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
 
     try {
       let full = ''
-      for await (const chunk of streamSSE('/api/copilot/message', { message: msg })) {
-        if (chunk.type === 'status') {
+      for await (const chunk of streamSSE('/api/copilot/message', { message: msg, thread_id: activeThread })) {
+        if (chunk.type === 'thread_id') {
+          setActiveThread(chunk.thread_id)
+        } else if (chunk.type === 'status') {
           setStatus(chunk.text)
         } else if (chunk.type === 'text_delta') {
           if (status) setStatus('')  // clear once real content starts
