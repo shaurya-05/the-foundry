@@ -9,13 +9,42 @@ from fastapi.responses import StreamingResponse
 
 from app.models.schemas import CopilotMessage, IntentRequest, IntentResponse
 from app.services.claude import stream_claude
-from app.services.ai_router import route_query, get_council_perspectives
+from app.services.ai_router import route_query, get_council_perspectives, estimate_tokens
 from app.services.context_engine import get_workspace_summary, build_copilot_system, build_project_copilot_system
 from app.services.usage import check_limit, increment_usage
 from app.db.postgres import get_pool
 from app.dependencies import AuthContext, require_auth
 
 log = structlog.get_logger()
+
+# History budget for multi-turn context. Local Ollama models here run a
+# 4096-token context window total (system + history + new message +
+# room for the reply) -- keep this conservative rather than per-provider
+# aware, since it needs to be safe for every tier, not just the ones
+# with much larger context windows.
+MAX_HISTORY_MESSAGES = 10
+MAX_HISTORY_TOKENS = 1500
+
+
+async def _load_thread_history(conn, thread_id: str, workspace_id: str) -> list[dict]:
+    """
+    Prior turns in a thread, oldest first, bounded by count and a rough
+    token budget (trims from the oldest first when over budget) so a
+    long-running thread can't blow the model's context window.
+    """
+    rows = await conn.fetch(
+        """SELECT role, content FROM copilot_messages
+           WHERE thread_id = $1 AND workspace_id = $2 AND role IN ('user', 'assistant')
+           ORDER BY created_at DESC LIMIT $3""",
+        thread_id, workspace_id, MAX_HISTORY_MESSAGES,
+    )
+    history = [{"role": r["role"], "content": r["content"]} for r in reversed(rows)]
+
+    total = sum(estimate_tokens(m["content"]) for m in history)
+    while history and total > MAX_HISTORY_TOKENS:
+        total -= estimate_tokens(history[0]["content"])
+        history.pop(0)
+    return history
 
 # Max time we wait AFTER the primary answer completes for the council task
 # to finish. Council is fire-and-forget from the primary stream's POV —
@@ -49,6 +78,9 @@ async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(requi
     import uuid as _uuid
     thread_id = req.thread_id or str(_uuid.uuid4())
     async with pool.acquire() as conn:
+        # Load prior turns BEFORE inserting the new message, so it isn't
+        # counted as its own history.
+        history = await _load_thread_history(conn, thread_id, auth.workspace_id) if req.thread_id else []
         await conn.execute(
             "INSERT INTO copilot_messages (workspace_id, user_id, role, content, project_id, thread_id) VALUES ($1, $2, 'user', $3, $4, $5)",
             auth.workspace_id, auth.user_id, req.message, req.project_id, thread_id,
@@ -89,6 +121,7 @@ async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(requi
             system, req.message, max_tokens=1200,
             model_override=req.model_override,
             on_status=_on_status,
+            history=history,
         ):
             # Drain any status events the wrapper queued (retries, fallbacks)
             while not status_q.empty():

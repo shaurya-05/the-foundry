@@ -273,6 +273,7 @@ async def route_query(
     max_tokens: int = 1200,
     model_override: Optional[str] = None,
     on_status=None,   # Optional[Callable[[str], Awaitable[None]]]
+    history: Optional[list[dict[str, str]]] = None,
 ) -> AsyncIterator[str | tuple[str, str]]:
     """
     Classify and stream from the best model.
@@ -283,6 +284,13 @@ async def route_query(
     call_with_resilience fell back to a different provider than the one
     named in the first yield -- callers should treat a tuple yield as a
     correction to the model_used they already emitted, not text content.
+
+    history: prior turns in this conversation, oldest first, each
+    {"role": "user"|"assistant", "content": ...}. Caller (copilot.py) is
+    responsible for bounding this to a sensible token budget -- local
+    Ollama models here run a 4096-token context window total, shared
+    between system prompt, history, the new message, and max_tokens of
+    room for the reply.
 
     Failure handling is delegated to model_provider.call_with_resilience
     — same-provider transient retry once, then cross-provider fallback.
@@ -303,6 +311,7 @@ async def route_query(
 
     messages = [
         {"role": "system", "content": _inject_format(system)},
+        *(history or []),
         {"role": "user", "content": message},
     ]
 
