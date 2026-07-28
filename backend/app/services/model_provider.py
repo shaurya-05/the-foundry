@@ -578,6 +578,55 @@ if os.getenv("USE_LOCAL_FACTUAL") == "1":
         base_url=_ollama_base, model=_ollama_model,
     )
 
+# ─── Local Ollama override (Stage 10 of local-model migration) ───────────────
+# Same pattern as USE_LOCAL_CLASSIFIER/USE_LOCAL_FACTUAL above, for the
+# STRATEGIC tier (hardest-reasoning: multi-step reasoning, business-model
+# critique, ambiguous judgment calls).
+#
+# qwen2.5:14b-instruct, not deepseek-r1:8b, despite both tying at 4.25/5 on
+# correctness in the first pass (scripts/benchmark_strategic_candidates.py).
+# deepseek-r1:8b looked like the safer pick on paper (5.5GB vs ~9GB, so a
+# smaller worst-case VRAM footprint alongside CLASSIFIER+FACTUAL) but it
+# proved genuinely unreliable on this hardware/Ollama build (0.32.5):
+# degenerate "@@@@@@" output on one run, then a full hang (GPU pinned at
+# 100%, zero tokens back within 30s) on a later run with it as the ONLY
+# loaded model — i.e. not a VRAM-contention symptom, an intrinsic fault.
+# qwen2.5:14b-instruct never failed once run in isolation; its only
+# observed crash was during the earlier mixed-residency test (both models
+# loaded at once), which is a coexistence problem, not an intrinsic one —
+# and coexistence is mitigated below by capping Ollama to one resident
+# model. An intrinsically-flaky small model is worse than a heavy-but-
+# reliable one: the latter's risk can be managed operationally, the
+# former's can't.
+#
+# Mitigation for the ~9GB footprint: this host's Ollama is run with
+# OLLAMA_MAX_LOADED_MODELS=1 (set as a user env var + at process launch),
+# forcing tiers to swap serially instead of staying concurrently resident.
+# Costs a reload (~5-8s) on every tier switch under mixed traffic, but on
+# this single-small-team deployment that's a fair trade for eliminating
+# the crash class outright.
+#
+# Env knobs:
+#     USE_LOCAL_STRATEGIC    "1" to activate the swap (default off)
+#     OLLAMA_BASE_URL        defaults to http://localhost:11434/v1 (shared)
+#     OLLAMA_API_KEY         defaults to "ollama-local" (shared)
+#     OLLAMA_STRATEGIC_MODEL defaults to qwen2.5:14b-instruct
+
+if os.getenv("USE_LOCAL_STRATEGIC") == "1":
+    _ollama_base = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+    _ollama_model = os.getenv("OLLAMA_STRATEGIC_MODEL", "qwen2.5:14b-instruct")
+    os.environ.setdefault("OLLAMA_API_KEY", "ollama-local")
+    _FALLBACK_REGISTRY["STRATEGIC"] = OpenAICompatibleProvider(
+        api_key_env="OLLAMA_API_KEY",
+        model=_ollama_model,
+        provider_name="ollama",
+        base_url=_ollama_base,
+    )
+    log.info(
+        "local_strategic_enabled",
+        base_url=_ollama_base, model=_ollama_model,
+    )
+
 # Live registry — starts as the fallback, replaced in-place when
 # load_registry_from_db() succeeds. Callers reference MODEL_REGISTRY[label]
 # and always get the current value.
@@ -690,6 +739,14 @@ async def load_registry_from_db() -> dict[str, ModelProvider]:
                 MODEL_REGISTRY["FACTUAL"] = override
                 log.info(
                     "factual_override_applied_post_load",
+                    model=override.model, base_url=override._base_url,
+                )
+        if os.getenv("USE_LOCAL_STRATEGIC") == "1" and "STRATEGIC" in _FALLBACK_REGISTRY:
+            override = _FALLBACK_REGISTRY["STRATEGIC"]
+            if isinstance(override, OpenAICompatibleProvider) and override.provider_name == "ollama":
+                MODEL_REGISTRY["STRATEGIC"] = override
+                log.info(
+                    "strategic_override_applied_post_load",
                     model=override.model, base_url=override._base_url,
                 )
         _registry_rows = raw_rows

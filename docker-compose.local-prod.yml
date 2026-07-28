@@ -58,17 +58,19 @@ services:
       JWT_SECRET: ${JWT_SECRET_LOCAL_PROD}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD_LOCAL_PROD}
       ALLOWED_ORIGINS: "https://found3ry.com,https://www.found3ry.com,http://localhost:3000,http://localhost:3001"
-      # DOCUMENT/RESEARCH/STRATEGIC still route to closed APIs (out of
-      # scope for this migration) -- set these to real keys when ready;
-      # left blank means those three tiers are simply unconfigured
-      # (is_configured() returns False), not a startup failure.
+      # DOCUMENT/RESEARCH still route to closed APIs (out of scope for this
+      # migration) -- set these to real keys when ready; left blank means
+      # those tiers are simply unconfigured (is_configured() returns
+      # False), not a startup failure.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
-      # CLASSIFIER + FACTUAL -> local Ollama, running directly on the
-      # Windows host (not in this compose network), so the container
-      # reaches it via Docker's host gateway hostname, not localhost.
+      # CLASSIFIER + FACTUAL + STRATEGIC -> local Ollama, running directly
+      # on the Windows host (not in this compose network), so the
+      # container reaches it via Docker's host gateway hostname, not
+      # localhost.
       USE_LOCAL_CLASSIFIER: "1"
       USE_LOCAL_FACTUAL: "1"
+      USE_LOCAL_STRATEGIC: "1"
       OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
       OLLAMA_API_KEY: ollama-local
       # Overriding MODEL_PROVIDER_ALLOWLIST replaces the default entirely
