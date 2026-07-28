@@ -1,0 +1,117 @@
+version: '3.9'
+
+# Persistent, production-equivalent local stack — distinct from
+# docker-compose.yml's dev containers (different container names, ports,
+# and volumes) so the two never collide and dev testing never touches
+# real user data. This is the target of the Railway->PC migration.
+#
+# Secrets come from .env.local-prod (gitignored) — run with:
+#   docker compose -f docker-compose.local-prod.yml --env-file .env.local-prod up -d
+#
+# Ports are offset from the dev compose file (5433/6380 vs 5432/6379) so
+# both can run simultaneously without conflict. Backend uses 8000, same
+# as the dev setup did — only one is meant to be running at a time.
+
+services:
+  postgres_prod:
+    image: pgvector/pgvector:pg18
+    container_name: foundry_postgres_prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: foundry
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_LOCAL_PROD}
+      POSTGRES_DB: foundry_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U foundry -d foundry_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis_prod:
+    image: redis:7-alpine
+    container_name: foundry_redis_prod
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_prod_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend_prod:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: foundry_backend_prod
+    restart: always
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql://foundry:${POSTGRES_PASSWORD_LOCAL_PROD}@postgres_prod:5432/foundry_db
+      REDIS_URL: redis://redis_prod:6379
+      JWT_SECRET: ${JWT_SECRET_LOCAL_PROD}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD_LOCAL_PROD}
+      ALLOWED_ORIGINS: "https://found3ry.com,https://www.found3ry.com,http://localhost:3000,http://localhost:3001"
+      # DOCUMENT/RESEARCH/STRATEGIC still route to closed APIs (out of
+      # scope for this migration) -- set these to real keys when ready;
+      # left blank means those three tiers are simply unconfigured
+      # (is_configured() returns False), not a startup failure.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+      # CLASSIFIER + FACTUAL -> local Ollama, running directly on the
+      # Windows host (not in this compose network), so the container
+      # reaches it via Docker's host gateway hostname, not localhost.
+      USE_LOCAL_CLASSIFIER: "1"
+      USE_LOCAL_FACTUAL: "1"
+      OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
+      OLLAMA_API_KEY: ollama-local
+      # Overriding MODEL_PROVIDER_ALLOWLIST replaces the default entirely
+      # (see model_provider.py:82-86) -- must include every closed-API
+      # host from the default plus host.docker.internal for Ollama.
+      MODEL_PROVIDER_ALLOWLIST: "api.anthropic.com,api.openai.com,api.perplexity.ai,generativelanguage.googleapis.com,api.together.xyz,api.fireworks.ai,localhost,127.0.0.1,::1,host.docker.internal"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres_prod:
+        condition: service_healthy
+      redis_prod:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend_prod:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_LOCAL_PROD}
+        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL_LOCAL_PROD}
+    container_name: foundry_frontend_prod
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend_prod:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  postgres_prod_data:
+  redis_prod_data:

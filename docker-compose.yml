@@ -67,8 +67,8 @@ services:
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: foundry_backend
     environment:
       DATABASE_URL: postgresql://foundry:foundry_secret@postgres:5432/foundry_db
@@ -97,8 +97,8 @@ services:
 
   celery_worker:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: foundry_celery
     environment:
       DATABASE_URL: postgresql://foundry:foundry_secret@postgres:5432/foundry_db

@@ -1,0 +1,41 @@
+# Build context is repo root (see backend/Dockerfile's COPY paths).
+# Without this file, local .env files and venvs get baked directly into
+# the image -- a real bug found while standing up docker-compose.local-prod.yml:
+# backend/.env (dev secrets, dev DATABASE_URL) got COPYed in, and
+# main.py's load_dotenv(override=True) silently overrode the real
+# container-injected environment variables with those stale dev values.
+
+.git/
+.github/
+
+.env
+.env.*
+!*.env.example
+backend/.env
+backend/.env.*
+!backend/*.env.example
+**/.env
+**/.env.*
+
+**/.venv/
+**/.venv*/
+**/__pycache__/
+*.py[cod]
+
+node_modules/
+frontend/.next/
+frontend/out/
+frontend/.vercel/
+
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+*.log
+logs/
+
+design/
+docs/
+scripts/
