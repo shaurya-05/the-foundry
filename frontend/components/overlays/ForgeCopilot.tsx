@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { streamSSE } from '@/lib/streaming'
+import { streamWS } from '@/lib/streaming'
 import { classifyIntent, intentLabel } from '@/lib/intent-router'
 import Markdown from '@/components/ui/Markdown'
 import { api } from '@/lib/api'
@@ -90,7 +90,7 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
 
     try {
       let full = ''
-      for await (const chunk of streamSSE('/api/copilot/message', { message: msg, thread_id: activeThread })) {
+      for await (const chunk of streamWS('/api/copilot/message', { message: msg, thread_id: activeThread })) {
         if (chunk.type === 'thread_id') {
           setActiveThread(chunk.thread_id)
         } else if (chunk.type === 'status') {

@@ -4,9 +4,11 @@ import re
 from typing import Optional
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 
+from app.auth import decode_token
+from jose import JWTError
 from app.models.schemas import CopilotMessage, IntentRequest, IntentResponse
 from app.services.claude import stream_claude
 from app.services.ai_router import route_query, get_council_perspectives, estimate_tokens
@@ -65,55 +67,106 @@ INTENT_PATTERNS = [
     (r"\b(analyze|deep dive|review|breakdown|evaluate)\s+(project|build)\b", "analyze_project"),
 ]
 
-@router.post("/message")
-async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(require_auth)):
+async def _authenticate_ws(websocket: WebSocket) -> Optional[AuthContext]:
+    """
+    WebSocket equivalent of require_auth(). Browsers' native WebSocket API
+    has no way to set a custom Authorization header on the handshake
+    request, so auth here comes from the first message sent AFTER
+    connecting, not an HTTP header. Returns None (having already closed
+    the socket) on any auth failure -- callers should just return.
+    """
+    try:
+        first = await websocket.receive_json()
+    except Exception:
+        await websocket.close(code=1008, reason="expected an auth message")
+        return None
+    token = first.get("token")
+    if not token:
+        await websocket.close(code=1008, reason="missing token")
+        return None
+    try:
+        payload = decode_token(token, expected_type="access")
+    except JWTError:
+        await websocket.close(code=1008, reason="invalid or expired token")
+        return None
+    return AuthContext(user_id=payload["sub"], workspace_id=payload["workspace_id"], email=payload["email"]), first
+
+
+@router.websocket("/message")
+async def copilot_message_ws(websocket: WebSocket):
+    """
+    WebSocket replacement for the old POST /message SSE endpoint -- see
+    the module-level note above _authenticate_ws for why. Found, via a
+    real production Cloudflare Tunnel test, that SSE responses through
+    the tunnel get buffered by Cloudflare's edge until the connection
+    closes, regardless of compression, Cache-Control, Content-Type exact
+    match, or any of three different Cloudflare dashboard settings tried
+    (Page Rule "Disable Performance", Configuration Rule "Response Body
+    Buffering" off, no-transform) -- a longstanding, apparently
+    unresolved cloudflared/Cloudflare-edge limitation (see
+    cloudflare/cloudflared#199, open since 2020). WebSocket connections
+    are proxied by Cloudflare as raw bidirectional streams, a genuinely
+    different code path not subject to that HTTP-response buffering.
+
+    Protocol: client connects, then sends ONE JSON message combining
+    auth + the request ({"token", "message", "thread_id"?, "project_id"?,
+    "model_override"?}). Server streams back the same event shapes the
+    old SSE endpoint sent (as JSON text frames instead of `data: ...`
+    lines), then closes the socket -- one connection per message, same
+    per-request shape the frontend already used via streamSSE(), not a
+    persistent multi-turn session.
+    """
+    await websocket.accept()
+    auth_result = await _authenticate_ws(websocket)
+    if auth_result is None:
+        return
+    auth, first_msg = auth_result
+
+    try:
+        req = CopilotMessage(**{k: v for k, v in first_msg.items() if k != "token"})
+    except Exception as e:
+        await websocket.send_json({"type": "error", "message": f"bad request: {e}"})
+        await websocket.close(code=1003)
+        return
+
     if not await check_limit(auth.workspace_id, 'copilot_messages'):
-        raise HTTPException(
-            status_code=429,
-            detail={'error': 'limit_exceeded', 'plan': 'spark', 'upgrade_url': '/billing/upgrade'},
-        )
+        await websocket.send_json({
+            "type": "error",
+            "message": "limit_exceeded",
+        })
+        await websocket.close(code=1008, reason="limit_exceeded")
+        return
 
     pool = await get_pool()
 
-    # Save user message
     import uuid as _uuid
     thread_id = req.thread_id or str(_uuid.uuid4())
     async with pool.acquire() as conn:
-        # Load prior turns BEFORE inserting the new message, so it isn't
-        # counted as its own history.
         history = await _load_thread_history(conn, thread_id, auth.workspace_id) if req.thread_id else []
         await conn.execute(
             "INSERT INTO copilot_messages (workspace_id, user_id, role, content, project_id, thread_id) VALUES ($1, $2, 'user', $3, $4, $5)",
             auth.workspace_id, auth.user_id, req.message, req.project_id, thread_id,
         )
 
-    # Build context — project-specific or workspace-level
     if req.project_id:
         system = await build_project_copilot_system(req.project_id, auth.workspace_id)
     else:
         summary = await get_workspace_summary(auth.workspace_id)
         system = build_copilot_system(summary)
 
-    async def stream_and_save():
+    try:
         await increment_usage(auth.workspace_id, 'copilot_messages')
         full_text = []
         model_used = "claude-sonnet-4"
         first = True
 
-        # Emit thread_id first so frontend can track it
-        yield f"data: {json.dumps({'type': 'thread_id', 'thread_id': thread_id})}\n\n"
+        await websocket.send_json({'type': 'thread_id', 'thread_id': thread_id})
 
-        # A queue lets us multiplex status events from the resilience wrapper
-        # into the SSE stream without racing the main async-for loop.
         status_q: asyncio.Queue = asyncio.Queue()
 
         async def _on_status(text: str) -> None:
             await status_q.put(text)
 
-        # Kick off the council in the background. It runs alongside the
-        # primary answer so the total wall-clock is max(primary, council)
-        # not sum. Was previously `await`-ed which blocked the SSE stream
-        # and produced empty responses — that regression is dead.
         council_task = asyncio.create_task(
             get_council_perspectives(system, req.message)
         )
@@ -125,46 +178,38 @@ async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(requi
             history=history,
             workspace_id=auth.workspace_id,
         ):
-            # Drain any status events the wrapper queued (retries, fallbacks)
             while not status_q.empty():
                 st = status_q.get_nowait()
-                yield f"data: {json.dumps({'type': 'status', 'text': st})}\n\n"
+                await websocket.send_json({'type': 'status', 'text': st})
 
             if first:
                 model_used = chunk
                 first = False
-                yield f"data: {json.dumps({'type': 'model_used', 'model': model_used})}\n\n"
+                await websocket.send_json({'type': 'model_used', 'model': model_used})
                 continue
             if isinstance(chunk, tuple) and chunk[0] == "model_used":
-                # route_query() fell back to a different provider than the
-                # one it named in the first yield -- correct the record.
                 model_used = chunk[1]
-                yield f"data: {json.dumps({'type': 'model_used', 'model': model_used})}\n\n"
+                await websocket.send_json({'type': 'model_used', 'model': model_used})
                 continue
             full_text.append(chunk)
-            payload = json.dumps({"type": "text_delta", "text": chunk})
-            yield f"data: {payload}\n\n"
+            await websocket.send_json({"type": "text_delta", "text": chunk})
 
-        # Flush any status events that arrived after the last chunk
         while not status_q.empty():
-            yield f"data: {json.dumps({'type': 'status', 'text': status_q.get_nowait()})}\n\n"
+            await websocket.send_json({'type': 'status', 'text': status_q.get_nowait()})
 
-        # Primary is done. Give council a bounded window to finish, then
-        # move on. We don't want a slow council keeping the SSE stream
-        # open indefinitely.
         try:
             if not council_task.done():
-                yield f"data: {json.dumps({'type': 'status', 'text': 'gathering second opinions...'})}\n\n"
+                await websocket.send_json({'type': 'status', 'text': 'gathering second opinions...'})
             perspectives = await asyncio.wait_for(council_task, timeout=COUNCIL_WAIT_S)
             if perspectives:
-                yield f"data: {json.dumps({'type': 'council', 'perspectives': perspectives})}\n\n"
+                await websocket.send_json({'type': 'council', 'perspectives': perspectives})
         except asyncio.TimeoutError:
             log.info("council_timeout", thread_id=thread_id, wait_s=COUNCIL_WAIT_S)
             council_task.cancel()
         except Exception as e:
             log.warning("council_error", thread_id=thread_id, error=str(e)[:200])
 
-        yield 'data: {"type": "done"}\n\n'
+        await websocket.send_json({"type": "done"})
         assistant_text = "".join(full_text)
         if assistant_text:
             async with pool.acquire() as conn:
@@ -172,12 +217,14 @@ async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(requi
                     "INSERT INTO copilot_messages (workspace_id, user_id, role, content, project_id, model_used, thread_id) VALUES ($1, $2, 'assistant', $3, $4, $5, $6)",
                     auth.workspace_id, auth.user_id, assistant_text, req.project_id, model_used, thread_id,
                 )
-
-    return StreamingResponse(
-        stream_and_save(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    except WebSocketDisconnect:
+        log.info("copilot_ws_client_disconnected", thread_id=thread_id)
+        return
+    finally:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
 
 @router.post("/tool-result")
@@ -202,34 +249,50 @@ async def submit_tool_result(req: dict, auth: AuthContext = Depends(require_auth
     return {"accepted": True}
 
 
-@router.post("/_test_file_tool")
-async def test_file_tool(req: dict, auth: AuthContext = Depends(require_auth)):
+@router.websocket("/_test_file_tool")
+async def test_file_tool_ws(websocket: WebSocket):
     """
-    Stage-3 isolation-test scaffold ONLY -- exercises the real
-    async_frontend round-trip for list_files/read_file with a real
-    connected browser, without the Stage-4 agent loop existing yet.
-    Emits exactly one `tool_request` SSE event, waits for the frontend's
-    real response (or the Stage-0 timeout), and streams back whatever
-    came of it. Not meant to survive once the real loop can drive this
-    itself -- remove when Stage 4 lands.
+    Stage-3 isolation-test scaffold ONLY, now WebSocket -- see
+    copilot_message_ws's docstring for why SSE was abandoned for this
+    transport (Cloudflare Tunnel buffers the whole response until
+    connection close, confirmed independent of compression/headers/three
+    different dashboard settings). Exercises the real async_frontend
+    round-trip for list_files/read_file with a real connected browser,
+    without the Stage-4 agent loop existing yet. Sends one `tool_request`
+    message, then periodic heartbeat messages while awaiting the
+    frontend's real response (or the timeout), then the final result.
+    Not meant to survive once the real loop can drive this itself --
+    remove when Stage 4 lands.
     """
-    tool_name = req.get("tool")
-    args = req.get("args") or {}
+    await websocket.accept()
+    auth_result = await _authenticate_ws(websocket)
+    if auth_result is None:
+        return
+    auth, first_msg = auth_result
+
+    tool_name = first_msg.get("tool")
+    args = first_msg.get("args") or {}
     if tool_name not in ("list_files", "read_file"):
-        raise HTTPException(status_code=400, detail="tool must be list_files or read_file")
+        await websocket.send_json({"type": "error", "message": "tool must be list_files or read_file"})
+        await websocket.close(code=1003)
+        return
 
-    async def _stream():
+    try:
         call_id, future = create_pending_call(auth.workspace_id)
-        yield f"data: {json.dumps({'type': 'tool_request', 'call_id': call_id, 'tool': tool_name, 'args': args})}\n\n"
-        result = await await_frontend_response(call_id, future, tool_name)
-        yield f"data: {json.dumps({'type': 'tool_result', **result})}\n\n"
-        yield 'data: {"type": "done"}\n\n'
-
-    return StreamingResponse(
-        _stream(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+        await websocket.send_json({'type': 'tool_request', 'call_id': call_id, 'tool': tool_name, 'args': args})
+        async for tick in await_frontend_response(call_id, future, tool_name):
+            if tick is None:
+                await websocket.send_json({'type': 'heartbeat'})
+            else:
+                await websocket.send_json({'type': 'tool_result', **tick})
+        await websocket.send_json({"type": "done"})
+    except WebSocketDisconnect:
+        return
+    finally:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
 
 @router.get("/history")

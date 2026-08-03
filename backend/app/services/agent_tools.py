@@ -61,7 +61,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Literal, Optional
+from typing import Any, AsyncIterator, Awaitable, Callable, Literal, Optional
 
 import structlog
 
@@ -190,40 +190,74 @@ def cancel_pending_call(call_id: str) -> None:
 DEFAULT_FRONTEND_TIMEOUT_S = 15.0
 
 
+# How often to yield a heartbeat tick while waiting -- see
+# await_frontend_response()'s docstring for why this exists. 1.5s is
+# inside the brief's "every 1-2 seconds" range, comfortably below any
+# reasonable proxy/edge idle-buffering threshold.
+HEARTBEAT_INTERVAL_S = 1.5
+
+
 async def await_frontend_response(
     call_id: str,
     future: asyncio.Future,
     tool_name: str,
     timeout_s: float = DEFAULT_FRONTEND_TIMEOUT_S,
-) -> dict:
+    heartbeat_interval_s: float = HEARTBEAT_INTERVAL_S,
+) -> AsyncIterator[Optional[dict]]:
     """
-    Await a pending async_frontend call with a timeout. NEVER raises on
-    timeout -- always returns a plain dict, so the executor/reflector
-    (Stage 4+) can reason about a timeout as just another tool outcome
-    ("continue without this file") rather than an exception that kills
-    the whole request.
+    Async generator: yields None on every heartbeat tick while still
+    waiting (caller should write an SSE comment line, e.g. ": heartbeat
+    \\n\\n", for each -- comments are silently ignored by spec-compliant
+    SSE parsers, but a periodic small write is what keeps a compressing
+    or buffering proxy actually flushing instead of holding the whole
+    response until the connection closes). Exactly one final non-None
+    dict is yielded when the wait concludes, either way:
+    {"status": "ok", ..., "result": <payload>} or
+    {"status": "timeout", ...} -- same shape as before this was turned
+    into a generator, so existing callers just need `async for` instead
+    of a plain `await`.
 
-    On timeout: calls cancel_pending_call(), which pops call_id out of
-    _PENDING_FRONTEND_CALLS. That's what makes a late-arriving POST to
-    /api/copilot/tool-result correctly get rejected afterward --
+    Why this exists at all: found via a real production Cloudflare
+    Tunnel test that a multi-second silent gap with zero writes gets
+    buffered by the proxy chain and delivered as one burst at the end,
+    instead of streamed live -- confirmed independent of compression
+    (reproduced with no Accept-Encoding sent at all). A steady trickle of
+    tiny writes is the standard, root-cause-agnostic mitigation for
+    exactly this class of problem.
+
+    asyncio.shield() is required here, not optional: this awaits the
+    SAME future across multiple wait_for() calls in the loop below.
+    Without shield(), the first per-tick timeout would cancel the inner
+    future itself (wait_for's documented behavior on timeout), leaving
+    nothing for a later resolve_pending_call() to resolve. shield()
+    ensures only the OUTER per-tick wait is cancelled on each tick
+    timeout; the inner future survives to be awaited again next tick.
+
+    On final timeout: calls cancel_pending_call(), which pops call_id
+    out of _PENDING_FRONTEND_CALLS. That's what makes a late-arriving
+    POST to /api/copilot/tool-result correctly get rejected afterward --
     resolve_pending_call() looks the call_id up in that same dict, finds
     nothing, and returns False exactly like it would for any unknown
-    call_id. There's no separate "expired" bookkeeping needed; removal
-    IS the rejection mechanism.
-
-    The trailing `finally` guards a case the try/except doesn't cover:
-    if the surrounding request is itself cancelled (e.g. the client
-    disconnected) while this await is in flight, asyncio raises
-    CancelledError here, which is neither caught nor swallowed --  it
-    propagates, exactly as it should, so the request actually tears
-    down. But we still don't want to leak the registry entry in that
-    case, so cleanup runs regardless of how this coroutine exits.
+    call_id. The trailing `finally` guards the case where the
+    surrounding request itself gets cancelled (e.g. client disconnected)
+    while a tick-wait is in flight -- cleanup runs regardless of how this
+    generator exits.
     """
+    elapsed = 0.0
     try:
-        payload = await asyncio.wait_for(future, timeout=timeout_s)
-        return {"status": "ok", "tool": tool_name, "call_id": call_id, "result": payload}
-    except asyncio.TimeoutError:
-        log.warning("frontend_tool_timeout", tool=tool_name, call_id=call_id, timeout_s=timeout_s)
-        return {"status": "timeout", "tool": tool_name, "call_id": call_id}
+        while True:
+            remaining = timeout_s - elapsed
+            if remaining <= 0:
+                log.warning("frontend_tool_timeout", tool=tool_name, call_id=call_id, timeout_s=timeout_s)
+                yield {"status": "timeout", "tool": tool_name, "call_id": call_id}
+                return
+            tick = min(heartbeat_interval_s, remaining)
+            try:
+                payload = await asyncio.wait_for(asyncio.shield(future), timeout=tick)
+                yield {"status": "ok", "tool": tool_name, "call_id": call_id, "result": payload}
+                return
+            except asyncio.TimeoutError:
+                elapsed += tick
+                yield None
     finally:
         cancel_pending_call(call_id)

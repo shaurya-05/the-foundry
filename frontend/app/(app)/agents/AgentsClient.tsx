@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { streamSSE, LimitExceededError } from '@/lib/streaming'
+import { streamWS, LimitExceededError } from '@/lib/streaming'
 import Markdown from '@/components/ui/Markdown'
 import { API_URL } from '@/lib/config'
 import { getToken } from '@/lib/auth'
@@ -154,7 +154,7 @@ export default function AgentsClient() {
     setExchanges(prev => [...prev, { q, a: '', ts: new Date() }])
     setQuery('')
     try {
-      for await (const chunk of streamSSE('/api/copilot/message', { message: q, thread_id: activeThread, model_override: selectedModel === 'auto' ? undefined : selectedModel })) {
+      for await (const chunk of streamWS('/api/copilot/message', { message: q, thread_id: activeThread, model_override: selectedModel === 'auto' ? undefined : selectedModel })) {
         if (chunk.type === 'thread_id' && chunk.thread_id) { setActiveThread(chunk.thread_id); loadThreads() }
         else if (chunk.type === 'status') setStatus(chunk.text)
         else if (chunk.type === 'text_delta') { if (status) setStatus(''); setExchanges(prev => { const c = [...prev]; c[c.length-1] = { ...c[c.length-1], a: c[c.length-1].a + chunk.text }; return c }) }

@@ -1,4 +1,4 @@
-import { API_URL } from '@/lib/config'
+import { API_URL, wsPath } from '@/lib/config'
 import { getToken } from '@/lib/auth'
 
 export class LimitExceededError extends Error {
@@ -30,6 +30,8 @@ export type StreamChunk =
   | { type: 'model_used'; model: string }
   | { type: 'error'; message: string }
   | { type: 'tool_request'; call_id: string; tool: string; args: Record<string, unknown> }
+  | { type: 'tool_result'; status: 'ok' | 'timeout'; tool: string; call_id: string; result?: unknown }
+  | { type: 'heartbeat' }
 
 export async function* streamSSE(
   path: string,
@@ -105,6 +107,106 @@ export async function* streamSSE(
           // ignore parse errors
         }
       }
+    }
+  }
+}
+
+/**
+ * WebSocket-based replacement for streamSSE(), same AsyncGenerator<StreamChunk>
+ * shape so callers just swap the function name. Built after confirming, via
+ * a real production Cloudflare Tunnel test, that SSE responses through the
+ * tunnel get buffered by Cloudflare's edge until the connection closes --
+ * independent of compression, headers, or three different Cloudflare
+ * dashboard settings -- a longstanding, apparently unresolved cloudflared
+ * limitation (cloudflare/cloudflared#199, open since 2020). Cloudflare
+ * proxies WebSocket connections as raw bidirectional streams, a genuinely
+ * different code path not subject to that HTTP-response buffering.
+ *
+ * Protocol: connect, then send ONE message combining the auth token with
+ * the request body ({token, ...body}) -- browsers' native WebSocket API
+ * has no way to set a custom Authorization header on the handshake, so
+ * auth has to travel as the first payload instead. Server streams back
+ * the same JSON shapes the old SSE endpoint sent as `data: ...` lines,
+ * now as WebSocket text frames, then closes the connection after `done`
+ * -- one connection per message, matching the per-request shape callers
+ * already used via streamSSE(), not a persistent multi-turn session.
+ */
+export async function* streamWS(
+  path: string,
+  body: unknown,
+): AsyncGenerator<StreamChunk> {
+  const token = getToken()
+  const url = wsPath(path)
+
+  let ws: WebSocket
+  try {
+    ws = new WebSocket(url)
+  } catch (e) {
+    yield { type: 'error', message: e instanceof Error ? e.message : 'Could not open WebSocket' }
+    return
+  }
+
+  const queue: StreamChunk[] = []
+  let resolveNext: (() => void) | null = null
+  let closed = false
+  let errorMsg: string | null = null
+
+  function wake() {
+    if (resolveNext) {
+      const r = resolveNext
+      resolveNext = null
+      r()
+    }
+  }
+
+  // Handlers wired up BEFORE onopen fires, so no message dispatched in
+  // the gap between the browser opening the socket and this code running
+  // can be missed.
+  ws.onmessage = (event: MessageEvent) => {
+    try {
+      queue.push(JSON.parse(event.data) as StreamChunk)
+      wake()
+    } catch {
+      // ignore parse errors
+    }
+  }
+  ws.onclose = () => {
+    closed = true
+    wake()
+  }
+  ws.onerror = () => {
+    errorMsg = errorMsg ?? 'WebSocket connection error'
+    closed = true
+    wake()
+  }
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ token, ...(body as Record<string, unknown>) }))
+  }
+
+  try {
+    while (true) {
+      if (queue.length > 0) {
+        const chunk = queue.shift() as StreamChunk
+        yield chunk
+        if (chunk.type === 'done' || chunk.type === 'pipeline_complete') {
+          ws.close()
+          return
+        }
+        continue
+      }
+      if (closed) {
+        if (errorMsg) yield { type: 'error', message: errorMsg }
+        return
+      }
+      await new Promise<void>((resolve) => {
+        resolveNext = resolve
+      })
+    }
+  } finally {
+    // Reached on early return (caller broke out of a `for await` loop)
+    // as well as normal completion -- make sure the socket doesn't leak.
+    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+      ws.close()
     }
   }
 }

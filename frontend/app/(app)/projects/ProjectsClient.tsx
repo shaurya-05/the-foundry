@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { api, Project, Task } from '@/lib/api'
-import { streamSSE } from '@/lib/streaming'
+import { streamSSE, streamWS } from '@/lib/streaming'
 import GlassCard from '@/components/ui/GlassCard'
 import SectionHeader from '@/components/ui/SectionHeader'
 import EmptyState from '@/components/ui/EmptyState'
@@ -703,7 +703,7 @@ function ProjectExpandedView({
     setChatStreaming(true)
     let assistantText = ''
     try {
-      for await (const chunk of streamSSE('/api/copilot/message', { message: msg, project_id: project.id })) {
+      for await (const chunk of streamWS('/api/copilot/message', { message: msg, project_id: project.id })) {
         if (chunk.type === 'text_delta') {
           assistantText += chunk.text
           setChatMessages(prev => {

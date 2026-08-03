@@ -173,7 +173,21 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     response.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), interest-cohort=()"
-    response.headers["Cache-Control"] = "no-store"
+    # SSE responses get `no-transform` added -- the standard HTTP
+    # directive (RFC 7234 §5.2.2.4) telling compliant intermediaries
+    # (Cloudflare included) not to recompress/transform the response.
+    # Found while chasing a Cloudflare Tunnel SSE-buffering bug: a real
+    # browser's default Accept-Encoding causes Cloudflare's edge to gzip
+    # these responses, and gzip needs to buffer enough to fill a block
+    # before it can flush -- a real contributing factor even though it
+    # wasn't the sole cause (the same buffering reproduced with no
+    # Accept-Encoding sent at all, i.e. no compression in play). Scoped
+    # to text/event-stream only -- every other response keeps the plain
+    # no-store it always had.
+    if response.headers.get("content-type", "").startswith("text/event-stream"):
+        response.headers["Cache-Control"] = "no-store, no-transform"
+    else:
+        response.headers["Cache-Control"] = "no-store"
     return response
 
 
