@@ -97,7 +97,7 @@ class ToolSpec:
     execute: Optional[Callable[[dict, ToolContext], Awaitable[ToolResult]]] = None
     # Only meaningful for kind="async_frontend": how long the loop waits
     # for the browser's response before giving up.
-    frontend_timeout_s: float = 30.0
+    frontend_timeout_s: float = 15.0  # keep in sync with DEFAULT_FRONTEND_TIMEOUT_S below
 
     def __post_init__(self):
         if self.kind == "sync" and self.execute is None:
@@ -176,5 +176,54 @@ def resolve_pending_call(call_id: str, workspace_id: str, payload: dict) -> bool
 
 
 def cancel_pending_call(call_id: str) -> None:
-    """Cleanup after a timeout or an aborted loop — must be called by whoever awaited the future, in a finally block, so a never-resolved call doesn't leak forever."""
+    """Cleanup after a timeout or an aborted loop. Safe to call more than once or on an already-resolved/absent call_id -- pop(..., None) never raises."""
     _PENDING_FRONTEND_CALLS.pop(call_id, None)
+
+
+# Default wait for a frontend round-trip. A real File System Access API
+# read is a local disk read once permission is already granted -- near-
+# instant in the common case. This just needs to be generous enough for
+# a slow permission re-prompt, not so long that a genuinely dead
+# frontend (closed tab, crashed browser, revoked permission mid-flight)
+# hangs the whole agent loop for minutes. Per-tool override available via
+# ToolSpec.frontend_timeout_s.
+DEFAULT_FRONTEND_TIMEOUT_S = 15.0
+
+
+async def await_frontend_response(
+    call_id: str,
+    future: asyncio.Future,
+    tool_name: str,
+    timeout_s: float = DEFAULT_FRONTEND_TIMEOUT_S,
+) -> dict:
+    """
+    Await a pending async_frontend call with a timeout. NEVER raises on
+    timeout -- always returns a plain dict, so the executor/reflector
+    (Stage 4+) can reason about a timeout as just another tool outcome
+    ("continue without this file") rather than an exception that kills
+    the whole request.
+
+    On timeout: calls cancel_pending_call(), which pops call_id out of
+    _PENDING_FRONTEND_CALLS. That's what makes a late-arriving POST to
+    /api/copilot/tool-result correctly get rejected afterward --
+    resolve_pending_call() looks the call_id up in that same dict, finds
+    nothing, and returns False exactly like it would for any unknown
+    call_id. There's no separate "expired" bookkeeping needed; removal
+    IS the rejection mechanism.
+
+    The trailing `finally` guards a case the try/except doesn't cover:
+    if the surrounding request is itself cancelled (e.g. the client
+    disconnected) while this await is in flight, asyncio raises
+    CancelledError here, which is neither caught nor swallowed --  it
+    propagates, exactly as it should, so the request actually tears
+    down. But we still don't want to leak the registry entry in that
+    case, so cleanup runs regardless of how this coroutine exits.
+    """
+    try:
+        payload = await asyncio.wait_for(future, timeout=timeout_s)
+        return {"status": "ok", "tool": tool_name, "call_id": call_id, "result": payload}
+    except asyncio.TimeoutError:
+        log.warning("frontend_tool_timeout", tool=tool_name, call_id=call_id, timeout_s=timeout_s)
+        return {"status": "timeout", "tool": tool_name, "call_id": call_id}
+    finally:
+        cancel_pending_call(call_id)
