@@ -600,11 +600,24 @@ if os.getenv("USE_LOCAL_FACTUAL") == "1":
 # former's can't.
 #
 # Mitigation for the ~9GB footprint: this host's Ollama is run with
-# OLLAMA_MAX_LOADED_MODELS=1 (set as a user env var + at process launch),
-# forcing tiers to swap serially instead of staying concurrently resident.
-# Costs a reload (~5-8s) on every tier switch under mixed traffic, but on
-# this single-small-team deployment that's a fair trade for eliminating
-# the crash class outright.
+# OLLAMA_MAX_LOADED_MODELS=2 (set as a user env var + at process launch;
+# raised from 1 after measuring the real cost -- see
+# scripts/measure_tier_switch_latency.py). At =1, CLASSIFIER pays a full
+# swap on EVERY request regardless of destination tier, because it always
+# evicts whatever answered last and gets evicted right back -- there's no
+# such thing as a free repeat. At =2, CLASSIFIER effectively never gets
+# evicted (it's touched on every request, so it's never Ollama's LRU
+# victim), which cut FACTUAL-tier latency from ~6.5-7s flat to ~0.9s on
+# back-to-back same-tier calls (worst-case alternating traffic still
+# averaged 3.8s, down from 6.5s). STRATEGIC got ~1-2s *slower* on average
+# (extra overhead managing 2 resident slots instead of 1) since it's
+# always the one competing for the 2nd slot against CLASSIFIER+FACTUAL --
+# an acceptable trade since STRATEGIC's baseline latency (~10-12s) is
+# already the tier where users expect deliberation, unlike FACTUAL's
+# quick-lookup use case. Verified stable (0 crashes, 0 GPU corruption)
+# across a 25-request run that repeatedly hits the CLASSIFIER+STRATEGIC
+# coexistence point (~2.16GB + ~9GB ≈ 11.16GB, close to this card's
+# 12.28GB ceiling).
 #
 # Env knobs:
 #     USE_LOCAL_STRATEGIC    "1" to activate the swap (default off)
