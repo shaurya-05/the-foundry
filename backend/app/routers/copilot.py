@@ -12,6 +12,7 @@ from app.services.claude import stream_claude
 from app.services.ai_router import route_query, get_council_perspectives, estimate_tokens
 from app.services.context_engine import get_workspace_summary, build_copilot_system, build_project_copilot_system
 from app.services.usage import check_limit, increment_usage
+from app.services.agent_tools import resolve_pending_call
 from app.db.postgres import get_pool
 from app.dependencies import AuthContext, require_auth
 
@@ -177,6 +178,28 @@ async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(requi
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.post("/tool-result")
+async def submit_tool_result(req: dict, auth: AuthContext = Depends(require_auth)):
+    """
+    The frontend half of an async_frontend tool's round-trip (see
+    agent_tools.py's module docstring for the full protocol). The
+    frontend POSTs here with the call_id it received in a `tool_request`
+    SSE event, plus whatever result it produced (e.g. real file content
+    read via the File System Access API). This resolves the asyncio
+    Future the agent loop is awaiting, in the SAME original /message
+    request -- it does not start a new AI turn.
+    """
+    call_id = req.get("call_id")
+    if not call_id:
+        raise HTTPException(status_code=400, detail="call_id required")
+    accepted = resolve_pending_call(call_id, auth.workspace_id, req)
+    if not accepted:
+        # Not an error the frontend needs to retry on -- most commonly
+        # means the loop already timed out waiting and moved on.
+        return {"accepted": False, "reason": "unknown call_id, wrong workspace, or already resolved"}
+    return {"accepted": True}
 
 
 @router.get("/history")
