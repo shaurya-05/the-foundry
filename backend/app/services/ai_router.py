@@ -121,13 +121,13 @@ def log_model_usage(
 
 CLASSIFIER_PROMPT = """You are a query router for an AI system. Classify this founder query into exactly one category. Reply with only the label, nothing else.
 
-STRATEGIC — Multi-step reasoning, business-model critique, fundraising or investor prep, competitive positioning, go-to-market strategy, product tradeoffs, ambiguous judgment calls.
+STRATEGIC — Multi-step reasoning, business-model critique, fundraising or investor prep, competitive positioning, go-to-market strategy, product tradeoffs, ambiguous judgment calls. Includes reacting to something that happened in THE USER'S OWN BUSINESS (their churn rate, their metrics, their team, their customers) — that's an internal judgment call, not external research, even if it just happened.
 
-FACTUAL — Single-fact lookup, definition, quick summary of a known concept, template fill, formatting request, yes/no with brief explanation, math.
+FACTUAL — Single-fact lookup, definition, quick summary of a known STABLE concept (something with one correct answer that doesn't change over time — historical dates, math, standard business terms, established facts), template fill, formatting request, yes/no with brief explanation.
 
-RESEARCH — Market sizing, competitor landscape, industry trends, current events, pricing data, anything requiring information newer than the model's training data.
+RESEARCH — Needs CURRENT information about the OUTSIDE WORLD that only a live web search could answer correctly: today's news, this week's external events, current/latest market prices or interest rates or stock values, a specific company's current funding/valuation, general market sizing or competitor landscape. Trigger words pointing here: "current", "latest", "today", "this week", "right now" -- but ONLY when paired with something external and publicly changeable (prices, news, rates, funding rounds), never the user's own business data or documents. A stable historical fact (e.g. "what year did X launch") is FACTUAL even if it mentions a company; that same company's live stock price or this week's headlines about it is RESEARCH.
 
-DOCUMENT — Analyzing an uploaded document, reviewing a pitch deck, summarizing a long report, cross-referencing multiple sources, tasks where full document context is needed.
+DOCUMENT — Analyzing, summarizing, or comparing SPECIFIC MATERIALS the user has (or would have) provided or referenced -- decks, contracts, transcripts, reports, codebases, past internal updates -- regardless of what time periods those materials cover. Comparing "our Q1 vs Q3 deck" or "our last three updates" is DOCUMENT, not RESEARCH, because the source is the user's own provided material, not a live external lookup.
 
 Default to STRATEGIC if ambiguous — never route ambiguous queries to cheaper models.
 
@@ -249,6 +249,42 @@ async def get_council_perspectives(system: str, message: str) -> list[dict]:
 # ─── Main router ──────────────────────────────────────────────────────────────
 
 
+# Injected into the system prompt when a query classifies as RESEARCH or
+# DOCUMENT but that tier's provider isn't configured (no PERPLEXITY_API_KEY
+# / GEMINI_API_KEY -- true for this local-only deployment). Without this,
+# call_with_resilience silently falls back to STRATEGIC/FACTUAL, and that
+# model has no idea it's being asked something it structurally can't
+# answer -- it just generates a plausible-sounding response. For RESEARCH
+# that means presenting stale training-data knowledge as if it were
+# current (e.g. "As of my last update in October 2023, the Fed rate
+# is..."); for DOCUMENT it means inventing content for documents it was
+# never given. Comprehensive eval (scripts/comprehensive_evaluation.py)
+# surfaced this as a real trust gap, not just a routing quirk -- the fix
+# is a prompt-level caveat at the exact point we know a fallback is about
+# to happen, not a routing change (RESEARCH/DOCUMENT classification itself
+# was reasonably accurate; the danger was in the *unflagged* fallback).
+_UNCONFIGURED_TIER_CAVEATS = {
+    "RESEARCH": (
+        "\n\nIMPORTANT: This question asks for current or real-time information "
+        "(news, prices, rates, recent events, anything time-sensitive) that you "
+        "do NOT have access to -- you have no web access and a training "
+        "cutoff. Do not present old training data as if it were current. "
+        "State plainly that you can't check live data for this, give general "
+        "context only if it's genuinely still useful, and suggest where the "
+        "user could find current information."
+    ),
+    "DOCUMENT": (
+        "\n\nIMPORTANT: This question asks you to reference specific documents "
+        "(contracts, decks, transcripts, code, reports, etc.) that have NOT "
+        "been provided in this conversation -- you have no actual access to "
+        "the user's files. Do not invent or assume specific document "
+        "content. State plainly that you don't have those documents in this "
+        "conversation, and ask the user to paste or share the relevant "
+        "content if they want it analyzed."
+    ),
+}
+
+
 def _label_from_override(model_override: Optional[str]) -> Optional[str]:
     """Reverse-lookup a label from a model id passed by the frontend."""
     if not model_override:
@@ -309,8 +345,12 @@ async def route_query(
     model_id = provider.model
     yield model_id
 
+    formatted_system = _inject_format(system)
+    if label in _UNCONFIGURED_TIER_CAVEATS and not provider.is_configured():
+        formatted_system += _UNCONFIGURED_TIER_CAVEATS[label]
+
     messages = [
-        {"role": "system", "content": _inject_format(system)},
+        {"role": "system", "content": formatted_system},
         *(history or []),
         {"role": "user", "content": message},
     ]
