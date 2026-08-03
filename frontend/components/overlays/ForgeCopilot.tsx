@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { streamWS } from '@/lib/streaming'
+import { streamWS, submitToolResult } from '@/lib/streaming'
 import { classifyIntent, intentLabel } from '@/lib/intent-router'
 import Markdown from '@/components/ui/Markdown'
 import { api } from '@/lib/api'
@@ -15,9 +15,14 @@ import {
 
 interface Message {
   id: string
-  role: 'user' | 'copilot' | 'typing' | 'intent'
+  role: 'user' | 'copilot' | 'typing' | 'intent' | 'trace' | 'confirm'
   content: string
   intent?: string
+  // 'confirm' only -- a pending agent_confirm_write, resolved in place
+  // once the user picks approve/decline (never re-asked on re-render).
+  callId?: string
+  source?: string
+  resolved?: 'approved' | 'declined'
 }
 
 interface ForgeCopilotProps {
@@ -40,6 +45,7 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
   const [activeThread, setActiveThread] = useState<string | undefined>(undefined)
   const [folderConnected, setFolderConnected] = useState(false)
   const [fileAccessSupported, setFileAccessSupported] = useState(true)
+  const [agentMode, setAgentMode] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const router = useRouter()
@@ -87,10 +93,13 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
     setStreaming(true)
     setStatus('')
     const responseId = Date.now() + 'r'
+    const runningAsAgent = agentMode
 
     try {
       let full = ''
-      for await (const chunk of streamWS('/api/copilot/message', { message: msg, thread_id: activeThread })) {
+      for await (const chunk of streamWS('/api/copilot/message', {
+        message: msg, thread_id: activeThread, agent_mode: runningAsAgent,
+      })) {
         if (chunk.type === 'thread_id') {
           setActiveThread(chunk.thread_id)
         } else if (chunk.type === 'status') {
@@ -115,6 +124,45 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
             }
             return [...filtered, { id: responseId, role: 'copilot', content: full }]
           })
+        } else if (chunk.type === 'agent_started') {
+          setMessages(prev => [
+            ...prev.filter(m => m.role !== 'typing'),
+            { id: Date.now() + 'as', role: 'trace', content: `Goal: ${chunk.goal}` },
+            { id: Date.now() + 't2', role: 'typing', content: '' },
+          ])
+        } else if (chunk.type === 'agent_tool_call') {
+          const argsStr = Object.keys(chunk.args || {}).length ? ` ${JSON.stringify(chunk.args)}` : ''
+          setMessages(prev => [
+            ...prev.filter(m => m.role !== 'typing'),
+            { id: `${Date.now()}-atc-${chunk.iteration}-${chunk.tool}`, role: 'trace', content: `→ ${chunk.tool}${argsStr}` },
+            { id: Date.now() + 't3', role: 'typing', content: '' },
+          ])
+        } else if (chunk.type === 'agent_observation') {
+          const summary = typeof chunk.result === 'string' ? chunk.result : JSON.stringify(chunk.result)
+          setMessages(prev => [
+            ...prev.filter(m => m.role !== 'typing'),
+            { id: `${Date.now()}-ao-${chunk.iteration}-${chunk.tool}`, role: 'trace', content: `← ${summary.slice(0, 300)}` },
+            { id: Date.now() + 't4', role: 'typing', content: '' },
+          ])
+        } else if (chunk.type === 'agent_confirm_write') {
+          setMessages(prev => [
+            ...prev.filter(m => m.role !== 'typing'),
+            {
+              id: `confirm-${chunk.call_id}`, role: 'confirm',
+              content: chunk.text, source: chunk.source, callId: chunk.call_id,
+            },
+            { id: Date.now() + 't5', role: 'typing', content: '' },
+          ])
+        } else if (chunk.type === 'agent_final') {
+          setMessages(prev => [
+            ...prev.filter(m => m.role !== 'typing'),
+            { id: responseId, role: 'copilot', content: chunk.answer },
+          ])
+        } else if (chunk.type === 'agent_stopped') {
+          setMessages(prev => [
+            ...prev.filter(m => m.role !== 'typing'),
+            { id: responseId, role: 'copilot', content: chunk.partial_answer },
+          ])
         }
       }
     } catch {
@@ -123,6 +171,13 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
       setStreaming(false)
       setStatus('')
     }
+  }
+
+  async function handleConfirmWrite(callId: string, approved: boolean) {
+    setMessages(prev => prev.map(m =>
+      m.callId === callId ? { ...m, resolved: approved ? 'approved' : 'declined' } : m,
+    ))
+    await submitToolResult(callId, { approved })
   }
 
   function handleKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -206,16 +261,38 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
             when asked. Hidden entirely if the browser has no File System
             Access API support (Safari); those users keep the existing
             upload flow instead of hitting a silently-broken button. */}
-        {fileAccessSupported && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+            {fileAccessSupported && (
+              <button
+                onClick={folderConnected ? handleDisconnectFolder : handleConnectFolder}
+                style={{
+                  background: 'none',
+                  border: '1px solid var(--color-n300, #d0d0d0)',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  color: folderConnected ? 'var(--color-arc-cyan)' : 'var(--color-n600)',
+                  fontFamily: 'var(--font-plex-mono), monospace',
+                  fontSize: 10,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  padding: '3px 8px',
+                }}
+              >
+                {folderConnected ? '● Folder connected' : '○ Connect folder'}
+              </button>
+            )}
+            {/* Explicit opt-in for the Stage 4 agent loop -- a normal chat
+                message never silently becomes a multi-step goal. */}
             <button
-              onClick={folderConnected ? handleDisconnectFolder : handleConnectFolder}
+              onClick={() => setAgentMode(v => !v)}
+              disabled={streaming}
+              title="When on, your next message runs as a multi-step agent goal instead of a single-turn chat reply."
               style={{
                 background: 'none',
                 border: '1px solid var(--color-n300, #d0d0d0)',
                 borderRadius: 6,
-                cursor: 'pointer',
-                color: folderConnected ? 'var(--color-arc-cyan)' : 'var(--color-n600)',
+                cursor: streaming ? 'not-allowed' : 'pointer',
+                color: agentMode ? 'var(--color-arc-cyan)' : 'var(--color-n600)',
                 fontFamily: 'var(--font-plex-mono), monospace',
                 fontSize: 10,
                 letterSpacing: '0.06em',
@@ -223,10 +300,9 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
                 padding: '3px 8px',
               }}
             >
-              {folderConnected ? '● Folder connected' : '○ Connect folder'}
+              {agentMode ? '● Agent mode' : '○ Agent mode'}
             </button>
           </div>
-        )}
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 0, marginBottom: -1 }}>
@@ -262,7 +338,7 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
             {messages.length === 0 ? (
               <StarterPrompts onSelect={p => { setInput(p); textareaRef.current?.focus() }} />
             ) : (
-              messages.map(msg => <MessageBubble key={msg.id} msg={msg} />)
+              messages.map(msg => <MessageBubble key={msg.id} msg={msg} onConfirmWrite={handleConfirmWrite} />)
             )}
             <div ref={bottomRef} />
           </div>
@@ -378,11 +454,66 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
   )
 }
 
-function MessageBubble({ msg }: { msg: Message }) {
+function MessageBubble({ msg, onConfirmWrite }: { msg: Message; onConfirmWrite: (callId: string, approved: boolean) => void }) {
   if (msg.role === 'intent') {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0' }}>
         <EyebrowLabel keyword={`INTENT — ${msg.content}`} color="var(--color-n400)" />
+      </div>
+    )
+  }
+  if (msg.role === 'trace') {
+    return (
+      <div
+        style={{
+          fontFamily: 'var(--font-plex-mono), monospace',
+          fontSize: 11,
+          color: 'var(--color-n600)',
+          margin: '4px 0 4px 32px',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+        }}
+      >
+        {msg.content}
+      </div>
+    )
+  }
+  if (msg.role === 'confirm') {
+    return (
+      <div
+        style={{
+          margin: '10px 0 10px 32px',
+          border: '1px solid var(--color-arc-cyan-deep)',
+          padding: '10px 12px',
+          background: 'var(--color-vellum)',
+        }}
+      >
+        <div style={{ fontSize: 10, fontFamily: 'var(--font-plex-mono), monospace', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--color-n600)', marginBottom: 6 }}>
+          Remember this? ({msg.source === 'user_stated' ? 'you said this' : 'agent inferred this'})
+        </div>
+        <div style={{ fontFamily: 'var(--font-archivo), system-ui, sans-serif', fontSize: 14, marginBottom: 8, color: 'var(--color-ink)' }}>
+          {msg.content}
+        </div>
+        {msg.resolved ? (
+          <div style={{ fontSize: 11, fontFamily: 'var(--font-plex-mono), monospace', color: 'var(--color-n600)' }}>
+            {msg.resolved === 'approved' ? '✓ Saved' : '✗ Not saved'}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => onConfirmWrite(msg.callId as string, true)}
+              style={{ background: 'var(--color-arc-cyan)', border: 'none', padding: '4px 10px', cursor: 'pointer', fontSize: 12, fontFamily: 'var(--font-archivo), system-ui, sans-serif' }}
+            >
+              Save
+            </button>
+            <button
+              onClick={() => onConfirmWrite(msg.callId as string, false)}
+              style={{ background: 'none', border: '1px solid var(--color-n300, #d0d0d0)', padding: '4px 10px', cursor: 'pointer', fontSize: 12, fontFamily: 'var(--font-archivo), system-ui, sans-serif' }}
+            >
+              Don't save
+            </button>
+          </div>
+        )}
       </div>
     )
   }

@@ -32,6 +32,13 @@ export type StreamChunk =
   | { type: 'tool_request'; call_id: string; tool: string; args: Record<string, unknown> }
   | { type: 'tool_result'; status: 'ok' | 'timeout'; tool: string; call_id: string; result?: unknown }
   | { type: 'heartbeat' }
+  // Phase 3 Stage 4 -- agent loop trace events (backend/app/services/agent_loop.py)
+  | { type: 'agent_started'; goal: string }
+  | { type: 'agent_tool_call'; iteration: number; tool: string; args: Record<string, unknown> }
+  | { type: 'agent_observation'; iteration: number; tool: string; result: unknown }
+  | { type: 'agent_confirm_write'; call_id: string; text: string; source: string }
+  | { type: 'agent_final'; answer: string; iterations_used: number }
+  | { type: 'agent_stopped'; reason: string; partial_answer: string }
 
 export async function* streamSSE(
   path: string,
@@ -209,6 +216,22 @@ export async function* streamWS(
       ws.close()
     }
   }
+}
+
+/**
+ * POST the frontend's side of an async_frontend round-trip back to the
+ * backend (see backend/app/services/agent_tools.py's module docstring).
+ * Used both for real file-access results (fileAccess.ts has its own
+ * inline POST for that) and for the agent loop's memory-write confirm
+ * gate, where the "result" is just {approved: boolean} -- there's no
+ * real tool execution on the frontend side, just a user's yes/no.
+ */
+export async function submitToolResult(callId: string, payload: Record<string, unknown>): Promise<void> {
+  await fetch(`${API_URL}/api/copilot/tool-result`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    body: JSON.stringify({ call_id: callId, ...payload }),
+  })
 }
 
 /** Collect full text from a stream. Calls onChunk for each text_delta. */

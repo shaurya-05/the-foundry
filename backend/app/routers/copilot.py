@@ -14,7 +14,8 @@ from app.services.claude import stream_claude
 from app.services.ai_router import route_query, get_council_perspectives, estimate_tokens
 from app.services.context_engine import get_workspace_summary, build_copilot_system, build_project_copilot_system
 from app.services.usage import check_limit, increment_usage
-from app.services.agent_tools import resolve_pending_call, create_pending_call, await_frontend_response
+from app.services.agent_tools import resolve_pending_call, create_pending_call, await_frontend_response, ToolContext
+from app.services.agent_loop import run_agent_loop
 from app.db.postgres import get_pool
 from app.dependencies import AuthContext, require_auth
 
@@ -147,6 +148,34 @@ async def copilot_message_ws(websocket: WebSocket):
             "INSERT INTO copilot_messages (workspace_id, user_id, role, content, project_id, thread_id) VALUES ($1, $2, 'user', $3, $4, $5)",
             auth.workspace_id, auth.user_id, req.message, req.project_id, thread_id,
         )
+
+    if req.agent_mode:
+        await increment_usage(auth.workspace_id, 'copilot_messages')
+        await websocket.send_json({'type': 'thread_id', 'thread_id': thread_id})
+        ctx = ToolContext(workspace_id=auth.workspace_id, user_id=auth.user_id, thread_id=thread_id)
+        final_text = ""
+        try:
+            async for event in run_agent_loop(req.message, ctx):
+                await websocket.send_json(event)
+                if event["type"] == "agent_final":
+                    final_text = event["answer"]
+                elif event["type"] == "agent_stopped":
+                    final_text = event["partial_answer"]
+            await websocket.send_json({"type": "done"})
+            if final_text:
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        "INSERT INTO copilot_messages (workspace_id, user_id, role, content, project_id, model_used, thread_id) VALUES ($1, $2, 'assistant', $3, $4, $5, $6)",
+                        auth.workspace_id, auth.user_id, final_text, req.project_id, "agent-loop", thread_id,
+                    )
+        except WebSocketDisconnect:
+            log.info("copilot_ws_client_disconnected", thread_id=thread_id, agent_mode=True)
+        finally:
+            try:
+                await websocket.close()
+            except Exception:
+                pass
+        return
 
     if req.project_id:
         system = await build_project_copilot_system(req.project_id, auth.workspace_id)

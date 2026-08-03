@@ -145,6 +145,10 @@ class CopilotMessage(BaseModel):
     project_id: Optional[str] = None
     thread_id: Optional[str] = None
     model_override: Optional[str] = None
+    # Explicit opt-in only -- Phase 3 Stage 4's agent loop never fires from
+    # message content alone, so a normal chat message is never silently
+    # treated as a multi-step goal. See copilot.py's copilot_message_ws.
+    agent_mode: bool = False
 
 class IntentRequest(BaseModel):
     message: str
