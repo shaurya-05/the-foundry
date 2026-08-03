@@ -88,6 +88,15 @@ async def lifespan(app: FastAPI):
         await load_registry_from_db()
     except Exception as e:
         log.warning("model_registry_load_failed", error=str(e))
+    # Agent tool registration (Phase 3). Importing a tool module registers
+    # it into TOOL_REGISTRY as a side effect -- see agent_tools.py's
+    # module docstring. No agent loop calls these yet (Stage 4, not built);
+    # this just keeps the registry populated in the real running app.
+    try:
+        from app.services import agent_tools, memory_tool  # noqa: F401
+        log.info("agent_tools_registered", tools=list(agent_tools.TOOL_REGISTRY.keys()))
+    except Exception as e:
+        log.warning("agent_tools_registration_failed", error=str(e))
     log.info("startup_complete", origins=ALLOWED_ORIGINS, environment=ENVIRONMENT)
     yield
     await close_pool()
