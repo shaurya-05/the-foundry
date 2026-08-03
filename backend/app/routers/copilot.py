@@ -12,7 +12,7 @@ from app.services.claude import stream_claude
 from app.services.ai_router import route_query, get_council_perspectives, estimate_tokens
 from app.services.context_engine import get_workspace_summary, build_copilot_system, build_project_copilot_system
 from app.services.usage import check_limit, increment_usage
-from app.services.agent_tools import resolve_pending_call
+from app.services.agent_tools import resolve_pending_call, create_pending_call, await_frontend_response
 from app.db.postgres import get_pool
 from app.dependencies import AuthContext, require_auth
 
@@ -200,6 +200,36 @@ async def submit_tool_result(req: dict, auth: AuthContext = Depends(require_auth
         # means the loop already timed out waiting and moved on.
         return {"accepted": False, "reason": "unknown call_id, wrong workspace, or already resolved"}
     return {"accepted": True}
+
+
+@router.post("/_test_file_tool")
+async def test_file_tool(req: dict, auth: AuthContext = Depends(require_auth)):
+    """
+    Stage-3 isolation-test scaffold ONLY -- exercises the real
+    async_frontend round-trip for list_files/read_file with a real
+    connected browser, without the Stage-4 agent loop existing yet.
+    Emits exactly one `tool_request` SSE event, waits for the frontend's
+    real response (or the Stage-0 timeout), and streams back whatever
+    came of it. Not meant to survive once the real loop can drive this
+    itself -- remove when Stage 4 lands.
+    """
+    tool_name = req.get("tool")
+    args = req.get("args") or {}
+    if tool_name not in ("list_files", "read_file"):
+        raise HTTPException(status_code=400, detail="tool must be list_files or read_file")
+
+    async def _stream():
+        call_id, future = create_pending_call(auth.workspace_id)
+        yield f"data: {json.dumps({'type': 'tool_request', 'call_id': call_id, 'tool': tool_name, 'args': args})}\n\n"
+        result = await await_frontend_response(call_id, future, tool_name)
+        yield f"data: {json.dumps({'type': 'tool_result', **result})}\n\n"
+        yield 'data: {"type": "done"}\n\n'
+
+    return StreamingResponse(
+        _stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/history")

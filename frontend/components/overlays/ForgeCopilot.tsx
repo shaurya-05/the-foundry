@@ -8,6 +8,10 @@ import { api } from '@/lib/api'
 import { useRouter } from 'next/navigation'
 import Glyph3 from '@/components/brand/Glyph3'
 import EyebrowLabel from '@/components/brand/EyebrowLabel'
+import {
+  isFileAccessSupported, connectFolder, disconnectFolder, getConnectedFolder,
+  handleFileToolRequest,
+} from '@/lib/fileAccess'
 
 interface Message {
   id: string
@@ -34,6 +38,8 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
   const [status, setStatus] = useState<string>('')
   const [tab, setTab] = useState<'intel' | 'signals' | 'ops'>('intel')
   const [activeThread, setActiveThread] = useState<string | undefined>(undefined)
+  const [folderConnected, setFolderConnected] = useState(false)
+  const [fileAccessSupported, setFileAccessSupported] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const router = useRouter()
@@ -41,6 +47,28 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  useEffect(() => {
+    setFileAccessSupported(isFileAccessSupported())
+    if (isFileAccessSupported()) {
+      getConnectedFolder().then(handle => setFolderConnected(!!handle))
+    }
+  }, [])
+
+  async function handleConnectFolder() {
+    try {
+      await connectFolder()
+      setFolderConnected(true)
+    } catch {
+      // User cancelled the native picker, or permission was denied --
+      // not an error worth surfacing, just leave the state as-is.
+    }
+  }
+
+  async function handleDisconnectFolder() {
+    await disconnectFolder()
+    setFolderConnected(false)
+  }
 
   async function send() {
     if (!input.trim() || streaming) return
@@ -67,6 +95,15 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
           setActiveThread(chunk.thread_id)
         } else if (chunk.type === 'status') {
           setStatus(chunk.text)
+        } else if (chunk.type === 'tool_request') {
+          if (chunk.tool === 'list_files' || chunk.tool === 'read_file') {
+            // Fire-and-continue: this POSTs the real result back to
+            // /api/copilot/tool-result, which resolves the backend's
+            // pending future. Nothing further arrives on THIS stream
+            // until that round-trip completes server-side, so there's
+            // no next chunk being raced here.
+            handleFileToolRequest(chunk)
+          }
         } else if (chunk.type === 'text_delta') {
           if (status) setStatus('')  // clear once real content starts
           full += chunk.text
@@ -164,6 +201,32 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
             ×
           </button>
         </div>
+
+        {/* File access — read-only, so COFOUND3R can look at real files
+            when asked. Hidden entirely if the browser has no File System
+            Access API support (Safari); those users keep the existing
+            upload flow instead of hitting a silently-broken button. */}
+        {fileAccessSupported && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <button
+              onClick={folderConnected ? handleDisconnectFolder : handleConnectFolder}
+              style={{
+                background: 'none',
+                border: '1px solid var(--color-n300, #d0d0d0)',
+                borderRadius: 6,
+                cursor: 'pointer',
+                color: folderConnected ? 'var(--color-arc-cyan)' : 'var(--color-n600)',
+                fontFamily: 'var(--font-plex-mono), monospace',
+                fontSize: 10,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                padding: '3px 8px',
+              }}
+            >
+              {folderConnected ? '● Folder connected' : '○ Connect folder'}
+            </button>
+          </div>
+        )}
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 0, marginBottom: -1 }}>

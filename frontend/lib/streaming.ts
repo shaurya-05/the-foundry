@@ -29,6 +29,7 @@ export type StreamChunk =
   | { type: 'thread_id'; thread_id: string }
   | { type: 'model_used'; model: string }
   | { type: 'error'; message: string }
+  | { type: 'tool_request'; call_id: string; tool: string; args: Record<string, unknown> }
 
 export async function* streamSSE(
   path: string,
