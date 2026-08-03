@@ -5,6 +5,7 @@ import { sectionLabels } from '@/styles/design-system'
 import { useEffect, useState } from 'react'
 import H3rosStamp from '@/components/brand/H3rosStamp'
 import Glyph3 from '@/components/brand/Glyph3'
+import { useTheme } from '@/lib/theme'
 
 interface HeaderProps {
   onCommand: () => void
@@ -18,6 +19,7 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
   const pathname = usePathname()
   const section = pathname.split('/')[1] || 'dashboard'
   const sectionName = sectionLabels[section] || 'The FOUND3RY'
+  const { theme, toggle } = useTheme()
 
   const [time, setTime] = useState('')
   const [date, setDate] = useState('')
@@ -34,17 +36,18 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
 
   return (
     <header
-      className="foundry-header"
+      className="foundry-header liquid-glass-chip"
       style={{
         height: 50,
-        background: 'var(--color-vellum)',
-        borderBottom: '1px solid var(--color-n200)',
-        borderRadius: 0,
+        margin: '8px 12px 0',
         display: 'flex',
         alignItems: 'center',
         gap: 8,
         flexShrink: 0,
         zIndex: 30,
+        borderRadius: 14,
+        /* ensure frost isn't killed by ancestor filters */
+        isolation: 'auto',
       }}
     >
       {/* Mobile hamburger */}
@@ -112,9 +115,9 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
             alignItems: 'center',
             gap: 6,
             padding: '4px 10px',
-            background: 'var(--color-off-white)',
-            border: '1px solid var(--color-n200)',
-            borderRadius: 0,
+            background: 'var(--glass-bg)',
+            border: '1px solid var(--border)',
+            borderRadius: 10,
           }}
         >
           <div
@@ -153,6 +156,28 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
           <span className="foundry-header-shortcut" style={{ fontFamily: 'var(--font-plex-mono), monospace', fontWeight: 500, fontSize: 9, opacity: 0.6, marginLeft: 4 }}>⌘K</span>
         </GhostButton>
 
+        {/* Theme toggle */}
+        <button
+          onClick={toggle}
+          title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
+          aria-label="Toggle theme"
+          style={{
+            width: 32,
+            height: 32,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'var(--glass-bg)',
+            border: '1px solid var(--border)',
+            borderRadius: 10,
+            cursor: 'pointer',
+            color: 'var(--color-ink)',
+            fontSize: 13,
+          }}
+        >
+          {theme === 'dark' ? '☀' : '☾'}
+        </button>
+
         {/* Signals bell */}
         <button
           onClick={onSignals}
@@ -163,15 +188,13 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'var(--color-off-white)',
-            border: '1px solid var(--color-n200)',
-            borderRadius: 0,
+            background: 'var(--glass-bg)',
+            border: '1px solid var(--border)',
+            borderRadius: 10,
             cursor: 'pointer',
             color: 'var(--color-ink)',
             transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-vellum)')}
-          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-off-white)')}
           title="Signals"
           aria-label="Signals"
         >
@@ -185,6 +208,7 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
                 width: 7,
                 height: 7,
                 background: 'var(--color-signal)',
+                borderRadius: 2,
                 border: '1.5px solid var(--color-vellum)',
               }}
             />
@@ -231,9 +255,9 @@ function GhostButton({
         alignItems: 'center',
         gap: 6,
         padding: '5px 10px',
-        background: 'transparent',
-        border: '1px solid var(--color-ink)',
-        borderRadius: 2,
+        background: 'var(--glass-bg)',
+        border: '1px solid var(--border)',
+        borderRadius: 10,
         cursor: 'pointer',
         color: 'var(--color-ink)',
         fontSize: 11,
@@ -241,12 +265,14 @@ function GhostButton({
         transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out), color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = 'var(--color-ink)'
-        e.currentTarget.style.color = 'var(--color-off-white)'
+        e.currentTarget.style.backgroundColor = 'var(--color-arc-cyan)'
+        e.currentTarget.style.color = '#F4F7FA'
+        e.currentTarget.style.borderColor = 'var(--color-arc-cyan)'
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = 'transparent'
+        e.currentTarget.style.backgroundColor = 'var(--glass-bg)'
         e.currentTarget.style.color = 'var(--color-ink)'
+        e.currentTarget.style.borderColor = 'var(--border)'
       }}
     >
       {children}

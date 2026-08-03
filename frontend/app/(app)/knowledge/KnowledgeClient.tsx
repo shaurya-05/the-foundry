@@ -1,10 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { api, KnowledgeItem, streamUrl } from '@/lib/api'
+import { api, KnowledgeItem } from '@/lib/api'
 import { streamSSE } from '@/lib/streaming'
 import GlassCard from '@/components/ui/GlassCard'
-import SectionHeader from '@/components/ui/SectionHeader'
 import EmptyState from '@/components/ui/EmptyState'
 import Markdown from '@/components/ui/Markdown'
 import VisibilityBadge from '@/components/ui/VisibilityBadge'
@@ -13,7 +12,7 @@ type Visibility = 'private' | 'team' | 'public'
 const VIS_ORDER: Visibility[] = ['private', 'team', 'public']
 
 const TYPE_COLORS: Record<string, string> = {
-  text: 'var(--color-arc-cyan-deep)',
+  text: 'var(--color-arc-cyan)',
   url: 'var(--color-n600)',
   pdf: 'var(--color-ink)',
   note: 'var(--color-n600)',
@@ -118,27 +117,89 @@ export default function KnowledgeClient() {
     ? items.filter(i => i.title.toLowerCase().includes(search.toLowerCase()) || i.content.toLowerCase().includes(search.toLowerCase()))
     : items
 
-  return (
-    <div className="page-enter" style={{ maxWidth: 1100 }}>
-      <SectionHeader title="Knowledge" sublabel="Research & docs" accent="var(--color-arc-cyan-deep)">
-        <span className="badge" style={{ background: 'rgba(42,184,255,0.10)', color: 'var(--color-arc-cyan-deep)', border: '1px solid rgba(42,184,255,0.20)' }}>
-          {items.length} ENTRIES
-        </span>
-      </SectionHeader>
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '9px 12px',
+    border: '1px solid var(--border)',
+    background: 'rgba(255,255,255,0.35)',
+    borderRadius: 10,
+    fontFamily: 'var(--font-archivo)',
+    fontSize: 13,
+    color: 'var(--color-ink)',
+    outline: 'none',
+  }
 
-      <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 16 }}>
-        {/* Ingest Form */}
+  return (
+    <div className="page-enter" style={{ maxWidth: 1100, fontFamily: 'var(--font-archivo)' }}>
+      {/* Header — matches command-center type treatment */}
+      <div style={{ marginBottom: 22, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{
+            fontFamily: 'var(--font-ibm-plex-mono)',
+            fontSize: 10,
+            color: 'var(--color-n400)',
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            marginBottom: 8,
+          }}>
+            Research & docs
+          </div>
+          <h1 style={{
+            fontFamily: 'var(--font-archivo)',
+            fontSize: 'clamp(1.6rem, 2.4vw, 2rem)',
+            fontWeight: 700,
+            letterSpacing: '-0.02em',
+            textTransform: 'none',
+            color: 'var(--color-ink)',
+            lineHeight: 1.15,
+            margin: 0,
+          }}>
+            Knowledge
+          </h1>
+          <p style={{ marginTop: 8, fontSize: 14, color: 'var(--color-n600)', maxWidth: 420, lineHeight: 1.5 }}>
+            Ingest research, notes, and URLs — query them when you need answers.
+          </p>
+        </div>
+        <div className="bay-panel" style={{ padding: '8px 14px', fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-arc-cyan)' }}>
+          {items.length} entries
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 340px) 1fr', gap: 14 }} className="knowledge-grid">
+        {/* Ingest */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <GlassCard accent="var(--color-arc-cyan-deep)" accentTop style={{ padding: '18px 20px' }}>
-            <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--color-arc-cyan-deep)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 14 }}>
-              Ingest Knowledge
+          <GlassCard accent="var(--color-arc-cyan)" accentTop style={{ padding: '16px 18px' }} hover={false}>
+            <div style={{
+              fontFamily: 'var(--font-ibm-plex-mono)',
+              fontSize: 9,
+              color: 'var(--color-n400)',
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              marginBottom: 14,
+            }}>
+              Ingest
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {/* Mode tabs */}
-              <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+              <div style={{ display: 'flex', gap: 4, padding: 3, background: 'rgba(255,255,255,0.22)', borderRadius: 10, border: '1px solid var(--border)' }}>
                 {(['text', 'file', 'url'] as const).map(m => (
-                  <button key={m} onClick={() => setUploadMode(m)}
-                    style={{ flex: 1, padding: '5px 0', border: '1px solid var(--color-n200)', borderRadius: 2, background: uploadMode === m ? 'var(--color-ink)' : 'transparent', color: uploadMode === m ? 'var(--color-off-white)' : 'var(--color-n600)', fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                  <button
+                    key={m}
+                    onClick={() => setUploadMode(m)}
+                    style={{
+                      flex: 1,
+                      padding: '6px 0',
+                      border: 'none',
+                      borderRadius: 8,
+                      background: uploadMode === m ? 'var(--color-arc-cyan)' : 'transparent',
+                      color: uploadMode === m ? '#F4F7FA' : 'var(--color-n600)',
+                      fontFamily: 'var(--font-ibm-plex-mono)',
+                      fontSize: 9,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                    }}
+                  >
                     {m === 'text' ? 'Paste' : m === 'file' ? 'Upload' : 'URL'}
                   </button>
                 ))}
@@ -146,61 +207,77 @@ export default function KnowledgeClient() {
 
               {uploadMode === 'text' && (
                 <>
-                  <input className="forge-input" placeholder="Title" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
-                  <textarea className="forge-input" placeholder="Paste content, notes, research..." rows={5} value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} />
-                  <input className="forge-input" placeholder="Tags (comma separated)" value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} />
-                  <button onClick={create} disabled={saving || !form.title || !form.content} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
-                    {saving ? 'PROCESSING...' : '+ ADD TO ARCHIVE'}
+                  <input style={inputStyle} placeholder="Title" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+                  <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: 100 }} placeholder="Paste content, notes, research…" rows={5} value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} />
+                  <input style={inputStyle} placeholder="Tags (comma separated)" value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} />
+                  <button onClick={create} disabled={saving || !form.title || !form.content} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', opacity: saving || !form.title || !form.content ? 0.45 : 1 }}>
+                    {saving ? 'Processing…' : '+ Add to archive'}
                   </button>
                 </>
               )}
 
               {uploadMode === 'file' && (
-                <>
-                  <div
-                    style={{ border: '2px dashed var(--color-n200)', borderRadius: 4, padding: '24px 16px', textAlign: 'center', cursor: 'pointer', background: 'var(--color-vellum)' }}
-                    onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--color-arc-cyan-deep)' }}
-                    onDragLeave={e => { e.currentTarget.style.borderColor = 'var(--color-n200)' }}
-                    onDrop={e => { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--color-n200)'; const f = e.dataTransfer.files[0]; if (f) uploadFile(f) }}
-                    onClick={() => document.getElementById('file-upload-input')?.click()}
-                  >
-                    <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--color-n600)', marginBottom: 6 }}>
-                      {uploadingFile ? 'Uploading...' : 'Drop file here or click to browse'}
-                    </div>
-                    <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--color-n400)' }}>PDF, TXT, MD — max 10MB</div>
-                    <input id="file-upload-input" type="file" accept=".pdf,.txt,.md,.csv" style={{ display: 'none' }}
-                      onChange={e => { const f = e.target.files?.[0]; if (f) uploadFile(f); e.target.value = '' }} />
+                <div
+                  style={{
+                    border: '1.5px dashed var(--border-strong)',
+                    borderRadius: 12,
+                    padding: '28px 16px',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    background: 'var(--bg)',
+                  }}
+                  onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--color-arc-cyan)' }}
+                  onDragLeave={e => { e.currentTarget.style.borderColor = 'var(--border-strong)' }}
+                  onDrop={e => { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--border-strong)'; const f = e.dataTransfer.files[0]; if (f) uploadFile(f) }}
+                  onClick={() => document.getElementById('file-upload-input')?.click()}
+                >
+                  <div style={{ fontFamily: 'var(--font-archivo)', fontSize: 13, color: 'var(--color-ink)', marginBottom: 6 }}>
+                    {uploadingFile ? 'Uploading…' : 'Drop file or click to browse'}
                   </div>
-                </>
+                  <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--color-n400)' }}>PDF, TXT, MD — max 10MB</div>
+                  <input id="file-upload-input" type="file" accept=".pdf,.txt,.md,.csv" style={{ display: 'none' }}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) uploadFile(f); e.target.value = '' }} />
+                </div>
               )}
 
               {uploadMode === 'url' && (
                 <>
-                  <input className="forge-input" placeholder="https://..." value={urlInput} onChange={e => setUrlInput(e.target.value)}
+                  <input style={inputStyle} placeholder="https://…" value={urlInput} onChange={e => setUrlInput(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') fetchUrl() }} />
                   <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--color-n400)' }}>
-                    We'll fetch and extract the content automatically
+                    We&apos;ll fetch and extract the content automatically
                   </div>
-                  <button onClick={fetchUrl} disabled={fetchingUrl || !urlInput.trim()} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
-                    {fetchingUrl ? 'FETCHING...' : 'FETCH URL'}
+                  <button onClick={fetchUrl} disabled={fetchingUrl || !urlInput.trim()} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', opacity: fetchingUrl || !urlInput.trim() ? 0.45 : 1 }}>
+                    {fetchingUrl ? 'Fetching…' : 'Fetch URL'}
                   </button>
                 </>
               )}
             </div>
           </GlassCard>
 
-          {/* Query Panel */}
           {queryItem && (
-            <GlassCard accent="var(--color-n600)" accentTop style={{ padding: '18px 20px' }}>
+            <GlassCard style={{ padding: '16px 18px' }} hover={false}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--color-n600)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                  Querying: {queryItem.title.slice(0, 30)}
+                <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--color-n400)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                  Querying · {queryItem.title.slice(0, 28)}
                 </div>
-                <button onClick={() => { setQueryItem(null); setAnswer('') }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>×</button>
+                <button
+                  onClick={() => { setQueryItem(null); setAnswer('') }}
+                  style={{
+                    background: 'rgba(255,255,255,0.1)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    width: 28,
+                    height: 28,
+                    cursor: 'pointer',
+                    color: 'var(--color-n600)',
+                    fontSize: 16,
+                  }}
+                >×</button>
               </div>
               <textarea
-                className="forge-input"
-                placeholder="Ask a question about this knowledge..."
+                style={{ ...inputStyle, resize: 'vertical', minHeight: 72 }}
+                placeholder="Ask a question about this knowledge…"
                 rows={3}
                 value={question}
                 onChange={e => setQuestion(e.target.value)}
@@ -209,9 +286,9 @@ export default function KnowledgeClient() {
                 onClick={query}
                 disabled={streaming || !question.trim()}
                 className="btn btn-primary"
-                style={{ width: '100%', justifyContent: 'center', marginTop: 8, background: 'var(--color-n600)' }}
+                style={{ width: '100%', justifyContent: 'center', marginTop: 8, opacity: streaming || !question.trim() ? 0.45 : 1 }}
               >
-                {streaming ? 'ANALYZING...' : 'QUERY ARCHIVE'}
+                {streaming ? 'Analyzing…' : 'Query archive'}
               </button>
               {answer && (
                 <div style={{ marginTop: 12, maxHeight: 300, overflow: 'auto' }}>
@@ -222,41 +299,37 @@ export default function KnowledgeClient() {
           )}
         </div>
 
-        {/* Knowledge List */}
+        {/* Archive list */}
         <div>
-          <div style={{ marginBottom: 12 }}>
-            <input
-              className="forge-input"
-              placeholder="Search archive..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-          </div>
+          <input
+            style={{ ...inputStyle, marginBottom: 12 }}
+            placeholder="Search archive…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
           {loading ? (
-            <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading archive...</div>
+            <div style={{ color: 'var(--color-n400)', fontSize: 13 }}>Loading archive…</div>
           ) : displayed.length === 0 ? (
             <EmptyState
               icon={<span style={{ fontSize: 24 }}>▣</span>}
               title="Archive is empty"
               subtitle="Ingest research papers, articles, notes, and URLs to build your knowledge base."
-              accent="var(--color-arc-cyan-deep)"
+              accent="var(--color-arc-cyan)"
             />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {displayed.map(item => (
-                <GlassCard
-                  key={item.id}
-                  hover
-                  style={{ padding: '14px 18px' }}
-                >
+                <GlassCard key={item.id} hover style={{ padding: '14px 16px' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
                         <span
                           className="badge"
                           style={{
-                            background: `${TYPE_COLORS[item.type] || '#6B7280'}18`,
-                            color: TYPE_COLORS[item.type] || '#6B7280',
+                            background: 'var(--color-arc-soft)',
+                            color: TYPE_COLORS[item.type] || 'var(--color-n600)',
+                            borderRadius: 6,
+                            border: '1px solid var(--border)',
                           }}
                         >
                           {item.type}
@@ -269,36 +342,33 @@ export default function KnowledgeClient() {
                           <span
                             key={tag}
                             className="badge"
-                            style={{ background: 'rgba(0,0,0,0.03)', color: 'var(--text-muted)' }}
+                            style={{ background: 'var(--bg)', color: 'var(--color-n600)', borderRadius: 6 }}
                           >
                             {tag}
                           </span>
                         ))}
                       </div>
-                      <div
-                        style={{
-                          fontFamily: 'var(--font-barlow-condensed)',
-                          fontWeight: 600,
-                          fontSize: 15,
-                          letterSpacing: '0.03em',
-                          textTransform: 'uppercase',
-                          color: 'var(--text-primary)',
-                          marginBottom: 4,
-                        }}
-                      >
+                      <div style={{
+                        fontFamily: 'var(--font-archivo)',
+                        fontWeight: 700,
+                        fontSize: 15,
+                        letterSpacing: '-0.01em',
+                        textTransform: 'none',
+                        color: 'var(--color-ink)',
+                        marginBottom: 4,
+                      }}>
                         {item.title}
                       </div>
-                      <div
-                        style={{
-                          fontFamily: 'var(--font-barlow)',
-                          fontSize: 12,
-                          color: 'var(--text-muted)',
-                          overflow: 'hidden',
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical' as const,
-                        }}
-                      >
+                      <div style={{
+                        fontFamily: 'var(--font-archivo)',
+                        fontSize: 13,
+                        color: 'var(--color-n600)',
+                        overflow: 'hidden',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical' as const,
+                        lineHeight: 1.45,
+                      }}>
                         {item.summary || item.content.slice(0, 120)}
                       </div>
                     </div>
@@ -306,27 +376,25 @@ export default function KnowledgeClient() {
                       <button
                         onClick={() => { setQueryItem(item); setAnswer('') }}
                         className="btn btn-ghost btn-sm"
-                        style={{ fontSize: 10, color: 'var(--color-arc-cyan-deep)', borderColor: 'rgba(58,190,255,0.2)' }}
+                        style={{ fontSize: 10, color: 'var(--color-arc-cyan)', borderColor: 'var(--border-accent)' }}
                       >
-                        QUERY
+                        Query
                       </button>
                       <button
                         onClick={() => remove(item.id)}
                         className="btn btn-ghost btn-sm"
-                        style={{ fontSize: 10, color: 'var(--color-ink)', borderColor: 'rgba(255,59,59,0.2)' }}
+                        style={{ fontSize: 10 }}
                       >
-                        DEL
+                        Del
                       </button>
                     </div>
                   </div>
-                  <div
-                    style={{
-                      fontFamily: 'var(--font-ibm-plex-mono)',
-                      fontSize: 9,
-                      color: 'var(--text-subtle)',
-                      marginTop: 8,
-                    }}
-                  >
+                  <div style={{
+                    fontFamily: 'var(--font-ibm-plex-mono)',
+                    fontSize: 9,
+                    color: 'var(--color-n400)',
+                    marginTop: 10,
+                  }}>
                     {new Date(item.created_at).toLocaleDateString()}
                   </div>
                 </GlassCard>

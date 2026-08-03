@@ -1,34 +1,16 @@
 /**
- * Card — H3ROS replacement for GlassCard.
- *
- * Vellum surface, hairline border, zero radius by default, no shadow, no
- * gradient. Hover lightens to Off-White via transition-colors only.
- *
- * Variants:
- *   - default:   flat Vellum surface, 0 radius
- *   - bordered:  hairline border (default)
- *   - chassis:   inside a SpecialistGrid — no own border (grid gap is the line)
- *
- * Accent variant adds a 1.5px Arc Cyan top or left bar — used sparingly
- * (featured pricing tier, active item).
+ * Card — frosted bay panel (semi-transparent so the darker floor shows through).
  */
 import { CSSProperties, ReactNode, MouseEvent } from 'react'
 
 type CardProps = {
   children: ReactNode
-  /** Render hover background change (off-white). Default true. */
   hover?: boolean
-  /** Add a 1.5px Arc Cyan bar on the top or left edge. */
   accent?: 'top' | 'left'
-  /** Use inside SpecialistGrid: drops own border, lets grid gap separate. */
   chassis?: boolean
-  /** Visual padding scale. */
   padding?: 'none' | 'sm' | 'md' | 'lg'
-  /** Optional onClick (renders as button). */
   onClick?: (e: MouseEvent<HTMLDivElement>) => void
-  /** Optional className. */
   className?: string
-  /** Optional inline style overrides. */
   style?: CSSProperties
 }
 
@@ -54,22 +36,17 @@ export default function Card({
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
-      className={className}
+      className={`bay-panel ${hover ? 'liquid-glass-interactive' : ''} ${className || ''}`.trim()}
       style={{
         position: 'relative',
-        backgroundColor: 'var(--color-vellum)',
-        border: chassis ? 'none' : '1px solid var(--color-n200)',
-        borderRadius: 0,
+        /* Let .bay-panel CSS handle frost fill — don't override with opaque color */
+        border: chassis ? 'none' : undefined,
+        borderRadius: chassis ? 0 : undefined,
         padding: PADDING_MAP[padding],
-        cursor: onClick ? 'pointer' : undefined,
-        transition: hover ? 'background-color var(--duration-base, 200ms) var(--ease-out, ease-out)' : undefined,
+        cursor: onClick || hover ? 'pointer' : undefined,
+        boxShadow: chassis ? 'none' : undefined,
+        /* Keep shadows visible — don't clip with overflow:hidden */
         ...style,
-      }}
-      onMouseEnter={(e) => {
-        if (hover) e.currentTarget.style.backgroundColor = 'var(--color-off-white)'
-      }}
-      onMouseLeave={(e) => {
-        if (hover) e.currentTarget.style.backgroundColor = 'var(--color-vellum)'
       }}
     >
       {accent === 'top' && (
@@ -78,8 +55,10 @@ export default function Card({
           style={{
             position: 'absolute',
             top: 0, left: 0, right: 0,
-            height: 1.5,
+            height: 2,
             backgroundColor: 'var(--color-arc-cyan)',
+            borderRadius: '16px 16px 0 0',
+            zIndex: 1,
           }}
         />
       )}
@@ -89,8 +68,9 @@ export default function Card({
           style={{
             position: 'absolute',
             top: 0, bottom: 0, left: 0,
-            width: 1.5,
+            width: 2,
             backgroundColor: 'var(--color-arc-cyan)',
+            zIndex: 1,
           }}
         />
       )}

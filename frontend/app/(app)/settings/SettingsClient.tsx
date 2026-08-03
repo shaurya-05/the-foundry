@@ -176,10 +176,10 @@ export default function SettingsClient() {
       {/* ─── Connections shortcut ───────────────────────────────────── */}
       <button
         onClick={() => router.push('/settings/connections')}
+        className="bay-panel liquid-glass-interactive"
         style={{
           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '14px 18px', marginBottom: 24, cursor: 'pointer',
-          background: 'var(--bg-surface, #fff)', border: '1px solid var(--border, rgba(0,0,0,0.07))',
           borderLeft: '3px solid var(--color-arc-cyan-deep)',
           textAlign: 'left',
         }}
@@ -244,7 +244,7 @@ export default function SettingsClient() {
             type="email"
             value={user.email}
             disabled
-            style={{ ...inputStyle, background: '#F1F3F5', color: 'var(--text-muted)', cursor: 'not-allowed' }}
+            style={{ ...inputStyle, background: 'rgba(255,255,255,0.18)', color: 'var(--text-muted)', cursor: 'not-allowed' }}
           />
         </Field>
 
@@ -293,7 +293,7 @@ export default function SettingsClient() {
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '9px 12px',
                 borderBottom: i < user.members.length - 1 ? '1px solid var(--border)' : 'none',
-                background: '#FFFFFF',
+                background: 'rgba(255,255,255,0.10)',
               }}>
                 <div style={{
                   width: 28, height: 28, borderRadius: 7,
@@ -320,7 +320,7 @@ export default function SettingsClient() {
                       onChange={e => handleRoleChange(m.user_id, e.target.value)}
                       style={{
                         padding: '2px 4px', borderRadius: 4, fontSize: 10,
-                        border: '1px solid var(--border)', background: '#FAFAFA',
+                        border: '1px solid var(--border)', background: 'rgba(255,255,255,0.22)',
                         fontFamily: 'var(--font-barlow-condensed)', letterSpacing: '0.07em',
                         textTransform: 'uppercase', color: 'var(--text-muted)', cursor: 'pointer',
                       }}
@@ -372,7 +372,7 @@ export default function SettingsClient() {
               onChange={e => setInviteRole(e.target.value)}
               style={{
                 padding: '8px 6px', borderRadius: 7, fontSize: 12,
-                border: '1px solid rgba(0,0,0,0.10)', background: '#F9FAFB',
+                border: '1px solid var(--border)', background: 'rgba(255,255,255,0.22)',
                 fontFamily: 'var(--font-barlow-condensed)', textTransform: 'uppercase',
                 letterSpacing: '0.06em', color: '#374151',
               }}
@@ -424,7 +424,7 @@ export default function SettingsClient() {
                   padding: '10px 14px',
                   borderRadius: 8,
                   border: `1px solid ${defaultVis === opt.value ? 'var(--color-n600)' : 'var(--border)'}`,
-                  background: defaultVis === opt.value ? 'rgba(124,58,237,0.05)' : '#FAFAFA',
+                  background: defaultVis === opt.value ? 'var(--color-arc-soft)' : 'rgba(255,255,255,0.18)',
                   cursor: 'pointer',
                   transition: 'border-color 0.15s',
                 }}
@@ -814,13 +814,13 @@ function SubscriptionSection() {
 
 function Section({ title, accent, children }: { title: string; accent: string; children: React.ReactNode }) {
   return (
-    <div style={{
-      background: '#FFFFFF',
-      border: '1px solid var(--border)',
-      borderRadius: 12,
-      marginBottom: 20,
-      overflow: 'hidden',
-    }}>
+    <div
+      className="bay-panel"
+      style={{
+        marginBottom: 20,
+        overflow: 'visible',
+      }}
+    >
       <div style={{
         padding: '12px 20px',
         borderBottom: '1px solid var(--border)',
@@ -847,7 +847,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div style={{ marginBottom: 18 }}>
       <div style={{
         fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase',
-        color: '#374151', fontFamily: 'var(--font-barlow-condensed)', marginBottom: 7,
+        color: 'var(--text-muted)', fontFamily: 'var(--font-barlow-condensed)', marginBottom: 7,
       }}>
         {label}
       </div>
@@ -859,11 +859,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '9px 12px',
-  background: '#F9FAFB',
-  border: '1px solid rgba(0,0,0,0.10)',
-  borderRadius: 7,
+  background: 'rgba(255,255,255,0.28)',
+  border: '1px solid var(--border)',
+  borderRadius: 10,
   fontSize: 13,
-  color: '#0A0C12',
+  color: 'var(--text-primary)',
   fontFamily: 'var(--font-barlow)',
   outline: 'none',
   boxSizing: 'border-box',

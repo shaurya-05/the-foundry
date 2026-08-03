@@ -27,6 +27,8 @@ interface Message {
 
 interface ForgeCopilotProps {
   onClose: () => void
+  /** When true, panel is the primary command-center surface (wider, persistent). */
+  commandCenter?: boolean
 }
 
 const STARTER_PROMPTS = [
@@ -36,7 +38,7 @@ const STARTER_PROMPTS = [
   'Create a task: review last sprint outcomes.',
 ]
 
-export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
+export default function ForgeCopilot({ onClose, commandCenter = false }: ForgeCopilotProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
@@ -189,26 +191,27 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
 
   return (
     <div
+      className="liquid-glass-strong forge-glass-panel"
       style={{
         position: 'fixed',
-        top: 0,
-        right: 0,
-        bottom: 0,
-        width: 420,
+        top: commandCenter ? 62 : 12,
+        right: 12,
+        bottom: 12,
+        width: commandCenter ? 'min(460px, calc(100vw - 24px))' : 400,
         zIndex: 600,
         display: 'flex',
         flexDirection: 'column',
-        background: 'var(--color-vellum)',
-        borderLeft: '1px solid var(--color-n200)',
-        boxShadow: 'none',
+        /* overflow visible so box-shadow lift isn't clipped; inner regions scroll */
+        overflow: 'visible',
+        borderRadius: 22,
       }}
     >
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', borderRadius: 22 }}>
       {/* Header */}
       <div
         style={{
           padding: '16px 18px 0',
-          borderBottom: '1px solid var(--color-n200)',
-          background: 'var(--color-vellum)',
+          borderBottom: '1px solid var(--border)',
           flexShrink: 0,
         }}
       >
@@ -219,6 +222,7 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
               style={{
                 width: 6, height: 6,
                 background: 'var(--color-arc-cyan)',
+                borderRadius: 2,
                 flexShrink: 0,
               }}
             />
@@ -244,13 +248,18 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
             onClick={onClose}
             aria-label="Close"
             style={{
-              background: 'none',
-              border: 'none',
+              background: 'var(--glass-bg)',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
               cursor: 'pointer',
               color: 'var(--color-n600)',
-              fontSize: 20,
+              fontSize: 18,
               lineHeight: 1,
-              padding: 4,
+              width: 28,
+              height: 28,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
             ×
@@ -266,16 +275,16 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
               <button
                 onClick={folderConnected ? handleDisconnectFolder : handleConnectFolder}
                 style={{
-                  background: 'none',
-                  border: '1px solid var(--color-n300, #d0d0d0)',
-                  borderRadius: 6,
+                  background: 'var(--glass-bg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
                   cursor: 'pointer',
                   color: folderConnected ? 'var(--color-arc-cyan)' : 'var(--color-n600)',
-                  fontFamily: 'var(--font-plex-mono), monospace',
+                  fontFamily: 'var(--font-ibm-plex-mono), monospace',
                   fontSize: 10,
                   letterSpacing: '0.06em',
                   textTransform: 'uppercase',
-                  padding: '3px 8px',
+                  padding: '4px 9px',
                 }}
               >
                 {folderConnected ? '● Folder connected' : '○ Connect folder'}
@@ -288,16 +297,16 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
               disabled={streaming}
               title="When on, your next message runs as a multi-step agent goal instead of a single-turn chat reply."
               style={{
-                background: 'none',
-                border: '1px solid var(--color-n300, #d0d0d0)',
-                borderRadius: 6,
+                background: 'var(--glass-bg)',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
                 cursor: streaming ? 'not-allowed' : 'pointer',
                 color: agentMode ? 'var(--color-arc-cyan)' : 'var(--color-n600)',
-                fontFamily: 'var(--font-plex-mono), monospace',
+                fontFamily: 'var(--font-ibm-plex-mono), monospace',
                 fontSize: 10,
                 letterSpacing: '0.06em',
                 textTransform: 'uppercase',
-                padding: '3px 8px',
+                padding: '4px 9px',
               }}
             >
               {agentMode ? '● Agent mode' : '○ Agent mode'}
@@ -311,12 +320,12 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
               key={t}
               onClick={() => setTab(t)}
               style={{
-                padding: '6px 14px',
+                padding: '8px 14px',
                 background: 'none',
                 border: 'none',
                 borderBottom: tab === t ? '2px solid var(--color-arc-cyan)' : '2px solid transparent',
                 cursor: 'pointer',
-                fontFamily: 'var(--font-plex-mono), monospace',
+                fontFamily: 'var(--font-ibm-plex-mono), monospace',
                 fontWeight: 500,
                 fontSize: 11,
                 letterSpacing: '0.10em',
@@ -334,7 +343,7 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
       {/* Tab: Intel (Chat) */}
       {tab === 'intel' && (
         <>
-          <div style={{ flex: 1, overflow: 'auto', padding: '16px 16px', background: 'var(--color-off-white)' }}>
+          <div style={{ flex: 1, overflow: 'auto', padding: '16px 16px', background: 'transparent' }}>
             {messages.length === 0 ? (
               <StarterPrompts onSelect={p => { setInput(p); textareaRef.current?.focus() }} />
             ) : (
@@ -347,8 +356,7 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
           <div
             style={{
               padding: '14px 16px',
-              borderTop: '1px solid var(--color-n200)',
-              background: 'var(--color-vellum)',
+              borderTop: '1px solid var(--border)',
               flexShrink: 0,
             }}
           >
@@ -357,7 +365,7 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
                 style={{
                   marginBottom: 8,
                   fontSize: 11,
-                  fontFamily: 'var(--font-plex-mono), monospace',
+                  fontFamily: 'var(--font-ibm-plex-mono), monospace',
                   color: 'var(--color-n600)',
                   letterSpacing: '0.06em',
                   textTransform: 'uppercase',
@@ -369,7 +377,7 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
                 <span
                   style={{
                     width: 6, height: 6, borderRadius: '50%',
-                    background: 'var(--color-arc-cyan-deep)',
+                    background: 'var(--color-arc-cyan)',
                     animation: 'pulse 1.2s ease-in-out infinite',
                   }}
                 />
@@ -381,9 +389,11 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
                 display: 'flex',
                 gap: 8,
                 alignItems: 'flex-end',
-                background: 'var(--color-off-white)',
-                border: '1px solid var(--color-n200)',
-                padding: '8px 10px',
+                background: 'var(--glass-bg)',
+                border: '1px solid var(--border)',
+                borderRadius: 14,
+                padding: '10px 12px',
+                boxShadow: 'var(--glass-inset)',
               }}
             >
               <textarea
@@ -413,11 +423,11 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
                 aria-label="Send"
                 style={{
                   background: streaming || !input.trim() ? 'var(--color-n200)' : 'var(--color-arc-cyan)',
-                  color: 'var(--color-ink)',
+                  color: streaming || !input.trim() ? 'var(--color-n400)' : '#F4F7FA',
                   border: 'none',
-                  borderRadius: 0,
-                  width: 28,
-                  height: 28,
+                  borderRadius: 10,
+                  width: 30,
+                  height: 30,
                   cursor: streaming || !input.trim() ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
@@ -431,15 +441,15 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
             </div>
             <div
               style={{
-                fontFamily: 'var(--font-plex-mono), monospace',
+                fontFamily: 'var(--font-ibm-plex-mono), monospace',
                 fontSize: 10,
                 color: 'var(--color-n400)',
-                marginTop: 6,
+                marginTop: 8,
                 textAlign: 'center',
                 letterSpacing: '0.06em',
               }}
             >
-              Enter to send · Shift+Enter for newline
+              Enter to send · ⌘J to toggle
             </div>
           </div>
         </>
@@ -450,6 +460,7 @@ export default function ForgeCopilot({ onClose }: ForgeCopilotProps) {
 
       {/* Tab: Ops */}
       {tab === 'ops' && <OpsTab onNavigate={(path) => { router.push(path); onClose() }} />}
+      </div>
     </div>
   )
 }
@@ -622,32 +633,31 @@ function StarterPrompts({ onSelect }: { onSelect: (p: string) => void }) {
       <div style={{ textAlign: 'center', marginBottom: 16 }}>
         <EyebrowLabel keyword="COFOUND3R is online" color="var(--color-n400)" />
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: 'var(--color-n200)', border: '1px solid var(--color-n200)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {STARTER_PROMPTS.map(p => (
           <button
             key={p}
             onClick={() => onSelect(p)}
+            className="liquid-glass-interactive"
             style={{
-              padding: '12px 16px',
+              padding: '12px 14px',
               textAlign: 'left',
               cursor: 'pointer',
-              border: 'none',
-              borderRadius: 0,
-              background: 'var(--color-vellum)',
+              /* Fill on glass — not glass-on-glass (Apple: avoid stacking) */
+              background: 'rgba(255,255,255,0.14)',
+              border: '1px solid var(--border)',
+              borderRadius: 12,
               color: 'var(--color-ink)',
-              fontFamily: 'var(--font-plex-serif), serif',
-              fontStyle: 'italic',
+              fontFamily: 'var(--font-archivo), system-ui, sans-serif',
               fontWeight: 500,
-              fontSize: 14,
+              fontSize: 13,
               display: 'flex',
               alignItems: 'center',
               gap: 10,
-              transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
+              width: '100%',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-off-white)')}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-vellum)')}
           >
-            <span style={{ color: 'var(--color-arc-cyan-deep)', fontSize: 12 }}>→</span>
+            <span style={{ color: 'var(--color-arc-cyan)', fontSize: 12 }}>→</span>
             {p}
           </button>
         ))}
@@ -679,19 +689,22 @@ function SignalsTab() {
   ]
 
   return (
-    <div style={{ flex: 1, overflow: 'auto', padding: 16, background: 'var(--color-off-white)' }}>
+    <div style={{ flex: 1, overflow: 'auto', padding: 16, background: 'transparent' }}>
       <div style={{
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
-        gap: 1,
-        background: 'var(--color-n200)',
-        border: '1px solid var(--color-n200)',
+        gap: 8,
         marginBottom: 16,
       }}>
         {stats.map(s => (
           <div
             key={s.label}
-            style={{ background: 'var(--color-vellum)', padding: '14px 16px' }}
+            style={{
+              padding: '14px 16px',
+              background: 'rgba(255,255,255,0.12)',
+              border: '1px solid var(--border)',
+              borderRadius: 12,
+            }}
           >
             <EyebrowLabel keyword={s.label} style={{ marginBottom: 6 }} />
             <div
@@ -732,27 +745,26 @@ function OpsTab({ onNavigate }: { onNavigate: (path: string) => void }) {
   ]
 
   return (
-    <div style={{ flex: 1, overflow: 'auto', padding: 16, background: 'var(--color-off-white)' }}>
+    <div style={{ flex: 1, overflow: 'auto', padding: 16, background: 'transparent' }}>
       <EyebrowLabel number="01" keyword="QUICK ACTIONS" style={{ marginBottom: 10 }} />
       <div style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 1,
-        background: 'var(--color-n200)',
-        border: '1px solid var(--color-n200)',
+        gap: 6,
         marginBottom: 24,
       }}>
         {quickActions.map(a => (
           <button
             key={a.label}
             onClick={() => onNavigate(a.path)}
+            className="liquid-glass-interactive"
             style={{
               padding: '10px 14px',
               textAlign: 'left',
               cursor: 'pointer',
-              border: 'none',
-              borderRadius: 0,
-              background: 'var(--color-vellum)',
+              background: 'rgba(255,255,255,0.12)',
+              border: '1px solid var(--border)',
+              borderRadius: 12,
               color: 'var(--color-ink)',
               fontFamily: 'var(--font-archivo), system-ui, sans-serif',
               fontWeight: 700,
@@ -762,12 +774,10 @@ function OpsTab({ onNavigate }: { onNavigate: (path: string) => void }) {
               display: 'flex',
               alignItems: 'center',
               gap: 10,
-              transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
+              width: '100%',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-off-white)')}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-vellum)')}
           >
-            <span style={{ color: 'var(--color-arc-cyan-deep)', fontSize: 12 }}>→</span>
+            <span style={{ color: 'var(--color-arc-cyan)', fontSize: 12 }}>→</span>
             {a.label}
           </button>
         ))}
@@ -777,31 +787,28 @@ function OpsTab({ onNavigate }: { onNavigate: (path: string) => void }) {
       <div style={{
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
-        gap: 1,
-        background: 'var(--color-n200)',
-        border: '1px solid var(--color-n200)',
+        gap: 6,
       }}>
         {crew.map(c => (
           <button
             key={c.id}
             onClick={() => onNavigate(`/agents?agent=${c.id}`)}
+            className="liquid-glass-interactive"
             style={{
               padding: '10px',
               cursor: 'pointer',
-              border: 'none',
-              borderRadius: 0,
-              background: 'var(--color-vellum)',
+              background: 'rgba(255,255,255,0.12)',
+              border: '1px solid var(--border)',
+              borderRadius: 12,
               color: 'var(--color-ink)',
-              fontFamily: 'var(--font-plex-mono), monospace',
+              fontFamily: 'var(--font-ibm-plex-mono), monospace',
               fontWeight: 500,
               fontSize: 10,
               letterSpacing: '0.10em',
               textTransform: 'uppercase',
               textAlign: 'center',
-              transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
+              width: '100%',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-off-white)')}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-vellum)')}
           >
             {c.label}
           </button>

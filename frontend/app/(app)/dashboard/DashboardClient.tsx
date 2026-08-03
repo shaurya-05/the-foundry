@@ -25,9 +25,6 @@ export default function DashboardClient() {
   const [members, setMembers] = useState<WorkspaceMember[]>([])
   const [threads, setThreads] = useState<{id:string;title:string;created_at:string}[]>([])
   const [loading, setLoading] = useState(true)
-  const [inviteEmail, setInviteEmail] = useState('')
-  const [inviting, setInviting] = useState(false)
-  const [inviteResult, setInviteResult] = useState<string | null>(null)
   const [newTask, setNewTask] = useState('')
   const [addingTask, setAddingTask] = useState(false)
 
@@ -70,132 +67,228 @@ export default function DashboardClient() {
     } catch {}
   }
 
-  async function sendInvite() {
-    if (!inviteEmail.trim()) return
-    setInviting(true)
-    setInviteResult(null)
-    try {
-      const res = await api.workspace.invite(inviteEmail.trim())
-      setInviteResult(`Invite sent: ${window.location.origin}${res.invite_url}`)
-      setInviteEmail('')
-    } catch { setInviteResult('Failed to send invite.') }
-    finally { setInviting(false) }
-  }
-
   const openTasks = tasks.filter(t => t.status !== 'completed')
-  const recentThreads = threads.slice(0, 5)
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
+  const firstName = user?.display_name?.split(' ')[0]
 
   return (
-    <div style={{ maxWidth: 1100, fontFamily: 'var(--font-archivo)' }}>
-      {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontFamily: 'var(--font-plex-mono)', fontSize: 10, color: 'var(--color-n600)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Dashboard</div>
-        <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--color-ink)', letterSpacing: '-0.01em' }}>
-          {user?.display_name ? `Good ${new Date().getHours() < 12 ? 'morning' : 'afternoon'}, ${user.display_name.split(' ')[0]}.` : 'Overview'}
+    <div
+      className="command-center-rail"
+      style={{
+        fontFamily: 'var(--font-archivo)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 18,
+        paddingBottom: 24,
+      }}
+    >
+      {/* Greeting — quiet, one job */}
+      <div style={{ marginBottom: 4 }}>
+        <div style={{
+          fontFamily: 'var(--font-ibm-plex-mono), monospace',
+          fontSize: 10,
+          color: 'var(--color-n400)',
+          letterSpacing: '0.14em',
+          textTransform: 'uppercase',
+          marginBottom: 8,
+        }}>
+          Command center
         </div>
+        <h1 style={{
+          fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+          fontSize: 'clamp(1.6rem, 2.4vw, 2rem)',
+          fontWeight: 700,
+          letterSpacing: '-0.02em',
+          textTransform: 'none',
+          color: 'var(--color-ink)',
+          lineHeight: 1.15,
+          margin: 0,
+        }}>
+          {firstName ? `${greeting}, ${firstName}.` : 'Overview'}
+        </h1>
+        <p style={{
+          marginTop: 8,
+          fontSize: 14,
+          color: 'var(--color-n600)',
+          maxWidth: 420,
+          lineHeight: 1.5,
+        }}>
+          Your co-founder is online. Context sits here — conversation lives in the glass.
+        </p>
       </div>
 
-      {/* Stats row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 20 }}>
+      {/* Stats — opaque bay panels under glass chrome */}
+      <div className="command-center-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
         {[
-          { label: 'Open tasks', value: openTasks.length, href: null },
-          { label: 'Knowledge items', value: knowledge.length, href: '/knowledge' },
-          { label: 'COFOUND3R chats', value: threads.length, href: '/agents' },
+          { label: 'Open tasks', value: openTasks.length },
+          { label: 'Knowledge', value: knowledge.length },
+          { label: 'Chats', value: threads.length },
         ].map(s => (
-          <div key={s.label} style={{ border: '1px solid var(--color-n200)', padding: '16px 18px', background: 'var(--color-vellum)' }}>
-            <div style={{ fontFamily: 'var(--font-plex-mono)', fontSize: 9, color: 'var(--color-n600)', letterSpacing: '0.10em', textTransform: 'uppercase', marginBottom: 6 }}>{s.label}</div>
-            <div style={{ fontSize: 32, fontWeight: 700, color: 'var(--color-ink)', lineHeight: 1 }}>{loading ? '—' : s.value}</div>
+          <div key={s.label} className="bay-panel" style={{ padding: '14px 16px' }}>
+            <div style={{
+              fontFamily: 'var(--font-ibm-plex-mono), monospace',
+              fontSize: 9,
+              color: 'var(--color-n400)',
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              marginBottom: 6,
+            }}>{s.label}</div>
+            <div style={{
+              fontSize: 28,
+              fontWeight: 700,
+              color: 'var(--color-ink)',
+              lineHeight: 1,
+              fontVariantNumeric: 'tabular-nums',
+              letterSpacing: '-0.02em',
+            }}>{loading ? '—' : s.value}</div>
           </div>
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 280px', gap: 14 }}>
+      {/* Tasks + Activity — content panels (not glass) */}
+      <div className="command-center-grid">
+        <div className="bay-panel" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{
+            fontFamily: 'var(--font-ibm-plex-mono), monospace',
+            fontSize: 9,
+            color: 'var(--color-n400)',
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+          }}>Focus</div>
 
-        {/* Tasks widget */}
-        <div style={{ border: '1px solid var(--color-n200)', background: 'var(--color-vellum)', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontFamily: 'var(--font-plex-mono)', fontSize: 9, color: 'var(--color-n600)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Tasks</div>
-
-          {/* Add task */}
           <div style={{ display: 'flex', gap: 6 }}>
             <input
               value={newTask}
               onChange={e => setNewTask(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && addTask()}
-              placeholder="Add a task..."
-              style={{ flex: 1, padding: '7px 10px', border: '1px solid var(--color-n200)', background: 'var(--color-off-white)', fontFamily: 'var(--font-archivo)', fontSize: 13, color: 'var(--color-ink)', outline: 'none', borderRadius: 2 }}
+              placeholder="Add a task…"
+              style={{
+                flex: 1,
+                padding: '9px 12px',
+                border: '1px solid var(--border)',
+                background: 'rgba(255,255,255,0.35)',
+                fontFamily: 'var(--font-archivo)',
+                fontSize: 13,
+                color: 'var(--color-ink)',
+                outline: 'none',
+                borderRadius: 10,
+              }}
             />
-            <button onClick={addTask} disabled={addingTask || !newTask.trim()} style={{ padding: '7px 12px', background: 'var(--color-ink)', color: 'var(--color-off-white)', border: 'none', borderRadius: 2, fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 11, cursor: 'pointer', letterSpacing: '0.06em' }}>
-              +
+            <button
+              onClick={addTask}
+              disabled={addingTask || !newTask.trim()}
+              className="btn btn-primary btn-sm"
+              style={{ opacity: addingTask || !newTask.trim() ? 0.45 : 1 }}
+            >
+              Add
             </button>
           </div>
 
-          {/* Task list */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 320, overflow: 'auto' }}>
-            {loading ? <div style={{ color: 'var(--color-n400)', fontSize: 12 }}>Loading...</div>
-            : openTasks.length === 0 ? <div style={{ color: 'var(--color-n400)', fontFamily: 'var(--font-plex-mono)', fontSize: 11 }}>No open tasks.</div>
-            : openTasks.map(t => (
-              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--color-n200)' }}>
-                <button onClick={() => completeTask(t.id)} style={{ width: 16, height: 16, border: '1.5px solid var(--color-n300)', borderRadius: 2, background: 'transparent', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 280, overflow: 'auto' }}>
+            {loading ? (
+              <div style={{ color: 'var(--color-n400)', fontSize: 12 }}>Loading…</div>
+            ) : openTasks.length === 0 ? (
+              <div style={{ color: 'var(--color-n400)', fontFamily: 'var(--font-ibm-plex-mono), monospace', fontSize: 11 }}>
+                No open tasks — ask COFOUND3R what to prioritize.
+              </div>
+            ) : openTasks.slice(0, 8).map(t => (
+              <div
+                key={t.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '8px 4px',
+                  borderBottom: '1px solid var(--border)',
+                }}
+              >
+                <button
+                  onClick={() => completeTask(t.id)}
+                  aria-label="Complete"
+                  style={{
+                    width: 16,
+                    height: 16,
+                    border: '1.5px solid var(--color-n300)',
+                    borderRadius: 4,
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                  }}
+                />
                 <div style={{ flex: 1, fontSize: 13, color: 'var(--color-ink)', lineHeight: 1.4 }}>{t.title}</div>
-                <div style={{ fontFamily: 'var(--font-plex-mono)', fontSize: 9, color: 'var(--color-n400)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t.priority}</div>
+                <div style={{
+                  fontFamily: 'var(--font-ibm-plex-mono), monospace',
+                  fontSize: 9,
+                  color: 'var(--color-n400)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                }}>{t.priority}</div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Recent COFOUND3R threads */}
-        <div style={{ border: '1px solid var(--color-n200)', background: 'var(--color-vellum)', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontFamily: 'var(--font-plex-mono)', fontSize: 9, color: 'var(--color-n600)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Recent chats</div>
-            <Link href="/agents" style={{ fontFamily: 'var(--font-plex-mono)', fontSize: 9, color: 'var(--color-n600)', textDecoration: 'none' }}>New chat →</Link>
-          </div>
-          {recentThreads.length === 0 ? (
-            <div style={{ color: 'var(--color-n400)', fontFamily: 'var(--font-plex-mono)', fontSize: 11 }}>
-              No chats yet. <Link href="/agents" style={{ color: 'var(--color-ink)' }}>Start one →</Link>
-            </div>
-          ) : recentThreads.map(t => (
-            <Link key={t.id} href="/agents" style={{ textDecoration: 'none', display: 'block', padding: '8px 0', borderBottom: '1px solid var(--color-n200)' }}>
-              <div style={{ fontSize: 13, color: 'var(--color-ink)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title || 'Untitled chat'}</div>
-              <div style={{ fontFamily: 'var(--font-plex-mono)', fontSize: 9, color: 'var(--color-n400)' }}>{timeAgo(t.created_at)}</div>
-            </Link>
-          ))}
-        </div>
-
-        {/* Activity + Team */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Activity */}
-          <div style={{ border: '1px solid var(--color-n200)', background: 'var(--color-vellum)', padding: '16px 18px', flex: 1 }}>
-            <div style={{ fontFamily: 'var(--font-plex-mono)', fontSize: 9, color: 'var(--color-n600)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Activity</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 180, overflow: 'auto' }}>
-              {events.length === 0 ? <div style={{ color: 'var(--color-n400)', fontSize: 11 }}>No activity yet.</div>
-              : events.slice(0, 8).map(ev => (
-                <div key={ev.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                  <div style={{ width: 3, minHeight: 16, background: 'var(--color-arc-cyan)', borderRadius: 2, flexShrink: 0, marginTop: 3 }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="bay-panel" style={{ padding: '16px 18px', flex: 1 }}>
+            <div style={{
+              fontFamily: 'var(--font-ibm-plex-mono), monospace',
+              fontSize: 9,
+              color: 'var(--color-n400)',
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              marginBottom: 12,
+            }}>Activity</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 220, overflow: 'auto' }}>
+              {events.length === 0 ? (
+                <div style={{ color: 'var(--color-n400)', fontSize: 11 }}>No activity yet.</div>
+              ) : events.slice(0, 6).map(ev => (
+                <div key={ev.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <div style={{
+                    width: 3,
+                    minHeight: 14,
+                    background: 'var(--color-arc-cyan)',
+                    borderRadius: 2,
+                    flexShrink: 0,
+                    marginTop: 3,
+                    opacity: 0.85,
+                  }} />
                   <div>
-                    <div style={{ fontSize: 11, color: 'var(--color-ink)', lineHeight: 1.4 }}>{ev.title}</div>
-                    <div style={{ fontFamily: 'var(--font-plex-mono)', fontSize: 9, color: 'var(--color-n400)', marginTop: 1 }}>{timeAgo(ev.created_at)}</div>
+                    <div style={{ fontSize: 12, color: 'var(--color-ink)', lineHeight: 1.4 }}>{ev.title}</div>
+                    <div style={{
+                      fontFamily: 'var(--font-ibm-plex-mono), monospace',
+                      fontSize: 9,
+                      color: 'var(--color-n400)',
+                      marginTop: 2,
+                    }}>{timeAgo(ev.created_at)}</div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Team invite */}
-          <div style={{ border: '1px solid var(--color-n200)', background: 'var(--color-vellum)', padding: '16px 18px' }}>
-            <div style={{ fontFamily: 'var(--font-plex-mono)', fontSize: 9, color: 'var(--color-n600)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>
-              Team · {members.length} {members.length === 1 ? 'member' : 'members'}
+          <div className="bay-panel" style={{ padding: '14px 16px' }}>
+            <div style={{
+              fontFamily: 'var(--font-ibm-plex-mono), monospace',
+              fontSize: 9,
+              color: 'var(--color-n400)',
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              marginBottom: 8,
+            }}>
+              Crew · {members.length}
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendInvite()}
-                placeholder="email@domain.com"
-                style={{ flex: 1, padding: '7px 10px', border: '1px solid var(--color-n200)', background: 'var(--color-off-white)', fontFamily: 'var(--font-archivo)', fontSize: 12, color: 'var(--color-ink)', outline: 'none', borderRadius: 2 }}
-              />
-              <button onClick={sendInvite} disabled={inviting || !inviteEmail.trim()} style={{ padding: '7px 10px', background: 'var(--color-ink)', color: 'var(--color-off-white)', border: 'none', borderRadius: 2, fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
-                {inviting ? '...' : 'Invite'}
-              </button>
-            </div>
-            {inviteResult && <div style={{ fontFamily: 'var(--font-plex-mono)', fontSize: 9, color: 'var(--color-n600)', marginTop: 8, lineHeight: 1.5, wordBreak: 'break-all' }}>{inviteResult}</div>}
+            <Link
+              href="/settings"
+              style={{
+                fontSize: 12,
+                color: 'var(--color-arc-cyan)',
+                textDecoration: 'none',
+                fontWeight: 600,
+              }}
+            >
+              Manage workspace →
+            </Link>
           </div>
         </div>
       </div>

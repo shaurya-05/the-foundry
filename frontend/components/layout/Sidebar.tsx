@@ -31,22 +31,23 @@ export default function Sidebar({ onCopilot }: { onCopilot: () => void }) {
 
   return (
     <aside
-      className="flex flex-col"
+      className="liquid-glass-strong flex flex-col"
       style={{
-        width: 210,
-        minWidth: 210,
-        height: '100vh',
-        background: 'var(--color-vellum)',
-        borderRight: '1px solid var(--color-n200)',
-        borderRadius: 0,
+        width: 200,
+        minWidth: 200,
+        height: 'calc(100vh - 16px)',
+        margin: '8px 0 8px 8px',
+        borderRadius: 18,
         zIndex: 40,
         flexShrink: 0,
+        /* No parent filter — it kills backdrop-filter frost on this surface */
+        overflow: 'hidden',
       }}
     >
       {/* Wordmark */}
       <div style={{
-        padding: '20px 16px 18px',
-        borderBottom: '1px solid var(--color-n200)',
+        padding: '18px 16px 16px',
+        borderBottom: '1px solid var(--border)',
       }}>
         <Found3ryWordmark size="sm" />
         <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 6 }}>
@@ -75,31 +76,31 @@ export default function Sidebar({ onCopilot }: { onCopilot: () => void }) {
       </nav>
 
       {/* User avatar */}
-      <div style={{ padding: '8px 8px 0', borderTop: '1px solid var(--color-n200)' }}>
+      <div style={{ padding: '8px 8px 0', borderTop: '1px solid var(--border)' }}>
         <Link
           href="/settings"
           style={{
             display: 'flex', alignItems: 'center', gap: 10,
             padding: '8px 10px',
-            borderRadius: 0,
+            borderRadius: 10,
             textDecoration: 'none',
-            background: pathname === '/settings' ? 'var(--color-off-white)' : 'transparent',
+            background: pathname === '/settings' ? 'var(--color-arc-soft)' : 'transparent',
             borderLeft: pathname === '/settings' ? '2px solid var(--color-arc-cyan)' : '2px solid transparent',
             transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
           }}
           onMouseEnter={(e) => {
-            if (pathname !== '/settings') e.currentTarget.style.backgroundColor = 'var(--color-off-white)'
+            if (pathname !== '/settings') e.currentTarget.style.backgroundColor = 'var(--color-arc-soft)'
           }}
           onMouseLeave={(e) => {
             if (pathname !== '/settings') e.currentTarget.style.backgroundColor = 'transparent'
           }}
         >
           <div style={{
-            width: 26, height: 26, borderRadius: 2, flexShrink: 0,
-            background: 'var(--color-ink)',
+            width: 26, height: 26, borderRadius: 8, flexShrink: 0,
+            background: 'var(--color-arc-cyan)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontFamily: 'var(--font-archivo), system-ui, sans-serif',
-            fontWeight: 700, fontSize: 11, color: 'var(--color-off-white)',
+            fontWeight: 700, fontSize: 11, color: '#F4F7FA',
             letterSpacing: '0.04em',
           }}>
             {initials}
@@ -131,32 +132,15 @@ export default function Sidebar({ onCopilot }: { onCopilot: () => void }) {
       <div style={{ padding: '8px 8px 16px' }}>
         <button
           onClick={onCopilot}
+          className="btn btn-primary"
           style={{
             width: '100%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'flex-start',
             gap: 8,
-            padding: '9px 12px',
-            border: '1px solid var(--color-ink)',
-            borderRadius: 2,
-            background: 'transparent',
-            color: 'var(--color-ink)',
-            cursor: 'pointer',
-            fontFamily: 'var(--font-archivo), system-ui, sans-serif',
-            fontWeight: 700,
+            padding: '10px 12px',
             fontSize: 12,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out), color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--color-ink)'
-            e.currentTarget.style.color = 'var(--color-off-white)'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'transparent'
-            e.currentTarget.style.color = 'var(--color-ink)'
           }}
         >
           <CopilotIcon />
@@ -167,11 +151,11 @@ export default function Sidebar({ onCopilot }: { onCopilot: () => void }) {
           </span>
           <span style={{
             marginLeft: 'auto',
-            fontFamily: 'var(--font-plex-mono), monospace',
+            fontFamily: 'var(--font-ibm-plex-mono), monospace',
             fontWeight: 500,
             fontSize: 9,
             letterSpacing: '0.05em',
-            opacity: 0.6,
+            opacity: 0.75,
           }}>⌘J</span>
         </button>
       </div>
@@ -189,13 +173,14 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
         gap: 10,
         padding: '8px 10px 8px 12px',
         borderLeft: active ? '2px solid var(--color-arc-cyan)' : '2px solid transparent',
-        background: active ? 'var(--color-off-white)' : 'transparent',
+        background: active ? 'var(--color-arc-soft)' : 'transparent',
         textDecoration: 'none',
         marginBottom: 2,
+        borderRadius: 10,
         transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
       }}
       onMouseEnter={(e) => {
-        if (!active) e.currentTarget.style.backgroundColor = 'var(--color-off-white)'
+        if (!active) e.currentTarget.style.backgroundColor = 'var(--color-arc-soft)'
       }}
       onMouseLeave={(e) => {
         if (!active) e.currentTarget.style.backgroundColor = 'transparent'

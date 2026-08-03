@@ -1,7 +1,7 @@
 import type { Config } from 'tailwindcss'
 
 const config: Config = {
-  // Light theme only — no dark mode
+  darkMode: ['class', '[data-theme="dark"]'],
   content: [
     './app/**/*.{ts,tsx}',
     './components/**/*.{ts,tsx}',
@@ -10,35 +10,34 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // ─── H3ROS Design Language v1.2 ─────────────────────────────────
-        ink:           '#141413',
-        'off-white':   '#F2F2EE',
-        vellum:        '#E8E5DD',
-        signal:        '#E84A0E',
+        // ─── FOUND3RY command center (CSS vars are source of truth) ─────
+        ink:           'var(--color-ink)',
+        'off-white':   'var(--color-off-white)',
+        vellum:        'var(--color-vellum)',
+        signal:        'var(--color-signal)',
         'arc-cyan': {
-          DEFAULT: '#9FDEFA',
-          deep:    '#6BBFD9',
+          DEFAULT: 'var(--color-arc-cyan)',
+          deep:    'var(--color-arc-cyan-deep)',
         },
         n: {
-          900: '#141413',
-          600: '#5F5F5A',
-          400: '#9C9C95',
-          200: '#D1D1CB',
-          100: '#E8E5DD',
+          900: 'var(--color-n900)',
+          600: 'var(--color-n600)',
+          400: 'var(--color-n400)',
+          300: 'var(--color-n300)',
+          200: 'var(--color-n200)',
+          100: 'var(--color-n100)',
         },
-        // ─── Legacy (Phase 4–6 will prune the unused ones) ──────────────
-        // Accents (still consumed by Sidebar/Header per-section colors until Phase 3)
-        'accent-red':    '#FF3B3B',
-        'accent-blue':   '#3ABEFF',
-        'accent-orange': '#FF8A2A',
-        'accent-green':  '#38D37A',
-        'accent-purple': '#A78BFA',
-        'accent-teal':   '#22D3EE',
-        // Text aliases (CSS vars carry the real semantics now)
-        'text-primary':   '#EEF2FF',
-        'text-secondary': '#B2BCCF',
-        'text-muted':     '#637080',
-        'text-subtle':    '#303D4E',
+        // ─── Legacy (Phase 4–6 will prune) ──────────────────────────────
+        'accent-red':    'var(--color-signal)',
+        'accent-blue':   'var(--color-arc-cyan)',
+        'accent-orange': 'var(--color-signal)',
+        'accent-green':  'var(--color-arc-cyan-deep)',
+        'accent-purple': 'var(--color-arc-cyan-deep)',
+        'accent-teal':   'var(--color-arc-cyan)',
+        'text-primary':   'var(--text-primary)',
+        'text-secondary': 'var(--text-secondary)',
+        'text-muted':     'var(--text-muted)',
+        'text-subtle':    'var(--text-subtle)',
       },
       fontFamily: {
         // ─── H3ROS type stack ───────────────────────────────────────────

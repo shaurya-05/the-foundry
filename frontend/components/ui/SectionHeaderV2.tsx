@@ -63,14 +63,15 @@ export default function SectionHeaderV2({
       />
       <h2
         style={{
-          fontFamily: 'var(--font-archivo-black), sans-serif',
-          fontWeight: 400,
-          fontSize: TITLE_SIZE[size],
-          lineHeight: 1.05,
-          letterSpacing: '-0.03em',
+          fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+          fontWeight: 700,
+          fontSize: size === 'sm' ? 28 : TITLE_SIZE[size],
+          lineHeight: 1.1,
+          letterSpacing: '-0.02em',
+          textTransform: 'none',
           color: titleColor,
           margin: 0,
-          marginBottom: 16,
+          marginBottom: 12,
         }}
       >
         {title}

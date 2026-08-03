@@ -167,12 +167,12 @@ export default function TasksClient() {
               key={col.id}
               onDragOver={e => handleDragOver(e, col.id)}
               onDrop={() => handleDrop(col.id)}
+              className="bay-panel"
               style={{
-                background: isOver ? `${col.color}08` : 'transparent',
-                border: `1px solid ${isOver ? col.color + '30' : 'rgba(0,0,0,0.04)'}`,
-                borderRadius: 10,
+                background: isOver ? undefined : undefined,
+                outline: isOver ? `1.5px solid ${col.color}55` : undefined,
                 padding: '12px 10px',
-                transition: 'all 0.15s ease',
+                transition: 'outline 0.15s ease',
                 minHeight: 200,
               }}
             >

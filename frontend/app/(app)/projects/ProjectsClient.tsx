@@ -239,11 +239,10 @@ export default function ProjectsClient() {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 999, backdropFilter: 'blur(4px)',
         }} onClick={() => setShowCreateModal(false)}>
-          <div onClick={e => e.stopPropagation()} style={{
-            background: 'var(--bg-surface, #fff)', borderRadius: 16,
-            border: '1px solid var(--border)', width: '100%', maxWidth: 560,
+          <div onClick={e => e.stopPropagation()} className="liquid-glass-strong" style={{
+            borderRadius: 16,
+            width: '100%', maxWidth: 560,
             maxHeight: '80vh', overflow: 'auto',
-            boxShadow: '0 16px 48px rgba(0,0,0,0.2)',
           }}>
             <div style={{ padding: '24px 28px', borderBottom: '1px solid var(--border)' }}>
               <h3 style={{
@@ -368,11 +367,10 @@ export default function ProjectsClient() {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 999, backdropFilter: 'blur(4px)',
         }} onClick={() => setShowConceptModal(false)}>
-          <div onClick={e => e.stopPropagation()} style={{
-            background: 'var(--bg-surface, #fff)', borderRadius: 16,
-            border: '1px solid var(--border)', width: '100%', maxWidth: 560,
+          <div onClick={e => e.stopPropagation()} className="liquid-glass-strong" style={{
+            borderRadius: 16,
+            width: '100%', maxWidth: 560,
             maxHeight: '80vh', overflow: 'auto',
-            boxShadow: '0 16px 48px rgba(0,0,0,0.2)',
           }}>
             <div style={{ padding: '24px 28px', borderBottom: '1px solid var(--border)' }}>
               <h3 style={{

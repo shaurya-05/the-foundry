@@ -210,8 +210,8 @@ function ConnectionsClientInner() {
   const connectionByProvider = new Map(connections.map((c) => [c.provider, c]))
 
   return (
-    <div className="min-h-screen bg-off-white px-6 py-16 font-archivo">
-      <div className="mx-auto max-w-3xl">
+    <div className="page-enter px-1 py-2 font-archivo" style={{ maxWidth: 720, margin: '0 auto' }}>
+      <div>
         <div className="mb-2">
           <EyebrowLabel number="01" keyword="Connectors" />
         </div>
@@ -224,17 +224,17 @@ function ConnectionsClientInner() {
 
         {banner && (
           <div
-            className={`mt-6 border px-4 py-3 text-sm ${
+            className={`mt-6 bay-panel px-4 py-3 text-sm ${
               banner.tone === 'ok'
-                ? 'border-arc-cyan-deep text-ink bg-vellum'
-                : 'border-signal text-signal bg-vellum'
+                ? 'border-arc-cyan-deep text-ink'
+                : 'border-signal text-signal'
             }`}
           >
             {banner.text}
           </div>
         )}
 
-        <div className="mt-8 border border-n200">
+        <div className="mt-8 bay-panel" style={{ overflow: 'hidden' }}>
           {Object.entries(PROVIDER_META).map(([provider, meta], i) => {
             const conn = connectionByProvider.get(provider)
             const isConnected = !!conn
@@ -244,6 +244,7 @@ function ConnectionsClientInner() {
                 className={`flex items-start justify-between gap-6 p-5 ${
                   i > 0 ? 'border-t border-n200' : ''
                 }`}
+                style={i > 0 ? undefined : undefined}
               >
                 <div className="flex-1">
                   <div className="flex items-center gap-3">
@@ -313,7 +314,7 @@ function ConnectionsClientInner() {
         {syncJobs.length > 0 && (
           <div className="mt-12">
             <EyebrowLabel number="02" keyword="Sync history" />
-            <div className="mt-3 border border-n200">
+            <div className="mt-3 bay-panel" style={{ overflow: 'hidden' }}>
               {syncJobs.map((j, i) => (
                 <div
                   key={j.id}

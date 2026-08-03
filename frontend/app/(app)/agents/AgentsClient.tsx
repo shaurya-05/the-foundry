@@ -54,13 +54,13 @@ function SaveToDrive({ q, a }: { q: string; a: string }) {
   }
 
   if (saved) return (
-    <a href={saved} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, padding: '4px 10px', border: '1px solid var(--color-n200)', borderRadius: 2, fontFamily: 'var(--font-plex-mono)', fontSize: 10, color: 'var(--color-n600)', textDecoration: 'none', letterSpacing: '0.06em' }}>
+    <a href={saved} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, padding: '5px 10px', border: '1px solid var(--border)', borderRadius: 8, fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, color: 'var(--color-n600)', textDecoration: 'none', letterSpacing: '0.06em' }}>
       ↗ Open in Drive
     </a>
   )
 
   return (
-    <button onClick={save} disabled={saving} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, padding: '4px 10px', border: '1px solid var(--color-n200)', borderRadius: 2, background: 'transparent', cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-plex-mono)', fontSize: 10, color: 'var(--color-n600)', letterSpacing: '0.06em' }}>
+    <button onClick={save} disabled={saving} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, padding: '5px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'transparent', cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, color: 'var(--color-n600)', letterSpacing: '0.06em' }}>
       {saving ? 'Saving...' : 'Save to Drive'}
     </button>
   )
@@ -72,7 +72,7 @@ function CouncilPopout({ perspectives }: { perspectives: { model: string; respon
     <div style={{ marginTop: 8 }}>
       <button
         onClick={() => setOpen(o => !o)}
-        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', border: '1px solid var(--color-n200)', borderRadius: 2, background: 'transparent', cursor: 'pointer', fontFamily: 'var(--font-plex-mono)', fontSize: 10, color: 'var(--color-n600)', letterSpacing: '0.06em' }}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'transparent', cursor: 'pointer', fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, color: 'var(--color-n600)', letterSpacing: '0.06em' }}
       >
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="currentColor" strokeWidth="1.2"/><path d="M3 5h4M5 3v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
         {open ? 'Hide' : 'Other perspectives'}
@@ -81,8 +81,8 @@ function CouncilPopout({ perspectives }: { perspectives: { model: string; respon
       {open && (
         <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {perspectives.map((p, i) => (
-            <div key={i} style={{ border: '1px solid var(--color-n200)', borderRadius: 2, overflow: 'hidden' }}>
-              <div style={{ padding: '6px 12px', background: 'var(--color-vellum)', borderBottom: '1px solid var(--color-n200)', fontFamily: 'var(--font-plex-mono)', fontSize: 10, color: 'var(--color-n600)', letterSpacing: '0.06em' }}>
+            <div key={i} className="bay-panel" style={{ overflow: 'visible' }}>
+              <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, color: 'var(--color-n600)', letterSpacing: '0.06em' }}>
                 {p.model}
               </div>
               <div style={{ padding: '10px 12px', fontFamily: 'var(--font-archivo)', fontSize: 13, color: 'var(--color-ink)', lineHeight: 1.6 }}>
@@ -170,21 +170,59 @@ export default function AgentsClient() {
   const selectedModelLabel = MODELS.find(m => m.id === selectedModel)?.label ?? 'Auto'
 
   return (
-    <div style={{ display: 'flex', flex: '1', minHeight: 0, background: 'var(--color-off-white)', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flex: '1', minHeight: 0, background: 'transparent', overflow: 'hidden', gap: 10, padding: '0 10px 10px' }}>
       {sidebarOpen && (
-        <div style={{ width: 240, minWidth: 240, borderRight: '1px solid var(--color-n200)', background: 'var(--color-vellum)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-          <div style={{ padding: '16px 14px 12px', borderBottom: '1px solid var(--color-n200)' }}>
-            <button onClick={() => { setExchanges([]); setActiveThread(null); setQuery(''); inputRef.current?.focus() }} style={{ width: '100%', padding: '8px 12px', background: 'var(--color-ink)', color: 'var(--color-off-white)', border: 'none', borderRadius: 2, fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>
+        <div
+          className="liquid-glass-strong"
+          style={{
+            width: 220,
+            minWidth: 220,
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0,
+            overflow: 'hidden',
+            borderRadius: 18,
+          }}
+        >
+          <div style={{ padding: '14px 12px 10px', borderBottom: '1px solid var(--border)' }}>
+            <button
+              onClick={() => { setExchanges([]); setActiveThread(null); setQuery(''); inputRef.current?.focus() }}
+              className="btn btn-primary"
+              style={{ width: '100%', justifyContent: 'center', fontSize: 12 }}
+            >
               + New chat
             </button>
           </div>
           <div style={{ flex: 1, overflow: 'auto', padding: '8px' }}>
             {threads.length === 0
-              ? <div style={{ padding: '12px 6px', fontFamily: 'var(--font-plex-mono)', fontSize: 11, color: 'var(--color-n400)' }}>No chats yet</div>
+              ? <div style={{ padding: '12px 6px', fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--color-n400)' }}>No chats yet</div>
               : threads.map(t => (
-                <button key={t.id} onClick={() => loadThread(t.id)} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', marginBottom: 2, background: activeThread === t.id ? 'var(--color-off-white)' : 'transparent', borderLeft: activeThread === t.id ? '2px solid var(--color-arc-cyan)' : '2px solid transparent', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-archivo)', fontSize: 12, color: 'var(--color-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                <button
+                  key={t.id}
+                  onClick={() => loadThread(t.id)}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '9px 10px',
+                    marginBottom: 4,
+                    background: activeThread === t.id ? 'var(--color-arc-soft)' : 'transparent',
+                    borderLeft: activeThread === t.id ? '2px solid var(--color-arc-cyan)' : '2px solid transparent',
+                    border: 'none',
+                    borderRadius: 10,
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-archivo)',
+                    fontSize: 12,
+                    color: 'var(--color-ink)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    display: 'block',
+                  }}
+                >
                   {t.title || 'Untitled chat'}
-                  <div style={{ fontFamily: 'var(--font-plex-mono)', fontSize: 9, color: 'var(--color-n400)', marginTop: 2 }}>{new Date(t.created_at).toLocaleDateString()}</div>
+                  <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--color-n400)', marginTop: 2 }}>
+                    {new Date(t.created_at).toLocaleDateString()}
+                  </div>
                 </button>
               ))
             }
@@ -192,23 +230,75 @@ export default function AgentsClient() {
         </div>
       )}
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ padding: '14px 24px', borderBottom: '1px solid var(--color-n200)', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--color-vellum)' }}>
-          <button onClick={() => setSidebarOpen(o => !o)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-n600)', padding: 4 }}>
+      <div
+        className="liquid-glass-strong"
+        style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: 18, minWidth: 0 }}
+      >
+        <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            onClick={() => setSidebarOpen(o => !o)}
+            style={{
+              background: 'rgba(255,255,255,0.12)',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              cursor: 'pointer',
+              color: 'var(--color-n600)',
+              padding: 6,
+              display: 'flex',
+            }}
+          >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="1.5" rx="0.75" fill="currentColor" /><rect x="1" y="7.25" width="14" height="1.5" rx="0.75" fill="currentColor" /><rect x="1" y="11.5" width="14" height="1.5" rx="0.75" fill="currentColor" /></svg>
           </button>
-          <div style={{ fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 14, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-ink)' }}>COFOUND3R</div>
+          <div>
+            <div style={{ fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 14, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--color-ink)' }}>
+              COFOUND3R
+            </div>
+            <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--color-n400)', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 2 }}>
+              Your AI co-founder
+            </div>
+          </div>
           <div style={{ marginLeft: 'auto', position: 'relative' }}>
-            <button onClick={() => setShowModelPicker(o => !o)} style={{ padding: '5px 12px', border: '1px solid var(--color-n200)', borderRadius: 2, background: 'transparent', cursor: 'pointer', fontFamily: 'var(--font-plex-mono)', fontSize: 11, color: 'var(--color-n600)', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button
+              onClick={() => setShowModelPicker(o => !o)}
+              style={{
+                padding: '6px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                background: 'rgba(255,255,255,0.12)',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-ibm-plex-mono)',
+                fontSize: 11,
+                color: 'var(--color-n600)',
+                letterSpacing: '0.06em',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
               {selectedModelLabel}
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
             </button>
             {showModelPicker && (
-              <div style={{ position: 'absolute', right: 0, top: '110%', zIndex: 100, background: 'var(--color-vellum)', border: '1px solid var(--color-n200)', borderRadius: 2, minWidth: 200, boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}>
+              <div
+                className="liquid-glass-strong"
+                style={{ position: 'absolute', right: 0, top: '110%', zIndex: 100, borderRadius: 14, minWidth: 200, overflow: 'hidden' }}
+              >
                 {MODELS.map(m => (
-                  <button key={m.id} onClick={() => { setSelectedModel(m.id); setShowModelPicker(false) }} style={{ width: '100%', textAlign: 'left', padding: '10px 14px', background: selectedModel === m.id ? 'var(--color-off-white)' : 'transparent', border: 'none', borderBottom: '1px solid var(--color-n200)', cursor: 'pointer' }}>
+                  <button
+                    key={m.id}
+                    onClick={() => { setSelectedModel(m.id); setShowModelPicker(false) }}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '10px 14px',
+                      background: selectedModel === m.id ? 'var(--color-arc-soft)' : 'transparent',
+                      border: 'none',
+                      borderBottom: '1px solid var(--border)',
+                      cursor: 'pointer',
+                    }}
+                  >
                     <div style={{ fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 12, color: 'var(--color-ink)' }}>{m.label}</div>
-                    <div style={{ fontFamily: 'var(--font-plex-mono)', fontSize: 10, color: 'var(--color-n600)', marginTop: 2 }}>{m.desc}</div>
+                    <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, color: 'var(--color-n600)', marginTop: 2 }}>{m.desc}</div>
                   </button>
                 ))}
               </div>
@@ -218,12 +308,41 @@ export default function AgentsClient() {
 
         <div ref={scrollerRef} style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
           {exchanges.length === 0 && (
-            <div>
-              <div style={{ fontFamily: 'var(--font-plex-serif)', fontWeight: 500, fontStyle: 'italic', fontSize: 28, color: 'var(--color-ink)', marginBottom: 8 }}>What are you building?</div>
-              <div style={{ fontFamily: 'var(--font-plex-mono)', fontSize: 12, color: 'var(--color-n600)', marginBottom: 32 }}>Your AI co-founder. Ask anything about your startup.</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, maxWidth: 560 }}>
+            <div style={{ maxWidth: 560 }}>
+              <div style={{
+                fontFamily: 'var(--font-archivo)',
+                fontWeight: 700,
+                fontSize: 'clamp(1.5rem, 2.2vw, 1.9rem)',
+                letterSpacing: '-0.02em',
+                color: 'var(--color-ink)',
+                marginBottom: 8,
+                lineHeight: 1.15,
+              }}>
+                What are you building?
+              </div>
+              <div style={{ fontFamily: 'var(--font-archivo)', fontSize: 14, color: 'var(--color-n600)', marginBottom: 28, lineHeight: 1.5 }}>
+                Your AI co-founder. Ask anything about your venture.
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 {STARTERS.map(s => (
-                  <button key={s} onClick={() => ask(s)} style={{ textAlign: 'left', padding: '12px 14px', border: '1px solid var(--color-n200)', background: 'var(--color-vellum)', borderRadius: 2, cursor: 'pointer', fontFamily: 'var(--font-archivo)', fontSize: 13, color: 'var(--color-ink)', lineHeight: 1.5 }}>
+                  <button
+                    key={s}
+                    onClick={() => ask(s)}
+                    className="bay-panel liquid-glass-interactive"
+                    style={{
+                      textAlign: 'left',
+                      padding: '14px 16px',
+                      cursor: 'pointer',
+                      fontFamily: 'var(--font-archivo)',
+                      fontSize: 13,
+                      color: 'var(--color-ink)',
+                      lineHeight: 1.5,
+                      width: '100%',
+                      /* Don't override frost; keep lift shadows */
+                      overflow: 'visible',
+                    }}
+                  >
+                    <span style={{ color: 'var(--color-arc-cyan)', marginRight: 8 }}>→</span>
                     {s}
                   </button>
                 ))}
@@ -232,28 +351,52 @@ export default function AgentsClient() {
           )}
           <div style={{ maxWidth: 720 }}>
             {exchanges.map((ex, i) => (
-              <div key={i} style={{ marginBottom: 32 }}>
+              <div key={i} style={{ marginBottom: 28 }}>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-                  <div style={{ maxWidth: '80%', padding: '10px 14px', background: 'var(--color-ink)', color: 'var(--color-off-white)', borderRadius: 2, fontFamily: 'var(--font-archivo)', fontSize: 14, lineHeight: 1.6 }}>{ex.q}</div>
+                  <div style={{
+                    maxWidth: '80%',
+                    padding: '11px 15px',
+                    background: 'var(--color-arc-cyan)',
+                    color: '#F4F7FA',
+                    borderRadius: 14,
+                    fontFamily: 'var(--font-archivo)',
+                    fontSize: 14,
+                    lineHeight: 1.6,
+                  }}>{ex.q}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <div style={{ width: 28, height: 28, borderRadius: 2, background: 'var(--color-arc-cyan)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 10, color: 'var(--color-ink)', letterSpacing: '0.04em' }}>C3R</div>
+                  <div style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 8,
+                    background: 'var(--color-arc-soft)',
+                    border: '1px solid var(--border-accent)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    fontFamily: 'var(--font-archivo)',
+                    fontWeight: 700,
+                    fontSize: 10,
+                    color: 'var(--color-arc-cyan)',
+                    letterSpacing: '0.04em',
+                  }}>C3R</div>
                   <div style={{ flex: 1 }}>
                     {ex.limitExceeded ? (
-                      <div style={{ border: '1px solid var(--color-n200)', background: 'var(--color-vellum)', padding: 16, borderRadius: 2 }}>
-                        <div style={{ fontFamily: 'var(--font-plex-mono)', fontSize: 11, color: 'var(--color-n600)', marginBottom: 8, textTransform: 'uppercase' }}>Spark limit reached</div>
+                      <div className="bay-panel" style={{ padding: 16 }}>
+                        <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--color-n600)', marginBottom: 8, textTransform: 'uppercase' }}>Spark limit reached</div>
                         <div style={{ fontFamily: 'var(--font-archivo)', fontSize: 13, color: 'var(--color-ink)', marginBottom: 12 }}>You have used all your messages this month.</div>
-                        <button onClick={handleUpgrade} style={{ padding: '8px 16px', background: 'var(--color-arc-cyan)', border: 'none', borderRadius: 2, fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 12, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Upgrade</button>
+                        <button onClick={handleUpgrade} className="btn btn-primary btn-sm">Upgrade</button>
                       </div>
                     ) : ex.a ? (
-                      <div style={{ fontFamily: 'var(--font-archivo)', fontSize: 14, lineHeight: 1.7, color: 'var(--color-ink)' }}>
+                      <div className="bay-panel" style={{ padding: '14px 16px', fontFamily: 'var(--font-archivo)', fontSize: 14, lineHeight: 1.7, color: 'var(--color-ink)' }}>
                         <Markdown content={ex.a} streaming={streaming && i === exchanges.length - 1} />
                       </div>
                     ) : streaming && i === exchanges.length - 1 ? (
-                      <span style={{ color: 'var(--color-n400)', fontFamily: 'var(--font-plex-mono)', fontSize: 13 }}>Thinking</span>
+                      <span style={{ color: 'var(--color-n400)', fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 13 }}>Thinking…</span>
                     ) : null}
                     {ex.model && (
-                      <div style={{ marginTop: 6, fontFamily: 'var(--font-plex-mono)', fontSize: 10, color: 'var(--color-n400)' }}>via {ex.model}</div>
+                      <div style={{ marginTop: 6, fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, color: 'var(--color-n400)' }}>via {ex.model}</div>
                     )}
                     {ex.council && ex.council.length > 0 && (
                       <CouncilPopout perspectives={ex.council} />
@@ -266,29 +409,61 @@ export default function AgentsClient() {
               </div>
             ))}
           </div>
-          {error && <div style={{ color: 'var(--color-signal)', fontFamily: 'var(--font-plex-mono)', fontSize: 12, marginTop: 8 }}>{error}</div>}
+          {error && <div style={{ color: 'var(--color-signal)', fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 12, marginTop: 8 }}>{error}</div>}
         </div>
 
-        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--color-n200)', background: 'var(--color-vellum)' }}>
+        <div style={{ padding: '14px 18px', borderTop: '1px solid var(--border)' }}>
           {status && (
-            <div style={{ marginBottom: 8, fontSize: 11, fontFamily: 'var(--font-plex-mono), monospace', color: 'var(--color-n600)', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6, maxWidth: 720 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-arc-cyan-deep)' }} />
+            <div style={{ marginBottom: 8, fontSize: 11, fontFamily: 'var(--font-ibm-plex-mono)', color: 'var(--color-n600)', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6, maxWidth: 720 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-arc-cyan)' }} />
               {status}
             </div>
           )}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', maxWidth: 720 }}>
-            <textarea ref={inputRef} value={query}
+          <div style={{
+            display: 'flex',
+            gap: 8,
+            alignItems: 'flex-end',
+            maxWidth: 720,
+            background: 'rgba(255,255,255,0.12)',
+            border: '1px solid var(--border)',
+            borderRadius: 14,
+            padding: '8px 10px',
+            boxShadow: 'var(--glass-inset)',
+          }}>
+            <textarea
+              ref={inputRef}
+              value={query}
               onChange={e => { setQuery(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 160) + 'px' }}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(query) } }}
               disabled={streaming}
-              placeholder="Ask your co-founder anything"
+              placeholder="Ask your co-founder anything…"
               rows={1}
-              style={{ flex: 1, padding: '10px 14px', border: '1px solid var(--color-n200)', background: 'var(--color-off-white)', borderRadius: 2, resize: 'none', fontFamily: 'var(--font-archivo)', fontSize: 14, color: 'var(--color-ink)', outline: 'none', lineHeight: 1.5, minHeight: 42, maxHeight: 160 }}
-              onFocus={e => (e.target.style.borderColor = 'var(--color-arc-cyan-deep)')}
-              onBlur={e => (e.target.style.borderColor = 'var(--color-n200)')}
+              style={{
+                flex: 1,
+                padding: '6px 8px',
+                border: 'none',
+                background: 'transparent',
+                resize: 'none',
+                fontFamily: 'var(--font-archivo)',
+                fontSize: 14,
+                color: 'var(--color-ink)',
+                outline: 'none',
+                lineHeight: 1.5,
+                minHeight: 28,
+                maxHeight: 160,
+              }}
             />
-            <button onClick={() => ask(query)} disabled={streaming || !query.trim()} style={{ padding: '10px 20px', background: streaming || !query.trim() ? 'var(--color-n200)' : 'var(--color-ink)', color: streaming || !query.trim() ? 'var(--color-n600)' : 'var(--color-off-white)', border: 'none', borderRadius: 2, cursor: streaming || !query.trim() ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap', height: 42 }}>
-              {streaming ? '...' : 'Send'}
+            <button
+              onClick={() => ask(query)}
+              disabled={streaming || !query.trim()}
+              className="btn btn-primary btn-sm"
+              style={{
+                opacity: streaming || !query.trim() ? 0.45 : 1,
+                height: 34,
+                padding: '0 16px',
+              }}
+            >
+              {streaming ? '…' : 'Send'}
             </button>
           </div>
         </div>

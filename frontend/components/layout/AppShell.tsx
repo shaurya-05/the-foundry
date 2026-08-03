@@ -16,19 +16,26 @@ const ForgeCopilot = dynamic(() => import('@/components/overlays/ForgeCopilot'),
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
+  const isCommandCenter = pathname === '/dashboard'
 
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login')
     }
   }, [user, loading, router])
+
   const [commandOpen, setCommandOpen] = useState(false)
   const [signalsOpen, setSignalsOpen] = useState(false)
+  // Command center: Forge is the primary surface — open by default on dashboard
   const [copilotOpen, setCopilotOpen] = useState(false)
   const [notifCount, setNotifCount] = useState(0)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  // Global keyboard shortcuts
+  useEffect(() => {
+    if (isCommandCenter) setCopilotOpen(true)
+  }, [isCommandCenter])
+
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey) {
@@ -39,36 +46,32 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         setCommandOpen(false)
         setSignalsOpen(false)
         setSidebarOpen(false)
+        if (!isCommandCenter) setCopilotOpen(false)
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [])
+  }, [isCommandCenter])
 
-  // Close sidebar on route change (mobile)
-  const pathname = usePathname()
   useEffect(() => { setSidebarOpen(false) }, [pathname])
 
   const openCopilot = useCallback(() => setCopilotOpen(true), [])
 
-  // Show nothing while checking auth (prevents flash)
   if (loading || !user) return null
 
   return (
     <div
+      className="machine-bay"
       style={{
         display: 'flex',
         height: '100vh',
         overflow: 'hidden',
-        background: 'var(--color-off-white)',
       }}
     >
-      {/* Desktop sidebar */}
       <div className="sidebar-desktop">
         <Sidebar onCopilot={openCopilot} />
       </div>
 
-      {/* Mobile sidebar overlay */}
       {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
       <div className={`sidebar-mobile-overlay ${sidebarOpen ? 'open' : ''}`}>
         <Sidebar onCopilot={openCopilot} />
@@ -82,7 +85,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           notifCount={notifCount}
           onMenuToggle={() => setSidebarOpen(v => !v)}
         />
-        {/* Email verification banner */}
         {user && !user.email_verified && (
           <VerificationBanner />
         )}
@@ -90,17 +92,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           style={{
             flex: 1,
             overflow: pathname === '/agents' ? 'hidden' : 'auto',
-            padding: pathname === '/agents' ? '0' : '24px',
-            background: 'var(--color-off-white)',
+            padding: pathname === '/agents' ? '0' : isCommandCenter ? '20px 24px' : '24px',
+            paddingRight: isCommandCenter && copilotOpen ? 24 : undefined,
             display: 'flex',
             flexDirection: 'column',
+            position: 'relative',
           }}
         >
           {children}
         </main>
       </div>
 
-      {/* Overlays */}
       {commandOpen && (
         <ForgeCommand onClose={() => setCommandOpen(false)} />
       )}
@@ -111,7 +113,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         />
       )}
       {copilotOpen && (
-        <ForgeCopilot onClose={() => setCopilotOpen(false)} />
+        <ForgeCopilot
+          onClose={() => setCopilotOpen(false)}
+          commandCenter={isCommandCenter}
+        />
       )}
     </div>
   )

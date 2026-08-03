@@ -2,36 +2,61 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── Theme Tokens — Light mode default ────────────────────────────────────── */
+/* ─── Theme Tokens — slate bay + vibrant FOUND3RY blue ─────────────────────── */
 :root {
-  /* ═══ H3ROS Design Language v1.2 — Core color tokens ════════════════════ */
-  --color-ink:           #141413;  /* Primary type, dark surfaces */
-  --color-off-white:     #F2F2EE;  /* Primary page surface */
-  --color-vellum:        #E8E5DD;  /* Card surfaces, sidebar, table rows */
-  --color-signal:        #E84A0E;  /* Parent-brand accent (h3ros only) */
-  --color-arc-cyan:      #9FDEFA;  /* FOUND3RY signature */
-  --color-arc-cyan-deep: #6BBFD9;  /* Hover/pressed only */
+  /* ═══ FOUND3RY command center — core tokens ════════════════════════════ */
+  --color-ink:           #14161A;
+  /* Bay floor darker than frost — depth only reads if floor sits behind glass */
+  --color-off-white:     #9EA5B0;
+  --color-vellum:        rgba(255, 255, 255, 0.48);
+  --color-signal:        #E84A0E;
+  --color-arc-cyan:      #4B9FFF;
+  --color-arc-cyan-deep: #2F7FE6;
+  --color-arc-soft:      rgba(75, 159, 255, 0.18);
 
-  /* H3ROS neutrals (for body copy hierarchy) */
-  --color-n900: #141413;  /* same as ink */
-  --color-n600: #5F5F5A;
-  --color-n400: #9C9C95;
-  --color-n200: #D1D1CB;
-  --color-n100: #E8E5DD;  /* same as vellum */
+  --color-n900: #14161A;
+  --color-n600: #4A5160;
+  --color-n400: #6E7685;
+  --color-n300: #9AA1AD;
+  --color-n200: rgba(20, 22, 26, 0.12);
+  --color-n100: #9EA5B0;
 
-  /* H3ROS motion */
+  /* Motion */
   --duration-fast: 120ms;
   --duration-base: 200ms;
   --duration-slow: 400ms;
   --ease-out:      cubic-bezier(0.2, 0, 0, 1);
   --ease-in-out:   cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-glass:    cubic-bezier(0.22, 1, 0.36, 1);
 
-  /* ═══ Semantic aliases (now point to H3ROS palette) ════════════════════ */
-  /* Surfaces */
+  /*
+   * Liquid Glass (CSS approx of Apple Regular variant — conorluddy / WWDC25):
+   * multi-layer: translucent fill + specular rim + ambient shadow.
+   * Reserved for NAVIGATION chrome only — not content cards.
+   * Fill stays semi-clear so the darker bay grid remains identifiable.
+   */
+  --glass-bg:            rgba(255, 255, 255, 0.34);
+  --glass-bg-strong:     rgba(255, 255, 255, 0.46);
+  --glass-fill-top:      rgba(255, 255, 255, 0.62);
+  --glass-fill-mid:      rgba(255, 255, 255, 0.22);
+  --glass-border:        rgba(255, 255, 255, 0.90);
+  --glass-border-outer:  rgba(20, 22, 26, 0.12);
+  --glass-highlight:     rgba(255, 255, 255, 0.98);
+  --glass-rim-bottom:    rgba(20, 22, 26, 0.10);
+  --glass-shadow:
+    0 1px 2px rgba(20, 22, 26, 0.08),
+    0 8px 20px rgba(20, 22, 26, 0.14),
+    0 22px 48px rgba(20, 22, 26, 0.18);
+  --glass-inset:         inset 0 1px 0 var(--glass-highlight), inset 0 -0.5px 0 var(--glass-rim-bottom);
+  --glass-radius:        22px;
+  --glass-blur:          24px;
+  --glass-saturate:      1.45;
+
+  /* Semantic surfaces */
   --bg:          var(--color-off-white);
-  --bg-mid:      var(--color-vellum);
-  --bg-surface:  var(--color-vellum);
-  --bg-overlay:  rgba(242, 242, 238, 0.92);
+  --bg-mid:      var(--glass-bg);
+  --bg-surface:  var(--glass-bg-strong);
+  --bg-overlay:  rgba(158, 165, 176, 0.82);
 
   /* Text */
   --text-primary:   var(--color-ink);
@@ -39,36 +64,102 @@
   --text-muted:     var(--color-n600);
   --text-subtle:    var(--color-n400);
 
-  /* Borders — hairlines */
-  --border:        rgba(20, 20, 19, 0.12);
-  --border-strong: rgba(20, 20, 19, 0.18);
-  --border-accent: rgba(20, 20, 19, 0.24);
+  /* Borders */
+  --border:        rgba(20, 22, 26, 0.10);
+  --border-strong: rgba(20, 22, 26, 0.16);
+  --border-accent: rgba(75, 159, 255, 0.40);
 
-  /* Shadows — Phase 4 will eliminate references; kept low-impact for now */
-  --shadow:      rgba(20, 20, 19, 0.04);
-  --shadow-deep: rgba(20, 20, 19, 0.08);
+  --shadow:      rgba(20, 22, 26, 0.14);
+  --shadow-deep: rgba(20, 22, 26, 0.22);
 
-  /* Card tiers (consumed by .gl0/.gl1/.gl2/.gl3 — Phase 4 deletes these classes) */
-  --gl0-bg: var(--color-vellum);
-  --gl1-bg: var(--color-vellum);
-  --gl2-bg: var(--color-vellum);
-  --gl3-bg: var(--color-vellum);   /* Sidebar */
+  /* Frosted content panels — lighter + clearer than bay floor */
+  --panel-bg:    rgba(255, 255, 255, 0.40);
+  --panel-blur:  18px;
+  --panel-shadow:
+    0 1px 2px rgba(20, 22, 26, 0.08),
+    0 10px 28px rgba(20, 22, 26, 0.14),
+    0 24px 56px rgba(20, 22, 26, 0.12);
+  --gl0-bg: var(--panel-bg);
+  --gl1-bg: var(--panel-bg);
+  --gl2-bg: var(--panel-bg);
+  --gl3-bg: var(--glass-bg-strong);
 
-  /* ═══ Legacy accent palette — Phase 4: collapsed to Arc Cyan ═══════════ */
-  /* Page clients still reference var(--accent-*) inline; rather than rewrite */
-  /* 11 page clients we re-point all accents to Arc Cyan so consumers inherit */
-  /* the H3ROS palette automatically. --accent-red kept distinct in case Signal */
-  /* (parent-brand orange) is needed in narrow contexts. */
   --accent-red:    var(--color-arc-cyan-deep);
-  --accent-blue:   var(--color-arc-cyan-deep);
-  --accent-orange: var(--color-arc-cyan-deep);
+  --accent-blue:   var(--color-arc-cyan);
+  --accent-orange: var(--color-signal);
   --accent-green:  var(--color-arc-cyan-deep);
   --accent-purple: var(--color-arc-cyan-deep);
   --accent-teal:   var(--color-arc-cyan-deep);
   --accent-yellow: var(--color-arc-cyan-deep);
+
+  /* Dots stay visible through frost */
+  --bay-dot:  rgba(40, 46, 58, 0.42);
+  --bay-wash: rgba(20, 22, 26, 0.12);
 }
 
-/* Dark mode removed — light theme only */
+/* ─── Dark slate bay ───────────────────────────────────────────────────────── */
+[data-theme="dark"],
+html.dark {
+  --color-ink:           #F0F2F5;
+  /* Near-black bay so lifted frost reads brighter / 3D */
+  --color-off-white:     #07090C;
+  --color-vellum:        rgba(255, 255, 255, 0.07);
+  --color-signal:        #E84A0E;
+  --color-arc-cyan:      #5CADFF;
+  --color-arc-cyan-deep: #4B9FFF;
+  --color-arc-soft:      rgba(92, 173, 255, 0.20);
+
+  --color-n900: #F0F2F5;
+  --color-n600: #A0A7B4;
+  --color-n400: #6B7382;
+  --color-n300: #3A404C;
+  --color-n200: rgba(255, 255, 255, 0.10);
+  --color-n100: #12151C;
+
+  /* Frost stays translucent + slightly lifted vs bay */
+  --glass-bg:            rgba(255, 255, 255, 0.07);
+  --glass-bg-strong:     rgba(255, 255, 255, 0.11);
+  --glass-fill-top:      rgba(255, 255, 255, 0.18);
+  --glass-fill-mid:      rgba(255, 255, 255, 0.05);
+  --glass-border:        rgba(255, 255, 255, 0.28);
+  --glass-border-outer:  rgba(255, 255, 255, 0.16);
+  --glass-highlight:     rgba(255, 255, 255, 0.34);
+  --glass-rim-bottom:    rgba(0, 0, 0, 0.40);
+  --glass-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.50),
+    0 10px 28px rgba(0, 0, 0, 0.55),
+    0 28px 64px rgba(0, 0, 0, 0.60);
+  --glass-inset:         inset 0 1px 0 var(--glass-highlight), inset 0 -0.5px 0 var(--glass-rim-bottom);
+  --glass-blur:          26px;
+  --glass-saturate:      1.4;
+
+  --bg:          var(--color-off-white);
+  --bg-mid:      var(--glass-bg);
+  --bg-surface:  var(--glass-bg-strong);
+  --bg-overlay:  rgba(7, 9, 12, 0.88);
+
+  --text-primary:   var(--color-ink);
+  --text-secondary: var(--color-n600);
+  --text-muted:     var(--color-n600);
+  --text-subtle:    var(--color-n400);
+
+  --border:        rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --border-accent: rgba(92, 173, 255, 0.45);
+
+  --shadow:      rgba(0, 0, 0, 0.50);
+  --shadow-deep: rgba(0, 0, 0, 0.70);
+
+  --panel-bg:    rgba(255, 255, 255, 0.08);
+  --panel-blur:  20px;
+  --panel-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.50),
+    0 14px 40px rgba(0, 0, 0, 0.60),
+    0 36px 80px rgba(0, 0, 0, 0.40);
+  /* Brighter dots so they survive frost + blur */
+  --bay-dot:  rgba(210, 220, 235, 0.38);
+  --bay-wash: rgba(0, 0, 0, 0.55);
+}
 
 /* ─── Base ─────────────────────────────────────────────────────────────────── */
 *, *::before, *::after {
@@ -77,10 +168,16 @@
   padding: 0;
 }
 
+:root {
+  --font-plex-mono: var(--font-ibm-plex-mono);
+}
 html {
   color-scheme: light;
 }
-
+html.dark,
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
 
 body {
   background: var(--bg);
@@ -96,6 +193,188 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ─── Machine bay — slate-grey DOT grid (content substrate, not glass) ─────── */
+.machine-bay {
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(circle, var(--bay-dot) 1.1px, transparent 1.2px),
+    radial-gradient(ellipse 90% 70% at 50% 0%, var(--bay-wash), transparent 55%);
+  background-size: 16px 16px, 100% 100%;
+  background-position: 0 0, 0 0;
+}
+
+/*
+ * Liquid Glass — CSS approximation of Apple Regular variant
+ * (conorluddy/LiquidGlassReference + WWDC25 Meet Liquid Glass):
+ *   1. Translucent multi-stop fill (lensing-ish vertical gradient)
+ *   2. Heavy blur + saturation (bends light vs plain frosted blur)
+ *   3. Specular top highlight + bottom rim
+ *   4. Soft ambient shadow for float
+ * Reserve for NAV chrome only. Do not stack glass-on-glass.
+ */
+.liquid-glass {
+  background:
+    linear-gradient(
+      165deg,
+      var(--glass-fill-top) 0%,
+      var(--glass-fill-mid) 42%,
+      var(--glass-bg) 100%
+    );
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(1.06);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(1.06);
+  border: 0.5px solid var(--glass-border-outer);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-inset), var(--glass-shadow);
+  position: relative;
+  isolation: isolate;
+  /* overflow must stay visible so lift shadows aren't clipped */
+  overflow: visible;
+}
+
+.liquid-glass::before {
+  /* Specular edge — light concentrates along the top rim */
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid var(--glass-border);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 48%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 48%);
+  opacity: 0.9;
+  overflow: hidden;
+}
+
+.liquid-glass::after {
+  /* Soft inner refraction wash */
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    125deg,
+    rgba(255, 255, 255, 0.22) 0%,
+    transparent 28%,
+    transparent 72%,
+    rgba(255, 255, 255, 0.06) 100%
+  );
+  mix-blend-mode: soft-light;
+}
+
+.liquid-glass-strong {
+  background:
+    linear-gradient(
+      165deg,
+      var(--glass-fill-top) 0%,
+      var(--glass-bg-strong) 55%,
+      var(--glass-bg-strong) 100%
+    );
+  backdrop-filter: blur(calc(var(--glass-blur) + 8px)) saturate(var(--glass-saturate)) brightness(1.08);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) + 8px)) saturate(var(--glass-saturate)) brightness(1.08);
+  border: 0.5px solid var(--glass-border-outer);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-inset), var(--glass-shadow);
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+}
+
+.liquid-glass-strong::before {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid var(--glass-border);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 50%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 50%);
+}
+
+.liquid-glass-chip {
+  background:
+    linear-gradient(165deg, var(--glass-fill-top) 0%, var(--glass-bg) 100%);
+  backdrop-filter: blur(22px) saturate(1.6) brightness(1.04);
+  -webkit-backdrop-filter: blur(22px) saturate(1.6) brightness(1.04);
+  border: 0.5px solid var(--glass-border-outer);
+  border-radius: 14px;
+  box-shadow: var(--glass-inset), 0 4px 18px var(--shadow);
+  position: relative;
+  isolation: isolate;
+}
+
+/* Interactive glass (press response — Apple .interactive())
+   Avoid filter on the glass node — it kills backdrop-filter frost. */
+.liquid-glass-interactive {
+  transition:
+    transform var(--duration-fast) var(--ease-glass),
+    background-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
+  cursor: pointer;
+}
+.liquid-glass-interactive:hover {
+  box-shadow: var(--glass-inset), var(--panel-shadow);
+}
+.liquid-glass-interactive:active {
+  transform: scale(0.975);
+}
+
+/* Frosted content panels — translucent fill so bay dots read through */
+.bay-panel {
+  background:
+    linear-gradient(
+      165deg,
+      rgba(255, 255, 255, 0.22) 0%,
+      var(--panel-bg) 55%,
+      var(--panel-bg) 100%
+    );
+  /* Mild blur keeps grid identifiable; brightness lifts frost vs darker bay */
+  backdrop-filter: blur(var(--panel-blur)) saturate(1.4) brightness(1.08);
+  -webkit-backdrop-filter: blur(var(--panel-blur)) saturate(1.4) brightness(1.08);
+  border: 0.5px solid var(--glass-border-outer);
+  border-radius: 16px;
+  box-shadow: var(--glass-inset), var(--panel-shadow);
+  position: relative;
+  isolation: isolate;
+}
+
+.bay-panel::before {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid var(--glass-border);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 45%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 45%);
+  opacity: 0.7;
+}
+
+/* Don't put filter/transform on ancestors of frosted surfaces —
+   parent filter creates a containing group and backdrop-filter goes dead. */
+
+@media (prefers-reduced-transparency: reduce) {
+  .liquid-glass,
+  .liquid-glass-strong,
+  .liquid-glass-chip,
+  .bay-panel {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: var(--color-n100);
+  }
+  [data-theme="dark"] .liquid-glass,
+  [data-theme="dark"] .liquid-glass-strong,
+  [data-theme="dark"] .liquid-glass-chip,
+  [data-theme="dark"] .bay-panel,
+  html.dark .liquid-glass,
+  html.dark .liquid-glass-strong,
+  html.dark .liquid-glass-chip,
+  html.dark .bay-panel {
+    background: #161A22;
+  }
+}
+
 /* ─── Typography ───────────────────────────────────────────────────────────── */
 h1, h2, h3 {
   font-family: var(--font-barlow-condensed), sans-serif;
@@ -109,17 +388,27 @@ h1 { font-size: 2.6rem; line-height: 1.0; letter-spacing: 0.03em; }
 h2 { font-size: 1.9rem; line-height: 1.05; }
 h3 { font-size: 1.3rem; line-height: 1.1; }
 
-/* ─── Card Material System — H3ROS: Vellum + hairline + no shadow + 0 radius ─ */
+/* ─── Legacy card tiers — same frost + lift as .bay-panel ──────────────────── */
 .gl0,
 .gl1,
 .gl2,
 .gl3 {
-  background: var(--color-vellum);
-  border: 1px solid var(--color-n200);
-  border-radius: 0;
-  box-shadow: none;
+  background:
+    linear-gradient(
+      165deg,
+      rgba(255, 255, 255, 0.22) 0%,
+      var(--panel-bg) 55%,
+      var(--panel-bg) 100%
+    );
+  backdrop-filter: blur(var(--panel-blur)) saturate(1.4) brightness(1.08);
+  -webkit-backdrop-filter: blur(var(--panel-blur)) saturate(1.4) brightness(1.08);
+  border: 0.5px solid var(--glass-border-outer);
+  border-radius: 16px;
+  box-shadow: var(--glass-inset), var(--panel-shadow);
   position: relative;
-  overflow: hidden;
+  /* overflow visible so lift shadows aren't clipped */
+  overflow: visible;
+  isolation: isolate;
 }
 
 /* ─── Grid Backgrounds ─────────────────────────────────────────────────────── */
@@ -127,29 +416,28 @@ h3 { font-size: 1.3rem; line-height: 1.1; }
 .tech-grid { background-image: none; }
 
 .dot-grid {
-  background-image: radial-gradient(circle, rgba(20, 20, 19, 0.08) 0.8px, transparent 1px);
-  background-size: 16px 16px;
+  background-image: radial-gradient(circle, var(--bay-dot) 0.9px, transparent 1px);
+  background-size: 18px 18px;
 }
 
-/* Blueprint canvas — recolor cobalt to Arc Cyan tones */
+/* Blueprint canvas — slate seams, no blue cast */
 .blueprint-grid {
   background-color: var(--color-off-white);
   background-image:
-    linear-gradient(rgba(159, 222, 250, 0.10) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(159, 222, 250, 0.10) 1px, transparent 1px),
-    linear-gradient(rgba(159, 222, 250, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(159, 222, 250, 0.05) 1px, transparent 1px);
-  background-size: 128px 128px, 128px 128px, 32px 32px, 32px 32px;
+    radial-gradient(circle, var(--bay-dot) 0.9px, transparent 1px);
+  background-size: 18px 18px;
 }
 
-/* ─── Hover Lift — H3ROS: opacity/color only, no transform, no shadow ─────── */
+/* ─── Hover Lift — keep frost; never paint opaque over bay ────────────────── */
 .lift {
-  transition: background-color var(--duration-base, 200ms) var(--ease-out, ease-out);
+  transition:
+    box-shadow var(--duration-base, 200ms) var(--ease-out, ease-out),
+    transform var(--duration-fast, 120ms) var(--ease-glass, ease-out);
   cursor: pointer;
 }
 
 .lift:hover {
-  background-color: var(--color-off-white);
+  box-shadow: var(--glass-inset), var(--panel-shadow);
 }
 
 /* ─── Badges / Pills ───────────────────────────────────────────────────────── */
@@ -175,7 +463,7 @@ h3 { font-size: 1.3rem; line-height: 1.1; }
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
-  border-radius: 2px;
+  border-radius: 10px;
   font-family: var(--font-archivo), system-ui, sans-serif;
   font-size: 13px;
   font-weight: 700;
@@ -191,12 +479,13 @@ h3 { font-size: 1.3rem; line-height: 1.1; }
 
 .btn-primary {
   background: var(--color-arc-cyan);
-  color: var(--color-ink);
+  color: #F4F7FA;
   box-shadow: none;
+  border-radius: 10px;
 }
 .btn-primary:hover {
   background: var(--color-arc-cyan-deep);
-  color: var(--color-ink);
+  color: #F4F7FA;
   transform: none;
   box-shadow: none;
 }
@@ -207,15 +496,17 @@ h3 { font-size: 1.3rem; line-height: 1.1; }
 }
 
 .btn-ghost {
-  background: transparent;
+  background: var(--glass-bg);
   color: var(--color-ink);
-  border: 1px solid var(--color-ink);
+  border: 1px solid var(--border-strong);
   box-shadow: none;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 .btn-ghost:hover {
-  background: var(--color-ink);
-  color: var(--color-off-white);
-  border-color: var(--color-ink);
+  background: var(--color-arc-cyan);
+  color: #F4F7FA;
+  border-color: var(--color-arc-cyan);
 }
 .btn-ghost:disabled {
   opacity: 0.45;
@@ -284,8 +575,8 @@ h3 { font-size: 1.3rem; line-height: 1.1; }
 /* ─── Scrollbar ─────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.22); }
+::-webkit-scrollbar-thumb { background: var(--color-n300); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-n400); }
 
 /* ─── Inputs — H3ROS: bottom-border-only, focus → Arc Cyan ─────────────────── */
 .forge-input {
@@ -503,13 +794,13 @@ textarea.forge-input { resize: vertical; min-height: 80px; border: 1px solid var
 /* Equity Layer 1: Dot grid substrates */
 .h3ros-dot-grid-light {
   background-color: var(--color-off-white);
-  background-image: radial-gradient(circle, rgba(20, 20, 19, 0.10) 0.8px, transparent 1px);
-  background-size: 16px 16px;
+  background-image: radial-gradient(circle, var(--bay-dot) 0.9px, transparent 1px);
+  background-size: 18px 18px;
 }
 .h3ros-dot-grid-dark {
-  background-color: var(--color-ink);
-  background-image: radial-gradient(circle, rgba(242, 242, 238, 0.10) 0.8px, transparent 1px);
-  background-size: 16px 16px;
+  background-color: var(--color-off-white);
+  background-image: radial-gradient(circle, var(--bay-dot) 0.9px, transparent 1px);
+  background-size: 18px 18px;
 }
 
 /* Equity Layer 2: Crease helper (component-form preferred via <Crease/>) */
@@ -540,4 +831,33 @@ textarea.forge-input { resize: vertical; min-height: 80px; border: 1px solid var
 /* Respect reduced-motion globally for H3ROS animations */
 @media (prefers-reduced-motion: reduce) {
   .h3ros-pulse { animation: none; }
+}
+
+/* ─── Command center layout helpers ────────────────────────────────────────── */
+.command-center-rail {
+  max-width: 720px;
+  margin-right: min(480px, 42vw);
+}
+@media (max-width: 1100px) {
+  .command-center-rail { margin-right: 0; max-width: 100%; }
+}
+.command-center-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 12px;
+}
+@media (max-width: 860px) {
+  .knowledge-grid { grid-template-columns: 1fr !important; }
+}
+
+/* Floating Forge panel enter */
+@keyframes forgeGlassIn {
+  from { opacity: 0; transform: translateX(16px) scale(0.98); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+.forge-glass-panel {
+  animation: forgeGlassIn var(--duration-slow) var(--ease-glass) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .forge-glass-panel { animation: none; }
 }

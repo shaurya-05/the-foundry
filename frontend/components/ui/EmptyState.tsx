@@ -45,11 +45,11 @@ export default function EmptyState({ icon, title, subtitle, action, accent = '#6
       <div>
         <h3
           style={{
-            fontFamily: 'var(--font-barlow-condensed)',
-            fontSize: 18,
+            fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+            fontSize: 16,
             fontWeight: 700,
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
+            letterSpacing: '-0.01em',
+            textTransform: 'none',
             color: 'var(--text-primary)',
             marginBottom: 6,
           }}
@@ -59,10 +59,11 @@ export default function EmptyState({ icon, title, subtitle, action, accent = '#6
         {subtitle && (
           <p
             style={{
-              fontFamily: 'var(--font-barlow)',
+              fontFamily: 'var(--font-archivo), system-ui, sans-serif',
               fontSize: 13,
               color: 'var(--text-muted)',
               maxWidth: 280,
+              lineHeight: 1.5,
             }}
           >
             {subtitle}

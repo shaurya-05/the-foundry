@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Barlow_Condensed, Barlow, IBM_Plex_Mono, IBM_Plex_Serif, Archivo, Archivo_Black } from 'next/font/google'
 import '../styles/globals.css'
+import { ThemeProvider } from '@/lib/theme'
 // Phase 2 §3.6 — AuthProvider lives in (app)/layout.tsx, NOT root.
 // Marketing routes ((marketing)/) skip the auth hydration cycle entirely.
 
@@ -61,7 +62,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${barlowCondensed.variable} ${barlow.variable} ${ibmPlexMono.variable} ${archivo.variable} ${archivoBlack.variable} ${plexSerif.variable}`}
       suppressHydrationWarning
     >
-      <body>{children}</body>
+      <body>
+        <ThemeProvider>{children}</ThemeProvider>
+      </body>
     </html>
   )
 }
