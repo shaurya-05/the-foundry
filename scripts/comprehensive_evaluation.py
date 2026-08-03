@@ -1,12 +1,13 @@
 """
-Comprehensive end-to-end evaluation of FOUND3RY's AI routing stack at its
-current state (CLASSIFIER/FACTUAL/STRATEGIC on local Ollama, RESEARCH/
-DOCUMENT on unconfigured closed APIs). Runs real prompts through the real
-route_query()/classify_query() path -- not isolated provider calls -- so
-results reflect what a real user actually experiences, including cross-
-provider fallback behavior when RESEARCH/DOCUMENT aren't configured.
+Comprehensive end-to-end evaluation of FOUND3RY's AI routing stack.
+Runs real prompts through the real route_query() path (the same one
+/api/copilot/message uses) -- not isolated provider calls -- so results
+reflect what a real user actually experiences: RESEARCH's tool-calling
+web search loop, DOCUMENT's knowledge_items retrieval, and the honest
+_UNCONFIGURED_TIER_CAVEATS fallback all fire exactly as they would in
+production, since this literally calls the same function.
 
-40 prompts across 4 categories (10 each): FACTUAL, STRATEGIC, RESEARCH,
+36 prompts across 4 categories: 10 FACTUAL, 10 STRATEGIC, 8 RESEARCH, 8
 DOCUMENT. Measures:
   - Classification accuracy (does CLASSIFIER route to the expected tier)
   - Answer accuracy where scorable (FACTUAL: keyword match; STRATEGIC:
@@ -25,8 +26,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 os.environ.setdefault("DATABASE_URL", "postgresql://foundry:foundry_secret@localhost:5432/foundry_db")
 os.environ.setdefault("OLLAMA_API_KEY", "ollama-local")
 
-from app.services.ai_router import classify_query
+from app.services.ai_router import classify_query, route_query
 from app.services.model_provider import MODEL_REGISTRY, load_registry_from_db
+
+# A real workspace_id is required to exercise DOCUMENT's retrieval path
+# (route_query() needs it to scope the knowledge_items query) -- this is
+# curltest@found3ry.com's workspace, the same account used for manual
+# live-endpoint verification throughout this migration.
+TEST_WORKSPACE_ID = os.getenv("EVAL_WORKSPACE_ID", "8d3f3ca3-2864-4bb8-916b-3cd0413b537b")
 
 HEDGE_OPENERS = (
     "it depends", "that depends", "there's no one-size-fits-all",
@@ -126,53 +133,42 @@ def score_strategic(answer: str, concepts: list) -> int:
 
 
 async def run_one(query: str, expected_tier: str):
+    """
+    Goes through the real route_query() path -- the same one
+    /api/copilot/message uses -- rather than replicating provider
+    selection by hand, so this actually exercises RESEARCH's tool-calling
+    loop and DOCUMENT's retrieval, not just raw provider calls. The one
+    extra call (classify_query() here, then again inside route_query())
+    is redundant but harmless -- it's just to know the ground-truth label
+    for scoring; real user requests only classify once.
+    """
     gpu_before = gpu_snapshot()
     t0 = time.time()
     actual_label = await classify_query(query)
     t1 = time.time()
     classify_ms = (t1 - t0) * 1000
 
-    provider = MODEL_REGISTRY.get(actual_label)
-    answer = ""
-    answer_ms = None
-    error = None
+    model_id = None
+    content_parts = []
     real_model_used = None
-    if provider is not None:
-        messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": query}]
-        t2 = time.time()
-        if provider.is_configured():
-            async for chunk in provider.complete(messages, stream=False, max_tokens=300, timeout_s=60.0):
-                if chunk.error:
-                    error = chunk.error
-                if chunk.content:
-                    answer += chunk.content
-                if chunk.is_final:
-                    real_model_used = chunk.model_used
-        else:
-            # Not configured locally -- mirror call_with_resilience's
-            # cross-provider fallback so this reflects what a real user
-            # would actually get, not a synthetic "unconfigured" no-op.
-            from app.services.model_provider import FALLBACK_ORDER
-            for fb_label in FALLBACK_ORDER:
-                fb_provider = MODEL_REGISTRY.get(fb_label)
-                if fb_provider and fb_provider.is_configured():
-                    async for chunk in fb_provider.complete(messages, stream=False, max_tokens=300, timeout_s=60.0):
-                        if chunk.error:
-                            error = chunk.error
-                        if chunk.content:
-                            answer += chunk.content
-                        if chunk.is_final:
-                            real_model_used = chunk.model_used
-                    break
-            else:
-                error = "no configured provider in fallback chain"
-        answer_ms = (time.time() - t2) * 1000
+    t2 = time.time()
+    async for chunk in route_query(SYSTEM, query, max_tokens=300, workspace_id=TEST_WORKSPACE_ID):
+        if model_id is None:
+            model_id = chunk
+            continue
+        if isinstance(chunk, tuple):
+            real_model_used = chunk[1]
+            continue
+        content_parts.append(chunk)
+    answer_ms = (time.time() - t2) * 1000
+    answer = "".join(content_parts)
+    error = "no response" if not answer else None
 
     gpu_after = gpu_snapshot()
     return {
         "query": query, "expected_tier": expected_tier, "actual_label": actual_label,
         "classify_ms": classify_ms, "answer_ms": answer_ms, "answer": answer,
-        "error": error, "real_model_used": real_model_used,
+        "error": error, "real_model_used": real_model_used or model_id,
         "gpu_before": gpu_before, "gpu_after": gpu_after,
     }
 
@@ -209,25 +205,25 @@ async def main():
         print(f"[{tag}] label={r['actual_label']:10} score={r['score']}/5 classify={r['classify_ms']:6.0f}ms answer={(r['answer_ms'] or 0):6.0f}ms "
               f"query={item['query'][:45]!r} answer={r['answer'][:60]!r}")
 
-    print("\n=== RESEARCH (8 prompts, classification + fallback behavior) ===")
+    print("\n=== RESEARCH (8 prompts, classification + real tool-calling/caveat behavior) ===")
     for query in RESEARCH_SET:
         r = await run_one(query, "RESEARCH")
         r["classified_correctly"] = r["actual_label"] == "RESEARCH"
         r["correct"] = r["classified_correctly"]  # no answer-quality rubric for RESEARCH
         all_results.append(r)
         tag = "OK  " if r["classified_correctly"] else "MISS"
-        fb_note = f" (fell back to {r['real_model_used']})" if r["real_model_used"] else ""
+        fb_note = f" (answered by {r['real_model_used']})" if r["real_model_used"] else ""
         print(f"[{tag}] label={r['actual_label']:10}{fb_note} classify={r['classify_ms']:6.0f}ms answer={(r['answer_ms'] or 0):6.0f}ms "
               f"query={query[:45]!r} answer={r['answer'][:60]!r} error={r['error']}")
 
-    print("\n=== DOCUMENT (8 prompts, classification + fallback behavior) ===")
+    print("\n=== DOCUMENT (8 prompts, classification + real retrieval/caveat behavior) ===")
     for query in DOCUMENT_SET:
         r = await run_one(query, "DOCUMENT")
         r["classified_correctly"] = r["actual_label"] == "DOCUMENT"
         r["correct"] = r["classified_correctly"]
         all_results.append(r)
         tag = "OK  " if r["classified_correctly"] else "MISS"
-        fb_note = f" (fell back to {r['real_model_used']})" if r["real_model_used"] else ""
+        fb_note = f" (answered by {r['real_model_used']})" if r["real_model_used"] else ""
         print(f"[{tag}] label={r['actual_label']:10}{fb_note} classify={r['classify_ms']:6.0f}ms answer={(r['answer_ms'] or 0):6.0f}ms "
               f"query={query[:45]!r} answer={r['answer'][:60]!r} error={r['error']}")
 

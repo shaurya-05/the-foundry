@@ -33,8 +33,13 @@ Interface (all providers implement this):
         - Fast credential check. Does not hit the network in v1;
           admin dashboard in Phase 2 will add optional network probe.
 
-Phase 1 scope: no tool-calling wiring yet — the `tools` argument is
-accepted and ignored so the interface is stable when Phase 3 lands.
+Phase 3: tool-calling is now wired for OpenAICompatibleProvider (used by
+the RESEARCH tier's real web-search loop, see ai_router.py). Only the
+non-streaming path populates ModelResponse.tool_calls -- the tool-calling
+orchestration always uses stream=False for the "decide whether to call a
+tool" turn, then a separate normal (optionally streaming) call for the
+final synthesized answer, so streaming tool-call delta accumulation was
+never needed.
 """
 from __future__ import annotations
 
@@ -286,6 +291,8 @@ class OpenAICompatibleProvider(ModelProvider):
             "messages": messages,
             "timeout": timeout_s,
         }
+        if tools:
+            request_kwargs["tools"] = tools
 
         try:
             if stream:
@@ -314,7 +321,17 @@ class OpenAICompatibleProvider(ModelProvider):
                     stream=False,
                     **request_kwargs,
                 )
-                text = response.choices[0].message.content or ""
+                message = response.choices[0].message
+                text = message.content or ""
+                raw_tool_calls = getattr(message, "tool_calls", None)
+                parsed_tool_calls = [
+                    {
+                        "id": tc.id,
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    }
+                    for tc in raw_tool_calls
+                ] if raw_tool_calls else None
                 usage = getattr(response, "usage", None)
                 yield ModelResponse(
                     content=text,
@@ -324,6 +341,7 @@ class OpenAICompatibleProvider(ModelProvider):
                     tokens_in=getattr(usage, "prompt_tokens", None) if usage else None,
                     tokens_out=getattr(usage, "completion_tokens", None) if usage else None,
                     latency_ms=(time.time() - start) * 1000,
+                    tool_calls=parsed_tool_calls,
                 )
         except asyncio.TimeoutError:
             yield ModelResponse(
@@ -640,6 +658,61 @@ if os.getenv("USE_LOCAL_STRATEGIC") == "1":
         base_url=_ollama_base, model=_ollama_model,
     )
 
+# ─── Local Ollama override (Stage 11 of local-model migration) ───────────────
+# RESEARCH and DOCUMENT, unlike the previous four tiers, are not a plain
+# "swap the model" migration -- neither tier's actual VALUE (live web
+# access for RESEARCH, huge context window for DOCUMENT) exists in a
+# local model by default. Real capability comes from tool-calling +
+# scripts/services/web_search.py (Tavily) for RESEARCH, and pgvector
+# retrieval over knowledge_items for DOCUMENT -- both orchestrated in
+# ai_router.py, not here. This block only wires which LOCAL model does
+# the tool-decision/synthesis work; it defaults to STRATEGIC's already-
+# pulled qwen2.5:14b-instruct rather than adding a new model to the
+# Ollama rotation (more distinct models = more OLLAMA_MAX_LOADED_MODELS=2
+# contention). If TAVILY_API_KEY/VOYAGE_API_KEY are unset, the
+# tool-calling/retrieval paths degrade gracefully to the existing
+# _UNCONFIGURED_TIER_CAVEATS behavior -- is_configured() being True here
+# does NOT by itself guarantee real capability, only that a local model
+# is available to attempt it.
+#
+# Env knobs:
+#     USE_LOCAL_RESEARCH     "1" to activate the swap (default off)
+#     USE_LOCAL_DOCUMENT     "1" to activate the swap (default off)
+#     OLLAMA_BASE_URL        defaults to http://localhost:11434/v1 (shared)
+#     OLLAMA_API_KEY         defaults to "ollama-local" (shared)
+#     OLLAMA_RESEARCH_MODEL  defaults to qwen2.5:14b-instruct
+#     OLLAMA_DOCUMENT_MODEL  defaults to qwen2.5:14b-instruct
+
+if os.getenv("USE_LOCAL_RESEARCH") == "1":
+    _ollama_base = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+    _ollama_model = os.getenv("OLLAMA_RESEARCH_MODEL", "qwen2.5:14b-instruct")
+    os.environ.setdefault("OLLAMA_API_KEY", "ollama-local")
+    _FALLBACK_REGISTRY["RESEARCH"] = OpenAICompatibleProvider(
+        api_key_env="OLLAMA_API_KEY",
+        model=_ollama_model,
+        provider_name="ollama",
+        base_url=_ollama_base,
+    )
+    log.info(
+        "local_research_enabled",
+        base_url=_ollama_base, model=_ollama_model,
+    )
+
+if os.getenv("USE_LOCAL_DOCUMENT") == "1":
+    _ollama_base = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+    _ollama_model = os.getenv("OLLAMA_DOCUMENT_MODEL", "qwen2.5:14b-instruct")
+    os.environ.setdefault("OLLAMA_API_KEY", "ollama-local")
+    _FALLBACK_REGISTRY["DOCUMENT"] = OpenAICompatibleProvider(
+        api_key_env="OLLAMA_API_KEY",
+        model=_ollama_model,
+        provider_name="ollama",
+        base_url=_ollama_base,
+    )
+    log.info(
+        "local_document_enabled",
+        base_url=_ollama_base, model=_ollama_model,
+    )
+
 # Live registry — starts as the fallback, replaced in-place when
 # load_registry_from_db() succeeds. Callers reference MODEL_REGISTRY[label]
 # and always get the current value.
@@ -760,6 +833,22 @@ async def load_registry_from_db() -> dict[str, ModelProvider]:
                 MODEL_REGISTRY["STRATEGIC"] = override
                 log.info(
                     "strategic_override_applied_post_load",
+                    model=override.model, base_url=override._base_url,
+                )
+        if os.getenv("USE_LOCAL_RESEARCH") == "1" and "RESEARCH" in _FALLBACK_REGISTRY:
+            override = _FALLBACK_REGISTRY["RESEARCH"]
+            if isinstance(override, OpenAICompatibleProvider) and override.provider_name == "ollama":
+                MODEL_REGISTRY["RESEARCH"] = override
+                log.info(
+                    "research_override_applied_post_load",
+                    model=override.model, base_url=override._base_url,
+                )
+        if os.getenv("USE_LOCAL_DOCUMENT") == "1" and "DOCUMENT" in _FALLBACK_REGISTRY:
+            override = _FALLBACK_REGISTRY["DOCUMENT"]
+            if isinstance(override, OpenAICompatibleProvider) and override.provider_name == "ollama":
+                MODEL_REGISTRY["DOCUMENT"] = override
+                log.info(
+                    "document_override_applied_post_load",
                     model=override.model, base_url=override._base_url,
                 )
         _registry_rows = raw_rows

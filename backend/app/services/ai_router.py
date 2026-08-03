@@ -16,12 +16,14 @@ Model selection labels (kept identical for compatibility):
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import time
 from typing import AsyncIterator, Optional
 
 import structlog
 
+from app.services import document_retrieval, web_search
 from app.services.model_provider import MODEL_REGISTRY, ModelResponse, call_with_resilience
 
 log = structlog.get_logger()
@@ -303,6 +305,82 @@ def _label_from_override(model_override: Optional[str]) -> Optional[str]:
     return aliases.get(model_override)
 
 
+# ─── RESEARCH: real web search via tool-calling ──────────────────────────────
+# Two-call pattern, both non-streaming: first call gives the local model a
+# web_search tool and lets it decide the query; second call feeds the real
+# search results back and asks for a grounded, cited answer. Deliberately
+# NOT a single streaming call with tool support -- see model_provider.py's
+# module docstring on why streaming tool-call delta accumulation was never
+# implemented (this two-call shape doesn't need it).
+
+WEB_SEARCH_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "web_search",
+        "description": "Search the live web for current, real-time information that isn't in your training data (news, prices, rates, recent events).",
+        "parameters": {
+            "type": "object",
+            "properties": {"query": {"type": "string", "description": "The search query"}},
+            "required": ["query"],
+        },
+    },
+}
+
+
+async def _research_with_web_search(system: str, message: str, provider, max_tokens: int) -> str:
+    """
+    Real RESEARCH: ask the local model to call web_search, execute the
+    actual search via Tavily, then synthesize a final answer grounded in
+    those results. Every failure mode (model doesn't call the tool,
+    search API returns nothing) produces an honest "couldn't find that"
+    message -- never lets the model guess in place of a failed search.
+    """
+    decide_messages = [
+        {"role": "system", "content": system + "\n\nYou have a web_search tool for anything needing current/live information. Use it before answering."},
+        {"role": "user", "content": message},
+    ]
+    tool_calls = None
+    async for chunk in provider.complete(decide_messages, tools=[WEB_SEARCH_TOOL], stream=False, max_tokens=200, timeout_s=30.0):
+        if chunk.is_final:
+            tool_calls = chunk.tool_calls
+
+    if not tool_calls:
+        return "I wasn't able to determine what to search for from that question — could you rephrase it?"
+
+    search_query = message
+    try:
+        args = json.loads(tool_calls[0]["arguments"])
+        search_query = args.get("query", message)
+    except Exception:
+        pass
+
+    results = await web_search.search(search_query)
+    if not results:
+        return (
+            "I tried to search the web for this but the search came back empty "
+            "(or web search isn't configured right now) — I don't have a "
+            "reliable answer to give you without live data for this one."
+        )
+
+    formatted_results = "\n\n".join(
+        f"[{i + 1}] {r['title']} ({r['url']})\n{r['content']}" for i, r in enumerate(results)
+    )
+    synth_messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": (
+            f"{message}\n\nHere are real, current web search results to answer this:\n\n"
+            f"{formatted_results}\n\nAnswer using ONLY this information. Cite sources "
+            f"inline like [1], [2]. If these results don't actually answer the "
+            f"question, say so plainly rather than filling the gap yourself."
+        )},
+    ]
+    answer_chunks = []
+    async for chunk in provider.complete(synth_messages, stream=False, max_tokens=max_tokens, timeout_s=45.0):
+        if chunk.content:
+            answer_chunks.append(chunk.content)
+    return "".join(answer_chunks) or "I found search results but couldn't synthesize an answer from them — please try again."
+
+
 async def route_query(
     system: str,
     message: str,
@@ -310,6 +388,7 @@ async def route_query(
     model_override: Optional[str] = None,
     on_status=None,   # Optional[Callable[[str], Awaitable[None]]]
     history: Optional[list[dict[str, str]]] = None,
+    workspace_id: Optional[str] = None,
 ) -> AsyncIterator[str | tuple[str, str]]:
     """
     Classify and stream from the best model.
@@ -346,7 +425,46 @@ async def route_query(
     yield model_id
 
     formatted_system = _inject_format(system)
-    if label in _UNCONFIGURED_TIER_CAVEATS and not provider.is_configured():
+
+    # RESEARCH: real web search when both a local model and Tavily are
+    # available. This is a self-contained two-call flow (see
+    # _research_with_web_search) that doesn't go through
+    # call_with_resilience -- returns directly rather than falling
+    # through to the standard single-call path below.
+    if label == "RESEARCH" and provider.is_configured() and web_search.is_configured():
+        start = time.time()
+        answer = await _research_with_web_search(formatted_system, message, provider, max_tokens)
+        yield answer
+        log_model_usage(
+            model=provider.model, prompt=system[:500] + message, response=answer,
+            latency_ms=(time.time() - start) * 1000, query_type=label,
+        )
+        return
+
+    # DOCUMENT: real retrieval from the user's knowledge base when both a
+    # local model and Voyage embeddings are available. `document_context`
+    # stays None (not just "unconfigured") whenever retrieval genuinely
+    # finds nothing relevant -- that's the signal the caveat below keys
+    # on, not provider.is_configured(), since a local DOCUMENT model can
+    # be perfectly configured and still have nothing real to answer from.
+    document_context = None
+    if label == "DOCUMENT" and provider.is_configured() and workspace_id and document_retrieval.is_configured():
+        document_context = await document_retrieval.retrieve_context(workspace_id, message)
+
+    if document_context:
+        formatted_system += (
+            "\n\nThe following is real content retrieved from the user's "
+            "knowledge base because it's relevant to this question. Base "
+            "your answer on it. If it doesn't fully answer the question, "
+            "say what's missing rather than filling the gap with "
+            "assumptions.\n\n" + document_context
+        )
+    elif label in _UNCONFIGURED_TIER_CAVEATS:
+        # Reaching this point for RESEARCH means the tool-calling path
+        # above didn't fire (no local model, no Tavily, or the model
+        # chose not to search). For DOCUMENT it means retrieval found
+        # nothing real (unconfigured, embedding failure, or a genuine
+        # no-match). Either way: be honest, don't guess.
         formatted_system += _UNCONFIGURED_TIER_CAVEATS[label]
 
     messages = [

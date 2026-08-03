@@ -122,6 +122,7 @@ async def copilot_message(req: CopilotMessage, auth: AuthContext = Depends(requi
             model_override=req.model_override,
             on_status=_on_status,
             history=history,
+            workspace_id=auth.workspace_id,
         ):
             # Drain any status events the wrapper queued (retries, fallbacks)
             while not status_q.empty():
