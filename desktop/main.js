@@ -4,6 +4,7 @@ const { loadRawEnv, buildBackendEnv, buildFrontendEnv, resolvePorts } = require(
 const { startBackend, startFrontend, waitForHttp, stopAll } = require('./lib/sidecars')
 const { registerSetupIpc } = require('./lib/setup-ipc')
 const { cloudByokBackendEnv } = require('./lib/cloud-byok')
+const { checkForUpdatesInBackground } = require('./lib/auto-update')
 
 /** @type {import('electron').BrowserWindow | null} */
 let mainWindow = null
@@ -103,6 +104,9 @@ async function startSidecarsAndWindow(envOverlay) {
     await waitForHttp(frontendUrl, { timeoutMs: 120000 })
 
     await createWindow(frontendUrl)
+
+    // Phase 5: non-blocking update check after the main window exists.
+    checkForUpdatesInBackground(mainWindow)
 
     if (setupWindow && !setupWindow.isDestroyed()) {
       setupWindow.close()

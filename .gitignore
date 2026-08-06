@@ -28,6 +28,9 @@ frontend/.vercel/
 desktop/node_modules/
 desktop/resources/
 desktop/release/
+desktop/release-feed/
+desktop/release-staging/
+desktop/update-test-logs/
 desktop/dist/
 desktop/data/
 
