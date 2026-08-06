@@ -221,7 +221,7 @@ export default function H3roJarvisOrb({
         )}
       </svg>
 
-      {/* Center wordmark — Glyph3 at 1em to match H/RO letter size */}
+      {/* Center wordmark — Arc Cyan Glyph3, same cap height as H/RO */}
       {!speaking && (
         <span
           className="h3ro-jarvis-mark"
@@ -231,8 +231,8 @@ export default function H3roJarvisOrb({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontFamily: 'var(--font-archivo), system-ui, sans-serif',
-            fontWeight: 700,
+            fontFamily: 'var(--font-archivo-black), var(--font-archivo), system-ui, sans-serif',
+            fontWeight: 400,
             fontSize: markSize,
             lineHeight: 1,
             letterSpacing: '0.06em',
@@ -241,17 +241,12 @@ export default function H3roJarvisOrb({
             zIndex: 2,
           }}
         >
-          <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 0 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 0 }}>
             <span>H</span>
             <Glyph3
-              size="0.72em"
+              size={markSize * 0.68}
               color="var(--color-arc-cyan)"
-              style={{
-                display: 'inline-block',
-                marginLeft: '0.02em',
-                marginRight: '0.02em',
-                transform: 'translateY(-0.01em)',
-              }}
+              style={{ marginLeft: '0.04em', marginRight: '0.04em' }}
             />
             <span>RO</span>
           </span>
