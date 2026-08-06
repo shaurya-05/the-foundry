@@ -91,10 +91,10 @@ export default function DashboardClient() {
         flexShrink: 0,
       }}>
         <TabButton active={tab === 'h3ro'} onClick={() => setTab('h3ro')}>
-          <span style={{ display: 'inline-flex', alignItems: 'baseline' }}>
-            H
-            <Glyph3 size="0.85em" style={{ marginLeft: 1, marginRight: 1, transform: 'translateY(-0.02em)' }} />
-            RO
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.02em', lineHeight: 1 }}>
+            <span>H</span>
+            <Glyph3 size="1em" color="currentColor" />
+            <span>RO</span>
           </span>
         </TabButton>
         <TabButton active={tab === 'overview'} onClick={() => setTab('overview')}>

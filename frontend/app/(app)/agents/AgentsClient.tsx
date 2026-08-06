@@ -127,7 +127,7 @@ export default function AgentsClient() {
   async function loadThread(threadId: string) {
     const token = getToken(); if (!token) return
     try {
-      const res = await fetch(API_URL + '/api/copilot/history?thread_id=' + threadId + '&limit=50', { headers: { Authorization: 'Bearer ' + token } })
+      const res = await fetch(API_URL + '/api/copilot/history?thread_id=' + threadId + '&limit=100', { headers: { Authorization: 'Bearer ' + token } })
       if (res.ok) {
         const msgs = await res.json()
         const rebuilt: Exchange[] = []

@@ -218,10 +218,10 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
         {/* H3RO */}
         <GhostButton onClick={onCopilot} title="H3RO (⌘J)">
           <CopilotIcon />
-          <span className="foundry-header-label" style={{ fontFamily: 'var(--font-archivo), system-ui, sans-serif', fontWeight: 700, display: 'inline-flex', alignItems: 'baseline' }}>
-            H
-            <Glyph3 size="0.72em" style={{ marginLeft: 1, marginRight: 1, transform: 'translateY(-0.01em)' }} />
-            RO
+          <span className="foundry-header-label" style={{ fontFamily: 'var(--font-archivo), system-ui, sans-serif', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.02em', lineHeight: 1 }}>
+            <span>H</span>
+            <Glyph3 size="1em" color="currentColor" />
+            <span>RO</span>
           </span>
         </GhostButton>
 

@@ -33,6 +33,7 @@ loop's primary use case (open-ended goals) means most writes it decides
 to make are agent-inferred in spirit even when mislabeled.
 """
 import json
+import re
 import time
 from typing import Any, AsyncIterator, Optional
 
@@ -46,24 +47,76 @@ from app.services.model_provider import MODEL_REGISTRY
 
 log = structlog.get_logger()
 
+# Small models occasionally write a tool call out as plain text instead of
+# using the wire format's structured tool_calls field -- observed directly
+# against qwen2.5:7b-instruct (roughly 1 in 3 on some prompts, e.g.
+# "søker {\"name\": \"web_search\", \"arguments\": {\"query\": ...}}"),
+# usually noise tokens followed by a well-formed {"name": ..., "arguments":
+# {...}} blob. Every real tool in TOOL_REGISTRY takes flat (non-nested)
+# arguments, so a non-nested-brace match is sufficient here, not a
+# simplification that loses real cases.
+_GARBLED_TOOL_CALL_RE = re.compile(
+    r'\{\s*"name"\s*:\s*"([a-zA-Z_][a-zA-Z0-9_]*)"\s*,\s*"arguments"\s*:\s*(\{[^{}]*\})\s*\}',
+    re.DOTALL,
+)
+
+
+def _recover_garbled_tool_call(text: str) -> Optional[list[dict[str, Any]]]:
+    """
+    Detect the garbled-tool-call-as-text shape described above and recover
+    a real tool call from it, rather than letting the gibberish reach the
+    user as a "final answer" -- which is what happens upstream if this
+    returns None and tool_calls stays empty.
+    """
+    match = _GARBLED_TOOL_CALL_RE.search(text)
+    if not match:
+        return None
+    name, args_json = match.group(1), match.group(2)
+    if name not in TOOL_REGISTRY:
+        return None
+    try:
+        json.loads(args_json)
+    except json.JSONDecodeError:
+        return None
+    return [{"id": "recovered-0", "name": name, "arguments": args_json}]
+
 MAX_ITERATIONS = 8
-PLANNER_LABEL = "STRATEGIC"
+# FACTUAL's qwen2.5:7b-instruct, not STRATEGIC's 14b -- H3RO's primary
+# surface is now voice-first, live back-and-forth conversation (agent_mode
+# defaults to true in ForgeCopilot.tsx), where every turn pays this
+# model's latency before H3RO can start speaking. Measured directly
+# against the real running Ollama instance, same prompt, isolated from
+# pipeline overhead: qwen2.5:14b-instruct took 11.74s for a trivial
+# "hey what's up", qwen2.5:7b-instruct took 0.71s for the identical
+# prompt -- and 7b still emits correct tool_calls when a query genuinely
+# needs one (verified with a real web-search-worthy query). 14b remains
+# available as STRATEGIC for anything that explicitly wants deeper
+# reasoning; this loop's default consumer no longer does.
+PLANNER_LABEL = "FACTUAL"
 CONFIRM_TIMEOUT_S = 60.0  # a human deciding yes/no needs longer than a file read
 
-AGENT_SYSTEM_PROMPT = """You are H3RO (pronounced "hero") — an autonomous collaborating cofound3r working on the user's stated goal, not just answering a single question. Work step by step using the tools available to you.
-When the founder has granted local files or a folder, use list_files / read_file to pull what you need from context — do not ask them to re-upload.
+AGENT_SYSTEM_PROMPT = """You are H3RO (pronounced "hero") — an autonomous collaborating cofound3r working with the founder in an ongoing conversation. Work step by step using the tools available to you.
+
+You have:
+- Conversation history for this thread (already in the messages) — use it; do not ask the founder to repeat themselves.
+- Durable memory (memory_read is provided below) for cross-session facts.
+- Local files (list_files / read_file) when the founder has granted access — pull by context; do not ask them to re-upload.
+- Live internet search (web_search) — use it whenever you need current or external information, like a normal AI assistant.
 
 Rules:
-- A memory_read result is already provided below, from before you started -- use it, don't call memory_read again unless something later in the task specifically requires a fresh check.
-- Use list_files/read_file to inspect the user's connected local folder when the goal requires real file content. If no folder is connected or a file isn't found, say so plainly rather than guessing at contents.
-- Use memory_write only for genuinely durable facts worth remembering across future conversations -- not scratch state for this task alone. Every memory_write is reviewed by the user before it's saved; you will be told if it was approved or declined.
-- After each tool result, decide: is the goal now fully met? If yes, respond with your final answer as plain text and no tool call -- lead with the outcome, don't recap your process. If not, call exactly the tool(s) you need next. Don't call a tool you don't need."""
+- A memory_read result is already provided below — use it; don't call memory_read again unless you need a fresh check.
+- Use web_search for news, facts, docs, market data, or anything outside the founder's files/workspace.
+- Use list_files/read_file when the goal needs real file content. If no folder/files are connected, say so plainly rather than guessing.
+- Use memory_write only for durable facts worth remembering across conversations. Every memory_write is reviewed by the user before it's saved.
+- Prefer short speakable sentences when answering conversationally. Lead with the outcome.
+- After each tool result, decide: is the goal met? If yes, answer in plain text with no tool call. If not, call exactly the tool(s) you need next."""
 
 
 async def run_agent_loop(
     goal: str,
     ctx: ToolContext,
     max_iterations: int = MAX_ITERATIONS,
+    history: Optional[list[dict]] = None,
 ) -> AsyncIterator[dict[str, Any]]:
     """
     Async generator yielding trace events as the loop progresses.
@@ -96,8 +149,14 @@ async def run_agent_loop(
 
     messages: list[dict[str, str]] = [
         {"role": "system", "content": AGENT_SYSTEM_PROMPT},
-        {"role": "user", "content": goal},
     ]
+    # Full prior conversation so H3RO holds memory of the thread.
+    for turn in (history or []):
+        role = turn.get("role")
+        content = (turn.get("content") or "").strip()
+        if role in ("user", "assistant") and content:
+            messages.append({"role": role, "content": content[:8000]})
+    messages.append({"role": "user", "content": goal})
 
     # Step zero: always consult memory before anything else happens.
     memory_tool = TOOL_REGISTRY.get("memory_read")
@@ -117,17 +176,25 @@ async def run_agent_loop(
         response_text = ""
         tool_calls = None
         t0 = time.time()
-        async for chunk in provider.complete(messages, tools=tool_defs, stream=False, max_tokens=800, timeout_s=60.0):
+        async for chunk in provider.complete(messages, tools=tool_defs, stream=False, max_tokens=1200, timeout_s=60.0):
             if chunk.is_final:
                 response_text = chunk.content or ""
                 tool_calls = chunk.tool_calls
         log.info("agent_loop_planner_call", iteration=iteration, latency_ms=round((time.time() - t0) * 1000), had_tool_calls=bool(tool_calls))
 
         if not tool_calls:
-            # Implicit reflection: the model chose to answer instead of
-            # act, which means it judged the goal met.
-            yield {"type": "agent_final", "answer": response_text or "I don't have a final answer to give.", "iterations_used": iteration}
-            return
+            recovered = _recover_garbled_tool_call(response_text)
+            if recovered:
+                log.warning(
+                    "agent_loop_recovered_garbled_tool_call",
+                    iteration=iteration, tool=recovered[0]["name"],
+                )
+                tool_calls = recovered
+            else:
+                # Implicit reflection: the model chose to answer instead of
+                # act, which means it judged the goal met.
+                yield {"type": "agent_final", "answer": response_text or "I don't have a final answer to give.", "iterations_used": iteration}
+                return
 
         messages.append({"role": "assistant", "content": response_text or ""})
 
@@ -183,9 +250,11 @@ async def run_agent_loop(
                     observation = {"error": f"{name} did not respond in time"}
                 yield {"type": "agent_observation", "iteration": iteration, "tool": name, "result": observation}
 
+            # web_search results can be longer — allow more room
+            cap = 4000 if name == "web_search" else 2000
             messages.append({
                 "role": "user",
-                "content": f"[{name} result]: {json.dumps(observation)[:2000]}",
+                "content": f"[{name} result]: {json.dumps(observation)[:cap]}",
             })
 
     yield {

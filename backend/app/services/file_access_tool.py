@@ -21,9 +21,10 @@ from app.services.agent_tools import ToolSpec, register_tool
 LIST_FILES_TOOL = ToolSpec(
     name="list_files",
     description=(
-        "List the files and subfolders in the user's connected local folder "
-        "(or a subfolder of it). Returns names, types, and sizes only -- not "
-        "file content. Use this to find a relevant file before reading it."
+        "List the files and subfolders the founder has granted H3RO access to "
+        "(connected folder and/or individually selected files). Returns names, "
+        "types, and sizes only — not file content. Use this to find a relevant "
+        "file before reading it."
     ),
     kind="async_frontend",
     input_schema={
@@ -31,7 +32,7 @@ LIST_FILES_TOOL = ToolSpec(
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Path relative to the connected folder's root. Empty string or omitted lists the root itself.",
+                "description": "Path relative to the connected folder's root. Empty string or omitted lists the root / granted files.",
             },
         },
     },
@@ -40,9 +41,9 @@ LIST_FILES_TOOL = ToolSpec(
 READ_FILE_TOOL = ToolSpec(
     name="read_file",
     description=(
-        "Read the full text content of one specific file in the user's "
-        "connected local folder. Read-only -- this cannot modify, create, "
-        "or delete anything on the user's filesystem."
+        "Read the full text content of one specific file the founder has granted "
+        "access to (connected folder or selected files). Read-only — cannot "
+        "modify, create, or delete anything on the user's filesystem."
     ),
     kind="async_frontend",
     input_schema={
@@ -50,7 +51,7 @@ READ_FILE_TOOL = ToolSpec(
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Path to the file, relative to the connected folder's root.",
+                "description": "Path to the file, relative to the connected folder root, or a granted file name.",
             },
         },
         "required": ["path"],

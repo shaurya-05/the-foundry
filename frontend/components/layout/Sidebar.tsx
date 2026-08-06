@@ -143,10 +143,10 @@ export default function Sidebar({ onCopilot }: { onCopilot: () => void }) {
           }}
         >
           <CopilotIcon />
-          <span style={{ display: 'inline-flex', alignItems: 'baseline' }}>
-            H
-            <Glyph3 size="0.72em" style={{ marginLeft: 1, marginRight: 1, transform: 'translateY(-0.01em)' }} />
-            RO
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.02em', lineHeight: 1 }}>
+            <span>H</span>
+            <Glyph3 size="1em" color="currentColor" />
+            <span>RO</span>
           </span>
           <span style={{
             marginLeft: 'auto',

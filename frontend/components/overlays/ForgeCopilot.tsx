@@ -49,10 +49,19 @@ const STARTER_PROMPTS = [
 
 function H3roMark({ size = 13 }: { size?: number }) {
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'baseline', letterSpacing: '0.04em' }}>
-      H
-      <Glyph3 size={`${size}px`} style={{ marginLeft: 1, marginRight: 1, transform: 'translateY(-0.02em)' }} />
-      RO
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.02em',
+        fontSize: size,
+        lineHeight: 1,
+        letterSpacing: '0.06em',
+      }}
+    >
+      <span>H</span>
+      <Glyph3 size="1em" color="currentColor" />
+      <span>RO</span>
     </span>
   )
 }
@@ -65,6 +74,7 @@ export default function ForgeCopilot({ onClose, commandCenter = false }: ForgeCo
   const [activeThread, setActiveThread] = useState<string | undefined>(undefined)
   const [folderConnected, setFolderConnected] = useState(false)
   const [grantedFiles, setGrantedFiles] = useState<string[]>([])
+  const [accessSkipped, setAccessSkipped] = useState(false)
   const [agentMode, setAgentMode] = useState(true)
   const [voiceState, setVoiceState] = useState<VoiceState>('idle')
   const [interim, setInterim] = useState('')
@@ -90,6 +100,7 @@ export default function ForgeCopilot({ onClose, commandCenter = false }: ForgeCo
 
   useEffect(() => {
     warmVoices()
+    setAccessSkipped(sessionStorage.getItem('h3ro_files_skipped') === '1')
     if (isFileAccessSupported()) {
       getConnectedFolder().then(h => setFolderConnected(!!h))
     }
@@ -256,6 +267,8 @@ export default function ForgeCopilot({ onClose, commandCenter = false }: ForgeCo
     try {
       const files = await selectFiles()
       setGrantedFiles(files.map(f => f.name))
+      setAccessSkipped(false)
+      sessionStorage.removeItem('h3ro_files_skipped')
     } catch { /* cancelled */ }
   }
 
@@ -263,6 +276,8 @@ export default function ForgeCopilot({ onClose, commandCenter = false }: ForgeCo
     try {
       await connectFolder()
       setFolderConnected(true)
+      setAccessSkipped(false)
+      sessionStorage.removeItem('h3ro_files_skipped')
     } catch { /* cancelled */ }
   }
 
@@ -273,7 +288,29 @@ export default function ForgeCopilot({ onClose, commandCenter = false }: ForgeCo
     setFolderConnected(false)
   }
 
+  async function handleOrbActivate() {
+    if (voiceState === 'listening') {
+      listenerRef.current?.stop()
+      setVoiceState('idle')
+      return
+    }
+    if (voiceState === 'speaking') {
+      speakerRef.current?.cancel()
+      window.speechSynthesis?.cancel()
+      setVoiceState('idle')
+      return
+    }
+    if (streaming) return
+
+    const has = folderConnected || grantedFiles.length > 0
+    if (!has && !accessSkipped && isFileAccessSupported()) {
+      await grantFolder()
+    }
+    startListening()
+  }
+
   const hasAccess = folderConnected || grantedFiles.length > 0
+  const needsAccess = !hasAccess && !accessSkipped
   const stateLabel =
     voiceState === 'listening' ? 'Listening…'
     : voiceState === 'processing' ? (status || 'Thinking…')
@@ -324,17 +361,28 @@ export default function ForgeCopilot({ onClose, commandCenter = false }: ForgeCo
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-            {isFilePickerSupported() && (
-              <button onClick={grantFiles} style={chip(hasAccess)}>
-                {grantedFiles.length ? `● ${grantedFiles.length} files` : '○ Select files'}
-              </button>
-            )}
             {isFileAccessSupported() && (
               <button
                 onClick={folderConnected ? revokeAccess : grantFolder}
-                style={chip(folderConnected)}
+                style={chip(folderConnected || needsAccess)}
               >
-                {folderConnected ? '● Folder' : '○ Folder'}
+                {folderConnected ? '● Folder' : '○ Allow folder'}
+              </button>
+            )}
+            {isFilePickerSupported() && (
+              <button onClick={grantFiles} style={chip(hasAccess || needsAccess)}>
+                {grantedFiles.length ? `● ${grantedFiles.length} files` : '○ Select files'}
+              </button>
+            )}
+            {needsAccess && (
+              <button
+                onClick={() => {
+                  setAccessSkipped(true)
+                  sessionStorage.setItem('h3ro_files_skipped', '1')
+                }}
+                style={chip(false)}
+              >
+                Skip
               </button>
             )}
             <button onClick={() => setAgentMode(v => !v)} disabled={streaming} style={chip(agentMode)}>
@@ -344,6 +392,14 @@ export default function ForgeCopilot({ onClose, commandCenter = false }: ForgeCo
               {conversationOn ? '● Live' : '○ Live'}
             </button>
           </div>
+          {needsAccess && (
+            <div style={{
+              fontFamily: 'var(--font-archivo)', fontSize: 12, color: 'var(--color-n600)',
+              marginBottom: 10, lineHeight: 1.4,
+            }}>
+              H3RO needs browser file access to pull context — grant a folder or files, or skip.
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: 0, marginBottom: -1 }}>
             {(['talk', 'signals', 'ops'] as const).map(t => (
@@ -383,18 +439,7 @@ export default function ForgeCopilot({ onClose, commandCenter = false }: ForgeCo
                 size={transcriptOpen ? 120 : 150}
                 disabled={streaming && voiceState === 'processing'}
                 aria-label="Talk to H3RO"
-                onClick={() => {
-                  if (voiceState === 'listening') {
-                    listenerRef.current?.stop()
-                    setVoiceState('idle')
-                  } else if (voiceState === 'speaking') {
-                    speakerRef.current?.cancel()
-                    window.speechSynthesis?.cancel()
-                    setVoiceState('idle')
-                  } else if (!streaming) {
-                    startListening()
-                  }
-                }}
+                onClick={handleOrbActivate}
               />
 
               <div style={{

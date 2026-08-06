@@ -49,10 +49,21 @@ const STARTERS = [
 
 function H3roMark({ size = 14 }: { size?: number }) {
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'baseline', letterSpacing: '0.04em' }}>
-      H
-      <Glyph3 size={`${size}px`} style={{ marginLeft: 1, marginRight: 1, transform: 'translateY(-0.02em)' }} />
-      RO
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.02em',
+        fontSize: size,
+        lineHeight: 1,
+        letterSpacing: '0.06em',
+        fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+        fontWeight: 700,
+      }}
+    >
+      <span>H</span>
+      <Glyph3 size="1em" color="currentColor" />
+      <span>RO</span>
     </span>
   )
 }
@@ -74,6 +85,8 @@ export default function H3roVoiceStage() {
   const [folderName, setFolderName] = useState<string | null>(null)
   const [grantedFiles, setGrantedFiles] = useState<string[]>([])
   const [filesOpen, setFilesOpen] = useState(false)
+  const [accessReady, setAccessReady] = useState(false)
+  const [accessSkipped, setAccessSkipped] = useState(false)
   const [quietInput, setQuietInput] = useState('')
   const [showQuiet, setShowQuiet] = useState(false)
 
@@ -106,15 +119,25 @@ export default function H3roVoiceStage() {
   }, [exchanges, streaming, transcriptOpen])
 
   async function refreshFileAccess() {
+    let has = false
     if (isFileAccessSupported()) {
       const handle = await getConnectedFolder()
       setFolderConnected(!!handle)
       setFolderName(handle?.name ?? null)
+      if (handle) has = true
     }
     if (isFilePickerSupported()) {
       const files = await getSelectedFiles()
       setGrantedFiles(files.map(f => f.name))
+      if (files.length) has = true
     }
+    setAccessReady(true)
+    if (!has) {
+      const skipped = typeof window !== 'undefined' && sessionStorage.getItem('h3ro_files_skipped') === '1'
+      setAccessSkipped(skipped)
+      if (!skipped) setFilesOpen(true)
+    }
+    return has
   }
 
   async function loadThreads() {
@@ -130,7 +153,7 @@ export default function H3roVoiceStage() {
     const token = getToken()
     if (!token) return
     try {
-      const res = await fetch(API_URL + '/api/copilot/history?thread_id=' + threadId + '&limit=50', {
+      const res = await fetch(API_URL + '/api/copilot/history?thread_id=' + threadId + '&limit=100', {
         headers: { Authorization: 'Bearer ' + token },
       })
       if (res.ok) {
@@ -301,6 +324,8 @@ export default function H3roVoiceStage() {
     try {
       const files = await selectFiles()
       setGrantedFiles(files.map(f => f.name))
+      setAccessSkipped(false)
+      sessionStorage.removeItem('h3ro_files_skipped')
       setFilesOpen(true)
     } catch { /* cancelled */ }
   }
@@ -310,8 +335,19 @@ export default function H3roVoiceStage() {
       const handle = await connectFolder()
       setFolderConnected(true)
       setFolderName(handle.name)
+      setAccessSkipped(false)
+      sessionStorage.removeItem('h3ro_files_skipped')
       setFilesOpen(true)
-    } catch { /* cancelled */ }
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  function skipFileAccess() {
+    setAccessSkipped(true)
+    sessionStorage.setItem('h3ro_files_skipped', '1')
+    setFilesOpen(false)
   }
 
   async function revokeAllFiles() {
@@ -322,6 +358,32 @@ export default function H3roVoiceStage() {
     setFolderName(null)
   }
 
+  /** First orb tap requests file access in the same browser gesture. */
+  async function handleOrbActivate() {
+    if (voiceState === 'listening') {
+      stopListening()
+      return
+    }
+    if (voiceState === 'speaking') {
+      speakerRef.current?.cancel()
+      if (typeof window !== 'undefined') window.speechSynthesis?.cancel()
+      setVoiceState('idle')
+      return
+    }
+    if (streaming) return
+
+    const has = folderConnected || grantedFiles.length > 0
+    if (!has && !accessSkipped && (isFileAccessSupported() || isFilePickerSupported())) {
+      setFilesOpen(true)
+      if (isFileAccessSupported()) {
+        await grantFolder()
+      } else if (isFilePickerSupported()) {
+        await grantFiles()
+      }
+    }
+    startListening()
+  }
+
   const stateLabel =
     voiceState === 'listening' ? 'Listening…'
     : voiceState === 'processing' ? (status || 'Thinking…')
@@ -329,6 +391,7 @@ export default function H3roVoiceStage() {
     : conversationOn ? 'Tap to talk' : 'Ready'
 
   const hasAccess = folderConnected || grantedFiles.length > 0
+  const needsAccessPrompt = accessReady && !hasAccess && !accessSkipped && (isFileAccessSupported() || isFilePickerSupported())
 
   return (
     <div style={{
@@ -403,31 +466,51 @@ export default function H3roVoiceStage() {
           </div>
         </div>
 
-        {/* File access panel */}
-        {filesOpen && (
+        {/* File access — requested by default until granted or skipped */}
+        {(filesOpen || needsAccessPrompt) && (
           <div style={{
-            padding: '12px 18px',
+            padding: '14px 18px',
             borderBottom: '1px solid var(--border)',
-            background: 'rgba(0,0,0,0.03)',
+            background: needsAccessPrompt ? 'rgba(159,222,250,0.12)' : 'rgba(0,0,0,0.03)',
             flexShrink: 0,
           }}>
             <div style={{
-              fontFamily: 'var(--font-ibm-plex-mono)',
-              fontSize: 10,
-              color: 'var(--color-n600)',
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              marginBottom: 10,
+              fontFamily: 'var(--font-archivo)',
+              fontWeight: 700,
+              fontSize: 14,
+              color: 'var(--color-ink)',
+              marginBottom: 6,
             }}>
-              H3RO file access — select what he can read; he pulls by context
+              {needsAccessPrompt
+                ? 'H3RO needs browser access to your files'
+                : 'H3RO file access'}
             </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-              {isFilePickerSupported() && (
-                <button onClick={grantFiles} className="btn btn-primary btn-sm">Select files</button>
-              )}
+            <div style={{
+              fontFamily: 'var(--font-archivo)',
+              fontSize: 13,
+              color: 'var(--color-n600)',
+              marginBottom: 12,
+              lineHeight: 1.45,
+              maxWidth: 520,
+            }}>
+              {needsAccessPrompt
+                ? 'Grant a folder or specific files so he can pull context himself — no uploads. Your browser will ask for permission.'
+                : 'Select what he can read; he pulls by context. He can also search the web and remembers this conversation.'}
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: hasAccess ? 10 : 0 }}>
               {isFileAccessSupported() && (
-                <button onClick={grantFolder} className="btn btn-sm" style={secondaryBtn}>
-                  {folderConnected ? `Folder: ${folderName}` : 'Grant folder'}
+                <button onClick={grantFolder} className="btn btn-primary btn-sm">
+                  {folderConnected ? `Folder: ${folderName}` : 'Allow folder access'}
+                </button>
+              )}
+              {isFilePickerSupported() && (
+                <button onClick={grantFiles} className="btn btn-sm" style={secondaryBtn}>
+                  Select files
+                </button>
+              )}
+              {needsAccessPrompt && (
+                <button onClick={skipFileAccess} className="btn btn-sm" style={secondaryBtn}>
+                  Continue without files
                 </button>
               )}
               {hasAccess && (
@@ -470,11 +553,6 @@ export default function H3roVoiceStage() {
                 ))}
               </div>
             )}
-            {!hasAccess && (
-              <div style={{ fontFamily: 'var(--font-archivo)', fontSize: 13, color: 'var(--color-n600)' }}>
-                No uploads needed — grant files or a folder and H3RO reads them when relevant.
-              </div>
-            )}
           </div>
         )}
 
@@ -494,16 +572,7 @@ export default function H3roVoiceStage() {
             size={transcriptOpen ? 140 : 220}
             disabled={streaming && voiceState === 'processing'}
             aria-label={voiceState === 'listening' ? 'Stop listening' : 'Talk to H3RO'}
-            onClick={() => {
-              if (voiceState === 'listening') stopListening()
-              else if (voiceState === 'speaking') {
-                speakerRef.current?.cancel()
-                if (typeof window !== 'undefined') window.speechSynthesis?.cancel()
-                setVoiceState('idle')
-              } else if (!streaming) {
-                startListening()
-              }
-            }}
+            onClick={handleOrbActivate}
           />
 
           <div style={{

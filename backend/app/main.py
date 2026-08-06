@@ -93,7 +93,7 @@ async def lifespan(app: FastAPI):
     # module docstring. No agent loop calls these yet (Stage 4, not built);
     # this just keeps the registry populated in the real running app.
     try:
-        from app.services import agent_tools, memory_tool, file_access_tool  # noqa: F401
+        from app.services import agent_tools, memory_tool, file_access_tool, web_search_tool  # noqa: F401
         log.info("agent_tools_registered", tools=list(agent_tools.TOOL_REGISTRY.keys()))
     except Exception as e:
         log.warning("agent_tools_registration_failed", error=str(e))

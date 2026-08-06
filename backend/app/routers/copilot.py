@@ -21,12 +21,17 @@ from app.dependencies import AuthContext, require_auth
 
 log = structlog.get_logger()
 
-# History budget for multi-turn context. Local Ollama models here run a
-# 4096-token context window total (system + history + new message +
-# room for the reply) -- keep this conservative rather than per-provider
-# aware, since it needs to be safe for every tier, not just the ones
-# with much larger context windows.
-MAX_HISTORY_MESSAGES = 10
+# History budget for multi-turn context. This deployment runs local
+# Ollama models with a real ~4096-token context window total (see
+# ai_router.py's route_query docstring), shared between system prompt,
+# tool definitions, history, the new message, and room for the reply --
+# NOT a large cloud-model window. A wide budget here doesn't make H3RO
+# remember more; Ollama truncates from the front once the real window
+# fills, silently dropping the system prompt (H3RO's own persona) and the
+# earliest turns first -- the opposite of "remembers the conversation".
+# 100 messages stays as an outer sanity cap; the token budget is what
+# actually bites in practice for any thread with real content.
+MAX_HISTORY_MESSAGES = 100
 MAX_HISTORY_TOKENS = 1500
 
 
@@ -155,7 +160,7 @@ async def copilot_message_ws(websocket: WebSocket):
         ctx = ToolContext(workspace_id=auth.workspace_id, user_id=auth.user_id, thread_id=thread_id)
         final_text = ""
         try:
-            async for event in run_agent_loop(req.message, ctx):
+            async for event in run_agent_loop(req.message, ctx, history=history):
                 await websocket.send_json(event)
                 if event["type"] == "agent_final":
                     final_text = event["answer"]
@@ -327,26 +332,40 @@ async def test_file_tool_ws(websocket: WebSocket):
 @router.get("/history")
 async def get_copilot_history(
     project_id: Optional[str] = Query(None),
-    limit: int = 50,
+    thread_id: Optional[str] = Query(None),
+    limit: int = 100,
     auth: AuthContext = Depends(require_auth),
 ):
-    """Returns copilot conversation history. Filter by project_id for per-project chat."""
+    """Returns copilot conversation history. Prefer thread_id for H3RO threads."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        if project_id:
+        if thread_id:
             rows = await conn.fetch(
-                """SELECT id, role, content, created_at FROM copilot_messages
+                """SELECT id, role, content, created_at, model_used FROM copilot_messages
+                   WHERE workspace_id=$1 AND thread_id=$2 AND role IN ('user', 'assistant')
+                   ORDER BY created_at DESC LIMIT $3""",
+                auth.workspace_id, thread_id, limit,
+            )
+        elif project_id:
+            rows = await conn.fetch(
+                """SELECT id, role, content, created_at, model_used FROM copilot_messages
                    WHERE workspace_id=$1 AND project_id=$2 ORDER BY created_at DESC LIMIT $3""",
                 auth.workspace_id, project_id, limit,
             )
         else:
             rows = await conn.fetch(
-                """SELECT id, role, content, created_at FROM copilot_messages
+                """SELECT id, role, content, created_at, model_used FROM copilot_messages
                    WHERE workspace_id=$1 AND project_id IS NULL ORDER BY created_at DESC LIMIT $2""",
                 auth.workspace_id, limit,
             )
         return [
-            {"id": str(r["id"]), "role": r["role"], "content": r["content"], "created_at": r["created_at"].isoformat()}
+            {
+                "id": str(r["id"]),
+                "role": r["role"],
+                "content": r["content"],
+                "created_at": r["created_at"].isoformat(),
+                "model_used": r["model_used"],
+            }
             for r in reversed(rows)
         ]
 
