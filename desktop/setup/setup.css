@@ -220,3 +220,89 @@ button:disabled {
 }
 
 .hidden { display: none !important; }
+
+.choice-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.choice-card {
+  text-align: left;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 14px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.choice-card:hover {
+  border-color: rgba(232, 35, 31, 0.45);
+  background: rgba(232, 35, 31, 0.06);
+}
+
+.choice-title {
+  font-weight: 600;
+  font-size: 0.98rem;
+}
+
+.choice-desc {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 14px 0 4px;
+}
+
+.field-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+.field input {
+  font: inherit;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.9rem;
+  padding: 11px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg2);
+  color: var(--text);
+  outline: none;
+}
+
+.field input:focus {
+  border-color: rgba(232, 35, 31, 0.55);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.mono {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.88em;
+}
+
+.status-line {
+  margin: 12px 0 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.status-line.ready {
+  color: var(--ok);
+}
+
+.hint {
+  margin: 16px 0 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.82rem;
+}

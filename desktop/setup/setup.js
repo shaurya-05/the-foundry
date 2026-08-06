@@ -1,4 +1,4 @@
-/* Ollama first-run setup renderer — uses window.foundryOllamaSetup from preload. */
+/* First-run setup — local Ollama (Phase 3) + cloud BYOK choice (Phase 4). */
 
 const api = window.foundryOllamaSetup
 const panel = document.getElementById('panel')
@@ -25,11 +25,11 @@ function pct(completed, total) {
   return Math.max(0, Math.min(100, Math.round((completed / total) * 100)))
 }
 
-async function continueApp() {
+async function continueApp(mode) {
   showSkip(false)
   panel.innerHTML = `<p class="status">Starting FOUND3RY…</p><p class="detail">Launching local backend and UI.</p>`
   try {
-    await api.continueToApp()
+    await api.continueToApp({ mode: mode || 'local' })
   } catch (err) {
     panel.innerHTML = `<p class="status">Could not continue</p><p class="error">${escapeHtml(err.message || String(err))}</p>`
     showSkip(true)
@@ -43,6 +43,98 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
 }
+
+// ─── Top-level choice (Phase 4) ─────────────────────────────────────────────
+
+function renderChoice() {
+  showSkip(false)
+  panel.innerHTML = `
+    <p class="status">How should FOUND3RY run AI?</p>
+    <p class="detail">
+      Local models need Ollama and a capable GPU. Cloud uses your own Anthropic API key
+      (bring-your-own-key — we never proxy or bill for tokens).
+    </p>
+    <div class="choice-grid">
+      <button type="button" class="choice-card" id="pick-local">
+        <span class="choice-title">Run models locally</span>
+        <span class="choice-desc">Ollama + qwen2.5 on this machine. Free after download; needs GPU headroom.</span>
+      </button>
+      <button type="button" class="choice-card" id="pick-cloud">
+        <span class="choice-title">Use your own cloud API key</span>
+        <span class="choice-desc">Anthropic Claude for all chat tiers. You pay Anthropic directly.</span>
+      </button>
+    </div>
+    <p class="hint"><button type="button" class="linkish" id="back-skip-choice">Skip for now</button> — chat may fail until a path is configured.</p>
+  `
+  document.getElementById('pick-local').onclick = () => runCheck()
+  document.getElementById('pick-cloud').onclick = () => renderCloudKey()
+  document.getElementById('back-skip-choice').onclick = () => continueApp('local')
+}
+
+function renderCloudKey() {
+  showSkip(false)
+  panel.innerHTML = `
+    <p class="status">Anthropic API key</p>
+    <p class="detail">
+      Paste a key from
+      <span class="mono">console.anthropic.com</span>.
+      We’ll verify it with a tiny Claude Haiku call before saving.
+      Stored with OS encryption when available (never written into your chat history).
+    </p>
+    <label class="field">
+      <span class="field-label">API key</span>
+      <input type="password" id="api-key" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" />
+    </label>
+    <div class="actions">
+      <button type="button" class="btn-primary" id="save-cloud">Save &amp; continue</button>
+      <button type="button" class="btn-secondary" id="back-choice">Back</button>
+    </div>
+    <p class="status-line hidden" id="cloud-status"></p>
+    <p class="error hidden" id="cloud-error"></p>
+  `
+
+  const input = document.getElementById('api-key')
+  const saveBtn = document.getElementById('save-cloud')
+  const statusEl = document.getElementById('cloud-status')
+  const errEl = document.getElementById('cloud-error')
+
+  document.getElementById('back-choice').onclick = () => renderChoice()
+
+  saveBtn.onclick = async () => {
+    const key = input.value
+    errEl.classList.add('hidden')
+    statusEl.classList.remove('hidden', 'ready')
+    statusEl.textContent = 'Verifying key with Anthropic…'
+    saveBtn.disabled = true
+    input.disabled = true
+    try {
+      const result = await api.byokValidateKey(key)
+      if (!result.ok) {
+        statusEl.classList.add('hidden')
+        errEl.textContent = result.error || 'Validation failed'
+        errEl.classList.remove('hidden')
+        saveBtn.disabled = false
+        input.disabled = false
+        return
+      }
+      statusEl.textContent = 'Key valid — saving…'
+      await api.byokSaveKey(key)
+      statusEl.classList.add('ready')
+      statusEl.textContent = 'Saved. Starting FOUND3RY…'
+      await api.continueToApp({ mode: 'cloud' })
+    } catch (err) {
+      statusEl.classList.add('hidden')
+      errEl.textContent = err.message || String(err)
+      errEl.classList.remove('hidden')
+      saveBtn.disabled = false
+      input.disabled = false
+    }
+  }
+
+  input.focus()
+}
+
+// ─── Phase 3 local Ollama flow (unchanged behavior once entered) ────────────
 
 function renderChecking() {
   showSkip(false)
@@ -61,12 +153,14 @@ function renderNotReachable() {
     <div class="actions">
       <button type="button" class="btn-primary" id="open-download">Open download page</button>
       <button type="button" class="btn-secondary" id="recheck">I’ve installed it — check again</button>
+      <button type="button" class="btn-secondary" id="back-choice-local">Back</button>
     </div>
   `
   document.getElementById('open-download').onclick = async () => {
     await api.openDownloadPage()
   }
   document.getElementById('recheck').onclick = () => runCheck()
+  document.getElementById('back-choice-local').onclick = () => renderChoice()
 }
 
 function renderMissing(missing) {
@@ -93,11 +187,13 @@ function renderMissing(missing) {
     <ul class="model-list">${items}</ul>
     <div class="actions">
       <button type="button" class="btn-primary" id="pull">Download models</button>
+      <button type="button" class="btn-secondary" id="back-choice-missing">Back</button>
     </div>
     <p class="error hidden" id="pull-error"></p>
   `
 
   document.getElementById('pull').onclick = () => pullAll(missing)
+  document.getElementById('back-choice-missing').onclick = () => renderChoice()
 }
 
 function renderReady(autoContinue) {
@@ -107,7 +203,7 @@ function renderReady(autoContinue) {
     <p class="detail">Ollama is running and all required models are installed.</p>
   `
   if (autoContinue) {
-    setTimeout(() => continueApp(), 700)
+    setTimeout(() => continueApp('local'), 700)
   }
 }
 
@@ -194,17 +290,19 @@ async function runCheck() {
       <p class="error">${escapeHtml(err.message || String(err))}</p>
       <div class="actions">
         <button type="button" class="btn-secondary" id="recheck">Try again</button>
+        <button type="button" class="btn-secondary" id="back-choice-err">Back</button>
       </div>
     `
     showSkip(true)
     document.getElementById('recheck').onclick = () => runCheck()
+    document.getElementById('back-choice-err').onclick = () => renderChoice()
   }
 }
 
-skipBtn.onclick = () => continueApp()
+skipBtn.onclick = () => continueApp('local')
 
 if (!api) {
   panel.innerHTML = `<p class="status">Setup API missing</p><p class="detail">preload.js did not expose foundryOllamaSetup.</p>`
 } else {
-  runCheck()
+  renderChoice()
 }

@@ -1,5 +1,5 @@
 /**
- * Preload for the Ollama first-run setup window.
+ * Preload for the first-run setup window (Ollama local + cloud BYOK).
  * Exposes ONLY the named setup API — no generic ipcRenderer / require / fs.
  */
 const { contextBridge, ipcRenderer } = require('electron')
@@ -30,5 +30,13 @@ contextBridge.exposeInMainWorld('foundryOllamaSetup', {
 
   openDownloadPage: () => ipcRenderer.invoke('ollama:open-download-page'),
 
-  continueToApp: () => ipcRenderer.invoke('ollama:continue'),
+  /**
+   * @param {{ mode?: 'local' | 'cloud' }} [opts]
+   */
+  continueToApp: (opts) => ipcRenderer.invoke('ollama:continue', opts || { mode: 'local' }),
+
+  // Cloud BYOK
+  byokEncryptionStatus: () => ipcRenderer.invoke('byok:encryption-status'),
+  byokValidateKey: (apiKey) => ipcRenderer.invoke('byok:validate-key', apiKey),
+  byokSaveKey: (apiKey) => ipcRenderer.invoke('byok:save-key', apiKey),
 })

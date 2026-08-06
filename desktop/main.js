@@ -3,6 +3,7 @@ const path = require('path')
 const { loadRawEnv, buildBackendEnv, buildFrontendEnv, resolvePorts } = require('./lib/env')
 const { startBackend, startFrontend, waitForHttp, stopAll } = require('./lib/sidecars')
 const { registerSetupIpc } = require('./lib/setup-ipc')
+const { cloudByokBackendEnv } = require('./lib/cloud-byok')
 
 /** @type {import('electron').BrowserWindow | null} */
 let mainWindow = null
@@ -20,7 +21,7 @@ const preloadPath = path.join(__dirname, 'preload.js')
 function createSetupWindow() {
   setupWindow = new BrowserWindow({
     width: 560,
-    height: 640,
+    height: 680,
     minWidth: 440,
     minHeight: 480,
     title: 'FOUND3RY Setup',
@@ -75,13 +76,17 @@ async function createWindow(frontendUrl) {
 
 /**
  * Existing Phase 1/2 sidecar boot — unchanged behavior once called.
+ * @param {Record<string, string>} [envOverlay] merged after buildBackendEnv (cloud BYOK).
  */
-async function startSidecarsAndWindow() {
+async function startSidecarsAndWindow(envOverlay) {
   const raw = loadRawEnv()
   const ports = resolvePorts(raw)
   const frontendUrl = `http://127.0.0.1:${ports.frontend}`
 
-  const backendEnv = buildBackendEnv(raw, ports)
+  const backendEnv = {
+    ...buildBackendEnv(raw, ports),
+    ...(envOverlay || {}),
+  }
   const frontendEnv = buildFrontendEnv(ports)
 
   try {
@@ -112,17 +117,25 @@ async function startSidecarsAndWindow() {
       `${err instanceof Error ? err.message : String(err)}\n\n` +
         'Desktop expects SQLite + in-memory cache by default (no Docker). ' +
         'Also needs a working Python with backend requirements installed, ' +
-        'and Ollama for local models (or skip setup and chat will fail until it is ready).',
+        'and either Ollama (local path) or a validated Anthropic API key (cloud BYOK).',
     )
     app.quit()
   }
 }
 
-async function onSetupContinue() {
+/**
+ * @param {{ mode?: 'local' | 'cloud' }} [opts]
+ */
+async function onSetupContinue(opts) {
   if (continuingFromSetup || sidecarsStarted) return
   continuingFromSetup = true
   try {
-    await startSidecarsAndWindow()
+    let overlay = null
+    if (opts && opts.mode === 'cloud') {
+      overlay = cloudByokBackendEnv()
+      console.log('[desktop] continuing with cloud BYOK overlay (USE_LOCAL_*=0)')
+    }
+    await startSidecarsAndWindow(overlay)
   } finally {
     continuingFromSetup = false
   }

@@ -713,6 +713,61 @@ if os.getenv("USE_LOCAL_DOCUMENT") == "1":
         base_url=_ollama_base, model=_ollama_model,
     )
 
+# ─── Cloud BYOK override (desktop Phase 4) ───────────────────────────────────
+# Bring-your-own-key path for machines that can't run local Ollama models.
+# Fully inert unless CLOUD_BYOK_PROVIDER is explicitly set (found3ry.com
+# leaves it unset — zero behavior change). Desktop mutually excludes this
+# from USE_LOCAL_*=1 by writing USE_LOCAL_*=0 when the user picks cloud.
+#
+# Only "anthropic" is wired today. The tier→model map is structured so a
+# second provider can be added later without redesigning this block.
+# AnthropicProvider reads ANTHROPIC_API_KEY directly (no api_key_env param).
+
+_CLOUD_BYOK_TIER_MODELS: dict[str, dict[str, str]] = {
+    "anthropic": {
+        # Haiku: cheap/fast for routing + quick facts (one key that works
+        # everywhere; not per-tier optimality).
+        "CLASSIFIER": "claude-haiku-4-5-20251001",
+        "FACTUAL": "claude-haiku-4-5-20251001",
+        # Sonnet: reasoning / synthesis for the heavy tiers.
+        "STRATEGIC": "claude-sonnet-4-6",
+        "RESEARCH": "claude-sonnet-4-6",
+        "DOCUMENT": "claude-sonnet-4-6",
+    },
+}
+
+
+def _apply_cloud_byok_override(registry: dict) -> bool:
+    """Overwrite CLASSIFIER/FACTUAL/STRATEGIC/RESEARCH/DOCUMENT for BYOK.
+
+    Returns True if an override was applied. No-op when CLOUD_BYOK_PROVIDER
+    is unset/empty — production default.
+    """
+    provider = (os.getenv("CLOUD_BYOK_PROVIDER") or "").strip().lower()
+    if not provider:
+        return False
+    tier_map = _CLOUD_BYOK_TIER_MODELS.get(provider)
+    if not tier_map:
+        log.warning("cloud_byok_unknown_provider", provider=provider)
+        return False
+    if provider == "anthropic":
+        if not os.getenv("ANTHROPIC_API_KEY"):
+            log.warning("cloud_byok_missing_anthropic_key")
+            return False
+        for tier, model in tier_map.items():
+            registry[tier] = AnthropicProvider(model=model)
+        log.info(
+            "cloud_byok_enabled",
+            provider=provider,
+            tiers=sorted(tier_map.keys()),
+            models=tier_map,
+        )
+        return True
+    return False
+
+
+_apply_cloud_byok_override(_FALLBACK_REGISTRY)
+
 # Live registry — starts as the fallback, replaced in-place when
 # load_registry_from_db() succeeds. Callers reference MODEL_REGISTRY[label]
 # and always get the current value.
@@ -851,6 +906,11 @@ async def load_registry_from_db() -> dict[str, ModelProvider]:
                     "document_override_applied_post_load",
                     model=override.model, base_url=override._base_url,
                 )
+        # Re-apply cloud BYOK AFTER DB load + local Ollama reapply, so neither
+        # a Railway registry row nor a stale local override can undo it.
+        # No-op when CLOUD_BYOK_PROVIDER is unset (production).
+        if _apply_cloud_byok_override(MODEL_REGISTRY):
+            log.info("cloud_byok_override_applied_post_load")
         _registry_rows = raw_rows
         _registry_last_loaded = time.time()
 
