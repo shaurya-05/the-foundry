@@ -22,6 +22,12 @@ Design:
 
 Everything degrades gracefully if Redis is unreachable — is_open returns
 False so we don't false-positive close a connector.
+
+Desktop (Phase 2b): deliberately left on this graceful-degradation path
+rather than building an in-process sliding-window twin. On a single-user
+local app the breaker only guards external connectors; with no Redis it
+stays permanently closed (never trips), which is the correct fail-open
+behavior. CACHE_BACKEND=memory does not change this module.
 """
 from __future__ import annotations
 

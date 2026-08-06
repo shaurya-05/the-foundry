@@ -38,8 +38,10 @@ function loadRawEnv() {
 
 /**
  * Build the process env for the FastAPI sidecar.
- * Phase 1 still talks to Docker Desktop's postgres_prod / redis_prod on
- * host ports 5433 / 6380 (see docker-compose.local-prod.yml).
+ *
+ * Phase 2b desktop default: local SQLite + in-memory cache, no Docker
+ * (no Postgres, no Redis). Override via .env.desktop / .env.local-prod
+ * if you still want the compose-backed path.
  */
 function buildBackendEnv(raw, ports) {
   const postgresPassword =
@@ -49,6 +51,10 @@ function buildBackendEnv(raw, ports) {
   const jwtSecret = raw.JWT_SECRET_LOCAL_PROD || raw.JWT_SECRET || ''
   const adminPassword = raw.ADMIN_PASSWORD_LOCAL_PROD || raw.ADMIN_PASSWORD || ''
 
+  const databaseBackend = (raw.DATABASE_BACKEND || 'sqlite').toLowerCase()
+  const cacheBackend = (raw.CACHE_BACKEND || 'memory').toLowerCase()
+  const graphBackend = (raw.GRAPH_BACKEND || 'none').toLowerCase()
+
   const databaseUrl =
     raw.DATABASE_URL ||
     (postgresPassword
@@ -57,9 +63,20 @@ function buildBackendEnv(raw, ports) {
 
   const redisUrl = raw.REDIS_URL || 'redis://127.0.0.1:6380'
 
+  // Default SQLite file (SQLITE_DB_PATH is what app/db/sqlite.py reads).
+  const sqlitePath =
+    raw.SQLITE_DB_PATH ||
+    raw.SQLITE_PATH ||
+    process.env.SQLITE_DB_PATH ||
+    ''
+
   const env = {
     ...process.env,
     ENVIRONMENT: raw.ENVIRONMENT || 'development',
+    DATABASE_BACKEND: databaseBackend,
+    CACHE_BACKEND: cacheBackend,
+    GRAPH_BACKEND: graphBackend,
+    CELERY_ENABLED: raw.CELERY_ENABLED || '0',
     DATABASE_URL: databaseUrl,
     REDIS_URL: redisUrl,
     JWT_SECRET: jwtSecret || process.env.JWT_SECRET || 'change_me_in_production',
@@ -84,6 +101,10 @@ function buildBackendEnv(raw, ports) {
     TAVILY_API_KEY: raw.TAVILY_API_KEY || '',
     PYTHONUNBUFFERED: '1',
     PYTHONDONTWRITEBYTECODE: '1',
+  }
+
+  if (sqlitePath) {
+    env.SQLITE_DB_PATH = sqlitePath
   }
 
   return env

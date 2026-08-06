@@ -31,7 +31,7 @@ async def get_workspace_summary(workspace_id: str) -> Dict[str, Any]:
             "SELECT COUNT(*) FROM knowledge_items WHERE workspace_id=$1", workspace_id
         )
         knowledge_items = await conn.fetch(
-            """SELECT title, summary, LEFT(content, 150) as excerpt, type, tags
+            """SELECT title, summary, substr(content, 1, 150) as excerpt, type, tags
                FROM knowledge_items WHERE workspace_id=$1
                ORDER BY created_at DESC LIMIT 15""",
             workspace_id
@@ -39,8 +39,8 @@ async def get_workspace_summary(workspace_id: str) -> Dict[str, Any]:
 
         # Projects — with plan and notes excerpts
         projects = await conn.fetch(
-            """SELECT id, title, status, LEFT(plan, 200) as plan_excerpt,
-                      LEFT(notes, 200) as notes_excerpt
+            """SELECT id, title, status, substr(plan, 1, 200) as plan_excerpt,
+                      substr(notes, 1, 200) as notes_excerpt
                FROM projects WHERE workspace_id=$1
                ORDER BY created_at DESC LIMIT 10""",
             workspace_id
@@ -67,7 +67,7 @@ async def get_workspace_summary(workspace_id: str) -> Dict[str, Any]:
 
         # Ideas — domains and content
         ideas = await conn.fetch(
-            """SELECT domains, LEFT(content, 200) as excerpt, metadata
+            """SELECT domains, substr(content, 1, 200) as excerpt, metadata
                FROM ideas WHERE workspace_id=$1
                ORDER BY created_at DESC LIMIT 8""",
             workspace_id

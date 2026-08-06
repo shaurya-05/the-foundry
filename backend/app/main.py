@@ -74,12 +74,23 @@ from app.routers import (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await get_pool()
-    await get_redis()
-    try:
-        from app.db.neo4j import init_graph
-        await init_graph()
-    except Exception as e:
-        log.warning("neo4j_init_failed", error=str(e))
+    # Redis is optional on the desktop build (CACHE_BACKEND=memory). Creating
+    # the client is lazy and cheap, but skip the connect attempt entirely so
+    # startup doesn't depend on a Redis server when memory cache is selected.
+    _cache_backend = os.getenv("CACHE_BACKEND", "redis").lower()
+    if _cache_backend not in ("memory", "mem", "local", "inprocess"):
+        await get_redis()
+    else:
+        log.info("redis_skipped", reason="CACHE_BACKEND=memory")
+    _graph_backend = os.getenv("GRAPH_BACKEND", "neo4j").lower()
+    if _graph_backend in ("none", "off", "disabled", "0", "false"):
+        log.info("neo4j_skipped", reason="GRAPH_BACKEND=none")
+    else:
+        try:
+            from app.db.neo4j import init_graph
+            await init_graph()
+        except Exception as e:
+            log.warning("neo4j_init_failed", error=str(e))
     # Load MODEL_REGISTRY from the database (P1.5.c). If the migration
     # hasn't been applied yet, the loader silently keeps the hard-coded
     # fallback registry so the app still boots.
@@ -100,12 +111,14 @@ async def lifespan(app: FastAPI):
     log.info("startup_complete", origins=ALLOWED_ORIGINS, environment=ENVIRONMENT)
     yield
     await close_pool()
-    await close_redis()
-    try:
-        from app.db.neo4j import close_driver
-        await close_driver()
-    except Exception:
-        pass
+    if _cache_backend not in ("memory", "mem", "local", "inprocess"):
+        await close_redis()
+    if _graph_backend not in ("none", "off", "disabled", "0", "false"):
+        try:
+            from app.db.neo4j import close_driver
+            await close_driver()
+        except Exception:
+            pass
 
 app = FastAPI(
     title="THE FOUNDRY API",
@@ -239,27 +252,39 @@ async def health():
         pool = await get_pool()
         async with pool.acquire() as conn:
             await conn.fetchval("SELECT 1")
-        checks["postgres"] = "ok"
+        checks["postgres" if os.getenv("DATABASE_BACKEND", "postgres") != "sqlite" else "database"] = "ok"
     except Exception as e:
-        checks["postgres"] = f"error: {e}"
+        checks["database"] = f"error: {e}"
 
-    try:
-        redis = await get_redis()
-        await redis.ping()
-        checks["redis"] = "ok"
-    except Exception as e:
-        checks["redis"] = f"error: {e}"
+    _cache_backend = os.getenv("CACHE_BACKEND", "redis").lower()
+    if _cache_backend in ("memory", "mem", "local", "inprocess"):
+        checks["redis"] = "skipped:memory"
+    else:
+        try:
+            redis = await get_redis()
+            await redis.ping()
+            checks["redis"] = "ok"
+        except Exception as e:
+            checks["redis"] = f"error: {e}"
 
-    try:
-        from app.db.neo4j import get_driver
-        driver = await get_driver()
-        async with driver.session() as session:
-            await session.run("RETURN 1")
-        checks["neo4j"] = "ok"
-    except Exception as e:
-        checks["neo4j"] = f"error: {e}"
+    _graph_backend = os.getenv("GRAPH_BACKEND", "neo4j").lower()
+    if _graph_backend in ("none", "off", "disabled", "0", "false"):
+        checks["neo4j"] = "skipped:disabled"
+    else:
+        try:
+            from app.db.neo4j import get_driver
+            driver = await get_driver()
+            async with driver.session() as session:
+                await session.run("RETURN 1")
+            checks["neo4j"] = "ok"
+        except Exception as e:
+            checks["neo4j"] = f"error: {e}"
 
-    all_ok = all(v == "ok" for v in checks.values())
+    # Desktop skips redis/neo4j intentionally — those "skipped:*" counts as healthy.
+    def _ok(v: str) -> bool:
+        return v == "ok" or v.startswith("skipped:")
+
+    all_ok = all(_ok(v) for v in checks.values())
     status_code = 200 if all_ok else 503
     return JSONResponse(
         status_code=status_code,

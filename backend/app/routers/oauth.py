@@ -276,15 +276,24 @@ async def oauth_start(
 
 
 def _kick_initial_sync(workspace_id: str, user_id: str, background: BackgroundTasks) -> None:
-    """Try Celery first; fall back to FastAPI BackgroundTasks for dev / no-worker."""
-    try:
-        from workers.pipeline_worker import github_initial_sync
-        github_initial_sync.delay(workspace_id, user_id)
-        log.info("github_sync_enqueued_celery", workspace_id=workspace_id)
-    except Exception as e:
-        log.warning("github_sync_celery_unavailable_falling_back", error=str(e))
-        from app.services.github_sync import run_initial_github_sync
-        background.add_task(run_initial_github_sync, workspace_id=workspace_id, user_id=user_id)
+    """Try Celery first; fall back to FastAPI BackgroundTasks for dev / no-worker.
+
+    Desktop (CELERY_ENABLED=0) skips Celery entirely — no broker required.
+    Weekly digest beat is not replaced in Phase 2b (explicit drop for desktop).
+    """
+    celery_enabled = os.getenv("CELERY_ENABLED", "1").lower() not in ("0", "false", "no", "off")
+    if celery_enabled:
+        try:
+            from workers.pipeline_worker import github_initial_sync
+            github_initial_sync.delay(workspace_id, user_id)
+            log.info("github_sync_enqueued_celery", workspace_id=workspace_id)
+            return
+        except Exception as e:
+            log.warning("github_sync_celery_unavailable_falling_back", error=str(e))
+    else:
+        log.info("github_sync_celery_disabled_using_background", workspace_id=workspace_id)
+    from app.services.github_sync import run_initial_github_sync
+    background.add_task(run_initial_github_sync, workspace_id=workspace_id, user_id=user_id)
 
 
 @router.get("/{provider}/callback")

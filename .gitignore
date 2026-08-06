@@ -24,11 +24,12 @@ frontend/.vercel/
 *.tsbuildinfo
 .DS_Store
 
-# ─── Desktop (Electron Phase 1) ───────────────────────────────────────────────
+# ─── Desktop (Electron Phase 1/2) ─────────────────────────────────────────────
 desktop/node_modules/
 desktop/resources/
 desktop/release/
 desktop/dist/
+desktop/data/
 
 # ─── Docker volumes (local data) ──────────────────────────────────────────────
 postgres_data/

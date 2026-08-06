@@ -1,8 +1,19 @@
-"""Neo4j knowledge graph service for cross-entity relationship mapping."""
-from app.db.neo4j import get_driver
+"""Neo4j knowledge graph service for cross-entity relationship mapping.
+
+When GRAPH_BACKEND=none (desktop Phase 2b), every function is an explicit
+safe no-op — callers already wrap most upserts in try/except, and
+get_connections returns []. Postgres/SQLite graph_repo.py is unrelated
+and stays fully active.
+"""
 from typing import List, Dict, Any
 
+from app.db.neo4j import graph_enabled
+
+
 async def upsert_knowledge_node(item_id: str, title: str, item_type: str, workspace_id: str):
+    if not graph_enabled():
+        return
+    from app.db.neo4j import get_driver
     driver = await get_driver()
     async with driver.session() as session:
         await session.run(
@@ -13,7 +24,11 @@ async def upsert_knowledge_node(item_id: str, title: str, item_type: str, worksp
             id=item_id, title=title, type=item_type, workspace_id=workspace_id,
         )
 
+
 async def upsert_project_node(project_id: str, title: str, workspace_id: str):
+    if not graph_enabled():
+        return
+    from app.db.neo4j import get_driver
     driver = await get_driver()
     async with driver.session() as session:
         await session.run(
@@ -24,7 +39,11 @@ async def upsert_project_node(project_id: str, title: str, workspace_id: str):
             id=project_id, title=title, workspace_id=workspace_id,
         )
 
+
 async def upsert_idea_node(idea_id: str, domains: str, workspace_id: str):
+    if not graph_enabled():
+        return
+    from app.db.neo4j import get_driver
     driver = await get_driver()
     async with driver.session() as session:
         await session.run(
@@ -35,11 +54,15 @@ async def upsert_idea_node(idea_id: str, domains: str, workspace_id: str):
             id=idea_id, domains=domains, workspace_id=workspace_id,
         )
 
+
 async def create_relationship(
     from_id: str, from_label: str,
     to_id: str, to_label: str,
     rel_type: str, score: float = 1.0
 ):
+    if not graph_enabled():
+        return
+    from app.db.neo4j import get_driver
     driver = await get_driver()
     async with driver.session() as session:
         query = f"""
@@ -50,7 +73,11 @@ async def create_relationship(
         """
         await session.run(query, from_id=from_id, to_id=to_id, score=score)
 
+
 async def get_connections(workspace_id: str) -> List[Dict[str, Any]]:
+    if not graph_enabled():
+        return []
+    from app.db.neo4j import get_driver
     driver = await get_driver()
     async with driver.session() as session:
         result = await session.run(
