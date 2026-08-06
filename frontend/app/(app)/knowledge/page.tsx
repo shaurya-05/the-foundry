@@ -1,6 +1,6 @@
-import AppShell from '@/components/layout/AppShell'
-import KnowledgeClient from './KnowledgeClient'
+import { redirect } from 'next/navigation'
 
-export default function KnowledgePage() {
-  return <AppShell><KnowledgeClient /></AppShell>
+/** Knowledge archive removed — H3RO reads granted local files by context. */
+export default function KnowledgeRedirect() {
+  redirect('/dashboard')
 }

@@ -835,8 +835,8 @@ textarea.forge-input { resize: vertical; min-height: 80px; border: 1px solid var
 
 /* ─── Command center layout helpers ────────────────────────────────────────── */
 .command-center-rail {
-  max-width: 720px;
-  margin-right: min(480px, 42vw);
+  max-width: 900px;
+  width: 100%;
 }
 @media (max-width: 1100px) {
   .command-center-rail { margin-right: 0; max-width: 100%; }
@@ -860,4 +860,170 @@ textarea.forge-input { resize: vertical; min-height: 80px; border: 1px solid var
 }
 @media (prefers-reduced-motion: reduce) {
   .forge-glass-panel { animation: none; }
+}
+
+/* ─── H3RO Jarvis HUD orb ──────────────────────────────────────────────────── */
+.h3ro-jarvis-bloom {
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(159, 222, 250, 0.28) 0%, rgba(159, 222, 250, 0.06) 45%, transparent 70%);
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.h3ro-jarvis.is-idle .h3ro-jarvis-bloom { opacity: 0.55; }
+.h3ro-jarvis.is-listening .h3ro-jarvis-bloom,
+.h3ro-jarvis.is-speaking .h3ro-jarvis-bloom {
+  opacity: 1;
+  animation: h3ro-bloom-breathe 1.4s ease-in-out infinite;
+}
+.h3ro-jarvis.is-processing .h3ro-jarvis-bloom {
+  opacity: 0.85;
+  animation: h3ro-bloom-breathe 2.2s ease-in-out infinite;
+}
+
+@keyframes h3ro-bloom-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.75; }
+  50% { transform: scale(1.12); opacity: 1; }
+}
+
+.h3ro-jarvis-ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(159, 222, 250, 0.55);
+  pointer-events: none;
+  animation: h3ro-ripple-out 2.2s cubic-bezier(0.15, 0.7, 0.25, 1) infinite;
+}
+.h3ro-jarvis-ripple.r2 { animation-delay: 0.7s; }
+.h3ro-jarvis-ripple.r3 { animation-delay: 1.4s; }
+.h3ro-jarvis.is-speaking .h3ro-jarvis-ripple {
+  border-color: rgba(159, 222, 250, 0.7);
+  animation-duration: 1.5s;
+}
+
+@keyframes h3ro-ripple-out {
+  0% { transform: scale(0.72); opacity: 0.7; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+.h3ro-jarvis-svg {
+  display: block;
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 0 12px rgba(159, 222, 250, 0.25));
+}
+.h3ro-jarvis.is-listening .h3ro-jarvis-svg,
+.h3ro-jarvis.is-speaking .h3ro-jarvis-svg {
+  filter: drop-shadow(0 0 22px rgba(159, 222, 250, 0.45));
+}
+
+.h3ro-jarvis-core {
+  transform-origin: 100px 100px;
+  animation: h3ro-core-pulse 2.8s ease-in-out infinite;
+}
+.h3ro-jarvis.is-listening .h3ro-jarvis-core {
+  animation: h3ro-core-pulse 1.1s ease-in-out infinite;
+}
+.h3ro-jarvis.is-speaking .h3ro-jarvis-core {
+  animation: h3ro-core-pulse 0.85s ease-in-out infinite;
+}
+.h3ro-jarvis.is-processing .h3ro-jarvis-core {
+  animation: h3ro-core-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes h3ro-core-pulse {
+  0%, 100% { opacity: 0.65; transform: scale(0.94); }
+  50% { opacity: 1; transform: scale(1.06); }
+}
+
+.h3ro-jarvis-ring {
+  transform-origin: 100px 100px;
+}
+.h3ro-jarvis.is-idle .ring-a { animation: h3ro-ring-breathe 3.6s ease-in-out infinite; }
+.h3ro-jarvis.is-listening .ring-a,
+.h3ro-jarvis.is-speaking .ring-a {
+  animation: h3ro-ring-breathe 1.2s ease-in-out infinite;
+  stroke: rgba(159, 222, 250, 0.7);
+}
+.h3ro-jarvis.is-processing .ring-a {
+  animation: h3ro-ring-breathe 2s ease-in-out infinite;
+}
+
+@keyframes h3ro-ring-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.03); opacity: 1; }
+}
+
+.h3ro-jarvis-spin {
+  transform-origin: 100px 100px;
+}
+.h3ro-jarvis .spin-fast {
+  animation: h3ro-spin 8s linear infinite;
+}
+.h3ro-jarvis .spin-slow {
+  animation: h3ro-spin-rev 14s linear infinite;
+}
+.h3ro-jarvis.is-listening .spin-fast,
+.h3ro-jarvis.is-speaking .spin-fast {
+  animation-duration: 3.5s;
+}
+.h3ro-jarvis.is-listening .spin-slow,
+.h3ro-jarvis.is-speaking .spin-slow {
+  animation-duration: 6s;
+}
+.h3ro-jarvis.is-processing .spin-fast { animation-duration: 2.2s; }
+.h3ro-jarvis.is-processing .spin-slow { animation-duration: 4s; }
+.h3ro-jarvis .spin-process {
+  animation: h3ro-spin 1.1s linear infinite;
+}
+
+@keyframes h3ro-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes h3ro-spin-rev {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+.h3ro-jarvis-wave rect {
+  transform-origin: center bottom;
+  animation: h3ro-wave-bar 0.55s ease-in-out infinite alternate;
+}
+@keyframes h3ro-wave-bar {
+  from { transform: scaleY(0.45); opacity: 0.55; }
+  to { transform: scaleY(1.35); opacity: 1; }
+}
+
+.h3ro-jarvis-mark {
+  transition: opacity 0.2s ease;
+}
+.h3ro-jarvis.is-listening .h3ro-jarvis-mark {
+  animation: h3ro-mark-glow 1.4s ease-in-out infinite;
+}
+@keyframes h3ro-mark-glow {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
+.h3ro-jarvis:hover:not(:disabled) .h3ro-jarvis-bloom {
+  opacity: 1;
+  transform: scale(1.04);
+}
+.h3ro-jarvis:focus-visible {
+  outline: 2px solid rgba(159, 222, 250, 0.7);
+  outline-offset: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .h3ro-jarvis-bloom,
+  .h3ro-jarvis-ripple,
+  .h3ro-jarvis-core,
+  .h3ro-jarvis-ring,
+  .h3ro-jarvis-spin,
+  .h3ro-jarvis-wave rect,
+  .h3ro-jarvis-mark {
+    animation: none !important;
+  }
 }

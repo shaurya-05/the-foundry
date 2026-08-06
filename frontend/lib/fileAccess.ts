@@ -22,19 +22,44 @@ import { getToken } from '@/lib/auth'
 import type { StreamChunk } from '@/lib/streaming'
 
 const DB_NAME = 'found3ry-file-access'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const STORE_NAME = 'handles'
 const HANDLE_KEY = 'connected-root'
+const FILES_KEY = 'selected-files'
 
 export function isFileAccessSupported(): boolean {
   return typeof window !== 'undefined' && 'showDirectoryPicker' in window
+}
+
+export function isFilePickerSupported(): boolean {
+  return typeof window !== 'undefined' && 'showOpenFilePicker' in window
+}
+
+type PermissionedHandle = {
+  queryPermission: (desc: { mode: 'read' | 'readwrite' }) => Promise<PermissionState>
+  requestPermission: (desc: { mode: 'read' | 'readwrite' }) => Promise<PermissionState>
+}
+
+async function ensureReadPermission(handle: FileSystemHandle): Promise<boolean> {
+  const h = handle as FileSystemHandle & PermissionedHandle
+  try {
+    const perm = await h.queryPermission({ mode: 'read' })
+    if (perm === 'granted') return true
+    const requested = await h.requestPermission({ mode: 'read' })
+    return requested === 'granted'
+  } catch {
+    return false
+  }
 }
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION)
     req.onupgradeneeded = () => {
-      req.result.createObjectStore(STORE_NAME)
+      const db = req.result
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME)
+      }
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
@@ -89,6 +114,66 @@ export async function disconnectFolder(): Promise<void> {
   await idbDelete(HANDLE_KEY)
 }
 
+export type SelectedFile = {
+  name: string
+  handle: FileSystemFileHandle
+}
+
+/**
+ * Opens the native multi-file picker. Selected handles are persisted so
+ * H3RO can read them later via tool_request without re-prompting (while
+ * permission remains granted).
+ */
+export async function selectFiles(): Promise<SelectedFile[]> {
+  // @ts-expect-error -- showOpenFilePicker not always in lib.dom
+  const handles: FileSystemFileHandle[] = await window.showOpenFilePicker({
+    multiple: true,
+    excludeAcceptAllOption: false,
+  })
+  const existing = (await idbGet<FileSystemFileHandle[]>(FILES_KEY)) || []
+  const byName = new Map<string, FileSystemFileHandle>()
+  for (const h of existing) byName.set(h.name, h)
+  for (const h of handles) byName.set(h.name, h)
+  const merged = [...byName.values()]
+  await idbSet(FILES_KEY, merged)
+  return merged.map(h => ({ name: h.name, handle: h }))
+}
+
+export async function getSelectedFiles(): Promise<SelectedFile[]> {
+  const handles = (await idbGet<FileSystemFileHandle[]>(FILES_KEY)) || []
+  const valid: SelectedFile[] = []
+  for (const handle of handles) {
+    try {
+      if (await ensureReadPermission(handle)) {
+        valid.push({ name: handle.name, handle })
+      }
+    } catch {
+      // revoked / moved
+    }
+  }
+  if (valid.length !== handles.length) {
+    await idbSet(FILES_KEY, valid.map(v => v.handle))
+  }
+  return valid
+}
+
+export async function clearSelectedFiles(): Promise<void> {
+  await idbDelete(FILES_KEY)
+}
+
+export async function removeSelectedFile(name: string): Promise<void> {
+  const handles = (await idbGet<FileSystemFileHandle[]>(FILES_KEY)) || []
+  await idbSet(FILES_KEY, handles.filter(h => h.name !== name))
+}
+
+export async function readSelectedFile(name: string): Promise<string | null> {
+  const files = await getSelectedFiles()
+  const match = files.find(f => f.name === name)
+  if (!match) return null
+  const file = await match.handle.getFile()
+  return file.text()
+}
+
 /**
  * Returns the previously-connected handle if permission is still valid,
  * re-requesting permission (which browsers allow without a fresh user
@@ -100,10 +185,7 @@ export async function getConnectedFolder(): Promise<FileSystemDirectoryHandle | 
   const handle = await idbGet<FileSystemDirectoryHandle>(HANDLE_KEY)
   if (!handle) return null
   try {
-    const perm = await handle.queryPermission({ mode: 'read' })
-    if (perm === 'granted') return handle
-    const requested = await handle.requestPermission({ mode: 'read' })
-    return requested === 'granted' ? handle : null
+    return (await ensureReadPermission(handle)) ? handle : null
   } catch {
     // Handle may reference a folder that's been moved/deleted, or the
     // browser profile changed -- treat as disconnected, don't throw.
@@ -181,17 +263,40 @@ export async function handleFileToolRequest(chunk: Extract<StreamChunk, { type: 
   let result: Record<string, unknown>
   try {
     const root = await getConnectedFolder()
-    if (!root) {
-      result = { error: 'No folder is connected, or permission was not granted.' }
-    } else if (chunk.tool === 'list_files') {
+    const selected = await getSelectedFiles()
+
+    if (chunk.tool === 'list_files') {
       const path = typeof chunk.args.path === 'string' ? chunk.args.path : ''
-      result = { entries: await listDirectory(root, path) }
+      if (root) {
+        result = { entries: await listDirectory(root, path) }
+      } else if (selected.length && (!path || path === '.' || path === '/')) {
+        // No folder connected — surface the explicitly granted files
+        result = {
+          entries: selected.map(f => ({ name: f.name, kind: 'file' as const })),
+          note: 'These are individually granted files (no folder connected).',
+        }
+      } else {
+        result = { error: 'No folder or files are connected. Ask the founder to grant file access.' }
+      }
     } else if (chunk.tool === 'read_file') {
       const path = chunk.args.path
       if (typeof path !== 'string' || !path) {
         result = { error: 'read_file requires a non-empty "path" argument' }
+      } else if (root) {
+        try {
+          result = { content: await readFileContent(root, path) }
+        } catch (folderErr) {
+          // Fall back to selected files by basename
+          const base = path.split('/').pop() || path
+          const content = await readSelectedFile(base)
+          if (content != null) result = { content }
+          else throw folderErr
+        }
       } else {
-        result = { content: await readFileContent(root, path) }
+        const base = path.split('/').pop() || path
+        const content = await readSelectedFile(base)
+        if (content != null) result = { content }
+        else result = { error: 'No folder or matching file is connected, or permission was not granted.' }
       }
     } else {
       // Not a file-access tool -- nothing for this module to do. The

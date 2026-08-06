@@ -44,13 +44,13 @@ export const sectionAccents: Record<string, string> = {
 }
 
 export const sectionLabels: Record<string, string> = {
-  dashboard: 'Overview',
+  dashboard: 'Talk with H3RO',
   knowledge: 'Research and docs',
   projects:  'Build tracker',
   tasks:     'Task board',
   context:   'AI analysis',
   insights:  'AI analysis',
-  agents:    'AI analysis',
+  agents:    'Text chat backup',
   workspace: 'Blueprint canvas',
   settings:  'Workspace settings',
   ideas:     'Ideas lab',

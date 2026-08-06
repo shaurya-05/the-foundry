@@ -15,9 +15,8 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', sublabel: 'Overview',           icon: <DashIcon /> },
-  { href: '/agents',    label: 'COFOUND3R', sublabel: 'Your AI co-founder', icon: <AgentsIcon /> },
-  { href: '/knowledge', label: 'Knowledge', sublabel: 'Research and docs',  icon: <ArchiveIcon /> },
+  { href: '/dashboard', label: 'H3RO',      sublabel: 'Talk with your cofound3r', icon: <AgentsIcon /> },
+  { href: '/agents',    label: 'Text chat', sublabel: 'Typed backup',             icon: <DashIcon /> },
 ]
 
 export default function Sidebar({ onCopilot }: { onCopilot: () => void }) {
@@ -128,7 +127,7 @@ export default function Sidebar({ onCopilot }: { onCopilot: () => void }) {
         </Link>
       </div>
 
-      {/* COFOUND3R button */}
+      {/* H3RO quick talk */}
       <div style={{ padding: '8px 8px 16px' }}>
         <button
           onClick={onCopilot}
@@ -145,9 +144,9 @@ export default function Sidebar({ onCopilot }: { onCopilot: () => void }) {
         >
           <CopilotIcon />
           <span style={{ display: 'inline-flex', alignItems: 'baseline' }}>
-            COFOUND
+            H
             <Glyph3 size="0.72em" style={{ marginLeft: 1, marginRight: 1, transform: 'translateY(-0.01em)' }} />
-            R
+            RO
           </span>
           <span style={{
             marginLeft: 'auto',
@@ -228,33 +227,6 @@ function DashIcon() {
     </svg>
   )
 }
-function ArchiveIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <rect x="1" y="3" width="12" height="8" rx="1" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M1 6h12" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M5 9h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    </svg>
-  )
-}
-function WorkshopIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" />
-      <rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" />
-      <rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" />
-      <rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" />
-    </svg>
-  )
-}
-function TaskIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M2 4h10M2 7.5h7M2 11h5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-      <circle cx="12" cy="10.5" r="2" stroke="currentColor" strokeWidth="1.1" />
-    </svg>
-  )
-}
 function AgentsIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -262,15 +234,6 @@ function AgentsIcon() {
       <circle cx="2.5" cy="10.5" r="1.8" stroke="currentColor" strokeWidth="1.1" />
       <circle cx="11.5" cy="10.5" r="1.8" stroke="currentColor" strokeWidth="1.1" />
       <path d="M4.5 4L3 8.7M9.5 4L11 8.7" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-    </svg>
-  )
-}
-function InsightsIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M7 1v2M7 11v2M1 7h2M11 7h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-      <path d="M2.9 2.9l1.4 1.4M9.7 9.7l1.4 1.4M9.7 4.3L11.1 2.9M2.9 11.1L4.3 9.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.5" />
     </svg>
   )
 }

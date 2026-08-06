@@ -1,25 +1,36 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { streamWS, submitToolResult } from '@/lib/streaming'
-import { classifyIntent, intentLabel } from '@/lib/intent-router'
 import Markdown from '@/components/ui/Markdown'
 import { api } from '@/lib/api'
 import { useRouter } from 'next/navigation'
 import Glyph3 from '@/components/brand/Glyph3'
 import EyebrowLabel from '@/components/brand/EyebrowLabel'
+import H3roJarvisOrb from '@/components/h3ro/H3roJarvisOrb'
 import {
-  isFileAccessSupported, connectFolder, disconnectFolder, getConnectedFolder,
+  warmVoices,
+  createListener,
+  StreamingSpeaker,
+  isSpeechRecognitionSupported,
+  type VoiceState,
+} from '@/lib/voice'
+import {
+  isFileAccessSupported,
+  isFilePickerSupported,
+  connectFolder,
+  disconnectFolder,
+  getConnectedFolder,
+  selectFiles,
+  getSelectedFiles,
+  clearSelectedFiles,
   handleFileToolRequest,
 } from '@/lib/fileAccess'
 
 interface Message {
   id: string
-  role: 'user' | 'copilot' | 'typing' | 'intent' | 'trace' | 'confirm'
+  role: 'user' | 'copilot' | 'typing' | 'trace' | 'confirm'
   content: string
-  intent?: string
-  // 'confirm' only -- a pending agent_confirm_write, resolved in place
-  // once the user picks approve/decline (never re-asked on re-render).
   callId?: string
   source?: string
   resolved?: 'approved' | 'declined'
@@ -27,7 +38,6 @@ interface Message {
 
 interface ForgeCopilotProps {
   onClose: () => void
-  /** When true, panel is the primary command-center surface (wider, persistent). */
   commandCenter?: boolean
 }
 
@@ -35,67 +45,124 @@ const STARTER_PROMPTS = [
   'What should I focus on right now?',
   'Show me workspace status.',
   'What patterns do you see in my work?',
-  'Create a task: review last sprint outcomes.',
 ]
+
+function H3roMark({ size = 13 }: { size?: number }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'baseline', letterSpacing: '0.04em' }}>
+      H
+      <Glyph3 size={`${size}px`} style={{ marginLeft: 1, marginRight: 1, transform: 'translateY(-0.02em)' }} />
+      RO
+    </span>
+  )
+}
 
 export default function ForgeCopilot({ onClose, commandCenter = false }: ForgeCopilotProps) {
   const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
-  const [status, setStatus] = useState<string>('')
-  const [tab, setTab] = useState<'intel' | 'signals' | 'ops'>('intel')
+  const [status, setStatus] = useState('')
+  const [tab, setTab] = useState<'talk' | 'signals' | 'ops'>('talk')
   const [activeThread, setActiveThread] = useState<string | undefined>(undefined)
   const [folderConnected, setFolderConnected] = useState(false)
-  const [fileAccessSupported, setFileAccessSupported] = useState(true)
-  const [agentMode, setAgentMode] = useState(false)
+  const [grantedFiles, setGrantedFiles] = useState<string[]>([])
+  const [agentMode, setAgentMode] = useState(true)
+  const [voiceState, setVoiceState] = useState<VoiceState>('idle')
+  const [interim, setInterim] = useState('')
+  const [transcriptOpen, setTranscriptOpen] = useState(false)
+  const [conversationOn, setConversationOn] = useState(true)
+  const [quietInput, setQuietInput] = useState('')
+  const [error, setError] = useState('')
+
   const bottomRef = useRef<HTMLDivElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const listenerRef = useRef<ReturnType<typeof createListener>>(null)
+  const speakerRef = useRef<StreamingSpeaker | null>(null)
+  const conversationOnRef = useRef(true)
+  const streamingRef = useRef(false)
+  const sendRef = useRef<(msg: string) => Promise<void>>(async () => {})
   const router = useRouter()
+
+  useEffect(() => { conversationOnRef.current = conversationOn }, [conversationOn])
+  useEffect(() => { streamingRef.current = streaming }, [streaming])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, transcriptOpen])
 
   useEffect(() => {
-    setFileAccessSupported(isFileAccessSupported())
+    warmVoices()
     if (isFileAccessSupported()) {
-      getConnectedFolder().then(handle => setFolderConnected(!!handle))
+      getConnectedFolder().then(h => setFolderConnected(!!h))
+    }
+    if (isFilePickerSupported()) {
+      getSelectedFiles().then(f => setGrantedFiles(f.map(x => x.name)))
+    }
+    return () => {
+      listenerRef.current?.abort()
+      speakerRef.current?.cancel()
+      window.speechSynthesis?.cancel()
     }
   }, [])
 
-  async function handleConnectFolder() {
-    try {
-      await connectFolder()
-      setFolderConnected(true)
-    } catch {
-      // User cancelled the native picker, or permission was denied --
-      // not an error worth surfacing, just leave the state as-is.
+  const startListening = useCallback(() => {
+    if (streamingRef.current) return
+    listenerRef.current?.abort()
+    speakerRef.current?.cancel()
+    window.speechSynthesis?.cancel()
+
+    const listener = createListener({
+      onInterim: (t) => setInterim(t),
+      onFinal: (text) => {
+        setInterim('')
+        setVoiceState('processing')
+        sendRef.current(text)
+      },
+      onError: (err) => {
+        setInterim('')
+        setVoiceState('idle')
+        if (err === 'not-allowed') setError('Microphone denied — allow mic for H3RO.')
+      },
+      onEnd: () => {
+        setInterim('')
+        if (!streamingRef.current) setVoiceState(s => (s === 'listening' ? 'idle' : s))
+      },
+    })
+    if (!listener) {
+      setError('Voice not supported — type below.')
+      return
     }
-  }
+    listenerRef.current = listener
+    setError('')
+    setVoiceState('listening')
+    listener.start()
+  }, [])
 
-  async function handleDisconnectFolder() {
-    await disconnectFolder()
-    setFolderConnected(false)
-  }
-
-  async function send() {
-    if (!input.trim() || streaming) return
-    const msg = input.trim()
-    setInput('')
-
-    const { intent } = classifyIntent(msg)
+  async function send(msg: string) {
+    if (!msg.trim() || streamingRef.current) return
 
     setMessages(prev => [
       ...prev,
       { id: Date.now() + 'u', role: 'user', content: msg },
-      { id: Date.now() + 'i', role: 'intent', content: intentLabel(intent), intent },
       { id: Date.now() + 't', role: 'typing', content: '' },
     ])
 
     setStreaming(true)
     setStatus('')
+    setVoiceState('processing')
     const responseId = Date.now() + 'r'
     const runningAsAgent = agentMode
+
+    const speaker = new StreamingSpeaker({
+      onSpeakingChange: (speaking) => { if (speaking) setVoiceState('speaking') },
+      onIdle: () => {
+        setVoiceState('idle')
+        if (conversationOnRef.current) {
+          setTimeout(() => {
+            if (!streamingRef.current && conversationOnRef.current) startListening()
+          }, 400)
+        }
+      },
+    })
+    speakerRef.current = speaker
 
     try {
       let full = ''
@@ -108,16 +175,12 @@ export default function ForgeCopilot({ onClose, commandCenter = false }: ForgeCo
           setStatus(chunk.text)
         } else if (chunk.type === 'tool_request') {
           if (chunk.tool === 'list_files' || chunk.tool === 'read_file') {
-            // Fire-and-continue: this POSTs the real result back to
-            // /api/copilot/tool-result, which resolves the backend's
-            // pending future. Nothing further arrives on THIS stream
-            // until that round-trip completes server-side, so there's
-            // no next chunk being raced here.
             handleFileToolRequest(chunk)
           }
         } else if (chunk.type === 'text_delta') {
-          if (status) setStatus('')  // clear once real content starts
+          if (status) setStatus('')
           full += chunk.text
+          speaker.push(chunk.text)
           setMessages(prev => {
             const filtered = prev.filter(m => m.role !== 'typing')
             const existing = filtered.find(m => m.id === responseId)
@@ -156,9 +219,11 @@ export default function ForgeCopilot({ onClose, commandCenter = false }: ForgeCo
             { id: Date.now() + 't5', role: 'typing', content: '' },
           ])
         } else if (chunk.type === 'agent_final') {
+          const answer = chunk.answer || full
+          if (answer && !full) speaker.push(answer)
           setMessages(prev => [
             ...prev.filter(m => m.role !== 'typing'),
-            { id: responseId, role: 'copilot', content: chunk.answer },
+            { id: responseId, role: 'copilot', content: answer },
           ])
         } else if (chunk.type === 'agent_stopped') {
           setMessages(prev => [
@@ -167,13 +232,18 @@ export default function ForgeCopilot({ onClose, commandCenter = false }: ForgeCo
           ])
         }
       }
+      speaker.finish()
     } catch {
+      speaker.cancel()
+      setVoiceState('idle')
       setMessages(prev => prev.filter(m => m.role !== 'typing'))
     } finally {
       setStreaming(false)
       setStatus('')
     }
   }
+
+  sendRef.current = send
 
   async function handleConfirmWrite(callId: string, approved: boolean) {
     setMessages(prev => prev.map(m =>
@@ -182,12 +252,33 @@ export default function ForgeCopilot({ onClose, commandCenter = false }: ForgeCo
     await submitToolResult(callId, { approved })
   }
 
-  function handleKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      send()
-    }
+  async function grantFiles() {
+    try {
+      const files = await selectFiles()
+      setGrantedFiles(files.map(f => f.name))
+    } catch { /* cancelled */ }
   }
+
+  async function grantFolder() {
+    try {
+      await connectFolder()
+      setFolderConnected(true)
+    } catch { /* cancelled */ }
+  }
+
+  async function revokeAccess() {
+    await clearSelectedFiles()
+    await disconnectFolder()
+    setGrantedFiles([])
+    setFolderConnected(false)
+  }
+
+  const hasAccess = folderConnected || grantedFiles.length > 0
+  const stateLabel =
+    voiceState === 'listening' ? 'Listening…'
+    : voiceState === 'processing' ? (status || 'Thinking…')
+    : voiceState === 'speaking' ? 'Speaking…'
+    : 'Tap to talk'
 
   return (
     <div
@@ -201,328 +292,300 @@ export default function ForgeCopilot({ onClose, commandCenter = false }: ForgeCo
         zIndex: 600,
         display: 'flex',
         flexDirection: 'column',
-        /* overflow visible so box-shadow lift isn't clipped; inner regions scroll */
         overflow: 'visible',
         borderRadius: 22,
       }}
     >
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', borderRadius: 22 }}>
-      {/* Header */}
-      <div
-        style={{
-          padding: '16px 18px 0',
-          borderBottom: '1px solid var(--border)',
-          flexShrink: 0,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              className="h3ros-pulse"
-              style={{
-                width: 6, height: 6,
-                background: 'var(--color-arc-cyan)',
-                borderRadius: 2,
-                flexShrink: 0,
-              }}
-            />
-            <span
-              style={{
+        <div style={{ padding: '16px 18px 0', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div className="h3ros-pulse" style={{ width: 6, height: 6, background: 'var(--color-arc-cyan)', borderRadius: 2 }} />
+              <span style={{
                 fontFamily: 'var(--font-archivo), system-ui, sans-serif',
-                fontWeight: 700,
-                fontSize: 13,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: 'var(--color-ink)',
-                display: 'inline-flex',
-                alignItems: 'baseline',
+                fontWeight: 700, fontSize: 13, letterSpacing: '0.08em',
+                textTransform: 'uppercase', color: 'var(--color-ink)',
+              }}>
+                <H3roMark />
+              </span>
+              <EyebrowLabel keyword="ONLINE" />
+            </div>
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              style={{
+                background: 'var(--glass-bg)', border: '1px solid var(--border)', borderRadius: 8,
+                cursor: 'pointer', color: 'var(--color-n600)', fontSize: 18, lineHeight: 1,
+                width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
             >
-              COFOUND
-              <Glyph3 size="0.72em" style={{ marginLeft: 1, marginRight: 1, transform: 'translateY(-0.01em)' }} />
-              R
-            </span>
-            <EyebrowLabel keyword="ONLINE" />
+              ×
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            style={{
-              background: 'var(--glass-bg)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              cursor: 'pointer',
-              color: 'var(--color-n600)',
-              fontSize: 18,
-              lineHeight: 1,
-              width: 28,
-              height: 28,
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+            {isFilePickerSupported() && (
+              <button onClick={grantFiles} style={chip(hasAccess)}>
+                {grantedFiles.length ? `● ${grantedFiles.length} files` : '○ Select files'}
+              </button>
+            )}
+            {isFileAccessSupported() && (
+              <button
+                onClick={folderConnected ? revokeAccess : grantFolder}
+                style={chip(folderConnected)}
+              >
+                {folderConnected ? '● Folder' : '○ Folder'}
+              </button>
+            )}
+            <button onClick={() => setAgentMode(v => !v)} disabled={streaming} style={chip(agentMode)}>
+              {agentMode ? '● Agent' : '○ Agent'}
+            </button>
+            <button onClick={() => setConversationOn(v => !v)} style={chip(conversationOn)}>
+              {conversationOn ? '● Live' : '○ Live'}
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', gap: 0, marginBottom: -1 }}>
+            {(['talk', 'signals', 'ops'] as const).map(t => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                style={{
+                  padding: '8px 14px', background: 'none', border: 'none',
+                  borderBottom: tab === t ? '2px solid var(--color-arc-cyan)' : '2px solid transparent',
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-ibm-plex-mono), monospace',
+                  fontWeight: 500, fontSize: 11, letterSpacing: '0.10em', textTransform: 'uppercase',
+                  color: tab === t ? 'var(--color-ink)' : 'var(--color-n600)',
+                }}
+              >
+                {t === 'talk' ? 'Talk' : t === 'signals' ? 'Signals' : 'Ops'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {tab === 'talk' && (
+          <>
+            <div style={{
+              flex: transcriptOpen ? '0 0 auto' : 1,
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-            }}
-          >
-            ×
-          </button>
-        </div>
-
-        {/* File access — read-only, so COFOUND3R can look at real files
-            when asked. Hidden entirely if the browser has no File System
-            Access API support (Safari); those users keep the existing
-            upload flow instead of hitting a silently-broken button. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-            {fileAccessSupported && (
-              <button
-                onClick={folderConnected ? handleDisconnectFolder : handleConnectFolder}
-                style={{
-                  background: 'var(--glass-bg)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  color: folderConnected ? 'var(--color-arc-cyan)' : 'var(--color-n600)',
-                  fontFamily: 'var(--font-ibm-plex-mono), monospace',
-                  fontSize: 10,
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  padding: '4px 9px',
-                }}
-              >
-                {folderConnected ? '● Folder connected' : '○ Connect folder'}
-              </button>
-            )}
-            {/* Explicit opt-in for the Stage 4 agent loop -- a normal chat
-                message never silently becomes a multi-step goal. */}
-            <button
-              onClick={() => setAgentMode(v => !v)}
-              disabled={streaming}
-              title="When on, your next message runs as a multi-step agent goal instead of a single-turn chat reply."
-              style={{
-                background: 'var(--glass-bg)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                cursor: streaming ? 'not-allowed' : 'pointer',
-                color: agentMode ? 'var(--color-arc-cyan)' : 'var(--color-n600)',
-                fontFamily: 'var(--font-ibm-plex-mono), monospace',
-                fontSize: 10,
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                padding: '4px 9px',
-              }}
-            >
-              {agentMode ? '● Agent mode' : '○ Agent mode'}
-            </button>
-          </div>
-
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 0, marginBottom: -1 }}>
-          {(['intel', 'signals', 'ops'] as const).map(t => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              style={{
-                padding: '8px 14px',
-                background: 'none',
-                border: 'none',
-                borderBottom: tab === t ? '2px solid var(--color-arc-cyan)' : '2px solid transparent',
-                cursor: 'pointer',
-                fontFamily: 'var(--font-ibm-plex-mono), monospace',
-                fontWeight: 500,
-                fontSize: 11,
-                letterSpacing: '0.10em',
-                textTransform: 'uppercase',
-                color: tab === t ? 'var(--color-ink)' : 'var(--color-n600)',
-                transition: 'color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
-              }}
-            >
-              {t === 'intel' ? 'Intel' : t === 'signals' ? 'Signals' : 'Ops'}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Tab: Intel (Chat) */}
-      {tab === 'intel' && (
-        <>
-          <div style={{ flex: 1, overflow: 'auto', padding: '16px 16px', background: 'transparent' }}>
-            {messages.length === 0 ? (
-              <StarterPrompts onSelect={p => { setInput(p); textareaRef.current?.focus() }} />
-            ) : (
-              messages.map(msg => <MessageBubble key={msg.id} msg={msg} onConfirmWrite={handleConfirmWrite} />)
-            )}
-            <div ref={bottomRef} />
-          </div>
-
-          {/* Input */}
-          <div
-            style={{
-              padding: '14px 16px',
-              borderTop: '1px solid var(--border)',
-              flexShrink: 0,
-            }}
-          >
-            {status && (
-              <div
-                style={{
-                  marginBottom: 8,
-                  fontSize: 11,
-                  fontFamily: 'var(--font-ibm-plex-mono), monospace',
-                  color: 'var(--color-n600)',
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
-              >
-                <span
-                  style={{
-                    width: 6, height: 6, borderRadius: '50%',
-                    background: 'var(--color-arc-cyan)',
-                    animation: 'pulse 1.2s ease-in-out infinite',
-                  }}
-                />
-                {status}
-              </div>
-            )}
-            <div
-              style={{
-                display: 'flex',
-                gap: 8,
-                alignItems: 'flex-end',
-                background: 'var(--glass-bg)',
-                border: '1px solid var(--border)',
-                borderRadius: 14,
-                padding: '10px 12px',
-                boxShadow: 'var(--glass-inset)',
-              }}
-            >
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={handleKey}
-                placeholder="Ask COFOUND3R anything…"
-                rows={1}
-                style={{
-                  flex: 1,
-                  background: 'none',
-                  border: 'none',
-                  outline: 'none',
-                  resize: 'none',
-                  color: 'var(--color-ink)',
-                  fontFamily: 'var(--font-archivo), system-ui, sans-serif',
-                  fontSize: 14,
-                  lineHeight: 1.5,
-                  maxHeight: 120,
-                  overflowY: 'auto',
+              padding: '24px 16px 12px',
+              minHeight: transcriptOpen ? 160 : 0,
+              background:
+                'radial-gradient(ellipse 70% 50% at 50% 40%, rgba(159,222,250,0.12) 0%, transparent 60%)',
+            }}>
+              <H3roJarvisOrb
+                state={voiceState}
+                size={transcriptOpen ? 120 : 150}
+                disabled={streaming && voiceState === 'processing'}
+                aria-label="Talk to H3RO"
+                onClick={() => {
+                  if (voiceState === 'listening') {
+                    listenerRef.current?.stop()
+                    setVoiceState('idle')
+                  } else if (voiceState === 'speaking') {
+                    speakerRef.current?.cancel()
+                    window.speechSynthesis?.cancel()
+                    setVoiceState('idle')
+                  } else if (!streaming) {
+                    startListening()
+                  }
                 }}
               />
+
+              <div style={{
+                marginTop: 14,
+                fontFamily: 'var(--font-ibm-plex-mono)',
+                fontSize: 11,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                color: voiceState === 'idle' ? 'var(--color-n400)' : 'var(--color-arc-cyan)',
+              }}>
+                {stateLabel}
+              </div>
+
+              {(interim || (messages.length === 0 && voiceState === 'idle')) && (
+                <div style={{
+                  marginTop: 10, maxWidth: 280, textAlign: 'center',
+                  fontFamily: 'var(--font-archivo)', fontSize: 13, lineHeight: 1.45,
+                  color: interim ? 'var(--color-ink)' : 'var(--color-n600)',
+                  fontStyle: interim ? 'normal' : 'italic',
+                }}>
+                  {interim || 'Your collaborating cofound3r. Just talk.'}
+                </div>
+              )}
+
+              {messages.length === 0 && voiceState === 'idle' && !interim && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 16, width: '100%' }}>
+                  {STARTER_PROMPTS.map(p => (
+                    <button
+                      key={p}
+                      onClick={() => send(p)}
+                      style={{
+                        padding: '10px 12px', textAlign: 'left', cursor: 'pointer',
+                        background: 'rgba(255,255,255,0.12)', border: '1px solid var(--border)',
+                        borderRadius: 10, color: 'var(--color-ink)',
+                        fontFamily: 'var(--font-archivo)', fontSize: 12,
+                      }}
+                    >
+                      <span style={{ color: 'var(--color-arc-cyan)', marginRight: 8 }}>→</span>
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {error && (
+                <div style={{ marginTop: 8, color: 'var(--color-signal)', fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, textAlign: 'center' }}>
+                  {error}
+                </div>
+              )}
+
+              {!isSpeechRecognitionSupported() && (
+                <div style={{ marginTop: 8, fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, color: 'var(--color-n600)' }}>
+                  Voice unavailable — type below
+                </div>
+              )}
+            </div>
+
+            <div style={{ padding: '0 16px 8px', flexShrink: 0 }}>
               <button
-                onClick={send}
-                disabled={streaming || !input.trim()}
-                aria-label="Send"
+                onClick={() => setTranscriptOpen(v => !v)}
                 style={{
-                  background: streaming || !input.trim() ? 'var(--color-n200)' : 'var(--color-arc-cyan)',
-                  color: streaming || !input.trim() ? 'var(--color-n400)' : '#F4F7FA',
-                  border: 'none',
-                  borderRadius: 10,
-                  width: 30,
-                  height: 30,
-                  cursor: streaming || !input.trim() ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
+                  width: '100%', padding: '8px 10px',
+                  background: 'rgba(255,255,255,0.08)', border: '1px solid var(--border)',
+                  borderRadius: 10, cursor: 'pointer',
+                  fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10,
+                  letterSpacing: '0.08em', textTransform: 'uppercase',
+                  color: 'var(--color-n600)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 }}
               >
-                <SendIcon />
+                <span>{transcriptOpen ? 'Hide transcript' : 'Show transcript'}</span>
+                <span style={{ transform: transcriptOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>▾</span>
               </button>
             </div>
-            <div
-              style={{
-                fontFamily: 'var(--font-ibm-plex-mono), monospace',
-                fontSize: 10,
-                color: 'var(--color-n400)',
-                marginTop: 8,
-                textAlign: 'center',
-                letterSpacing: '0.06em',
-              }}
-            >
-              Enter to send · ⌘J to toggle
+
+            {transcriptOpen && (
+              <div style={{ flex: 1, overflow: 'auto', padding: '8px 16px 12px', minHeight: 0 }}>
+                {messages.length === 0 ? (
+                  <div style={{ fontFamily: 'var(--font-archivo)', fontSize: 12, color: 'var(--color-n400)', textAlign: 'center', padding: 12 }}>
+                    Transcript appears here when you talk.
+                  </div>
+                ) : (
+                  messages.map(msg => (
+                    <MessageBubble key={msg.id} msg={msg} onConfirmWrite={handleConfirmWrite} />
+                  ))
+                )}
+                <div ref={bottomRef} />
+              </div>
+            )}
+
+            <div style={{ padding: '10px 16px 14px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+              <div style={{
+                display: 'flex', gap: 8, alignItems: 'flex-end',
+                background: 'var(--glass-bg)', border: '1px solid var(--border)',
+                borderRadius: 12, padding: '8px 10px',
+              }}>
+                <input
+                  value={quietInput}
+                  onChange={e => setQuietInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      const t = quietInput.trim()
+                      if (t) { setQuietInput(''); send(t) }
+                    }
+                  }}
+                  disabled={streaming}
+                  placeholder="Or type quietly…"
+                  style={{
+                    flex: 1, background: 'none', border: 'none', outline: 'none',
+                    color: 'var(--color-ink)', fontFamily: 'var(--font-archivo)', fontSize: 13,
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    const t = quietInput.trim()
+                    if (t) { setQuietInput(''); send(t) }
+                  }}
+                  disabled={streaming || !quietInput.trim()}
+                  style={{
+                    background: streaming || !quietInput.trim() ? 'var(--color-n200)' : 'var(--color-arc-cyan)',
+                    color: streaming || !quietInput.trim() ? 'var(--color-n400)' : '#F4F7FA',
+                    border: 'none', borderRadius: 8, width: 28, height: 28,
+                    cursor: streaming || !quietInput.trim() ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                >
+                  <SendIcon />
+                </button>
+              </div>
+              <div style={{
+                fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--color-n400)',
+                marginTop: 8, textAlign: 'center', letterSpacing: '0.06em',
+              }}>
+                H3RO · British voice · ⌘J to toggle
+              </div>
             </div>
-          </div>
-        </>
-      )}
+          </>
+        )}
 
-      {/* Tab: Signals */}
-      {tab === 'signals' && <SignalsTab />}
-
-      {/* Tab: Ops */}
-      {tab === 'ops' && <OpsTab onNavigate={(path) => { router.push(path); onClose() }} />}
+        {tab === 'signals' && <SignalsTab />}
+        {tab === 'ops' && <OpsTab onNavigate={(path) => { router.push(path); onClose() }} />}
       </div>
     </div>
   )
 }
 
-function MessageBubble({ msg, onConfirmWrite }: { msg: Message; onConfirmWrite: (callId: string, approved: boolean) => void }) {
-  if (msg.role === 'intent') {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0' }}>
-        <EyebrowLabel keyword={`INTENT — ${msg.content}`} color="var(--color-n400)" />
-      </div>
-    )
+function chip(active: boolean): React.CSSProperties {
+  return {
+    background: 'var(--glass-bg)',
+    border: '1px solid var(--border)',
+    borderRadius: 8,
+    cursor: 'pointer',
+    color: active ? 'var(--color-arc-cyan)' : 'var(--color-n600)',
+    fontFamily: 'var(--font-ibm-plex-mono), monospace',
+    fontSize: 10,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    padding: '4px 9px',
   }
+}
+
+function MessageBubble({ msg, onConfirmWrite }: { msg: Message; onConfirmWrite: (callId: string, approved: boolean) => void }) {
   if (msg.role === 'trace') {
     return (
-      <div
-        style={{
-          fontFamily: 'var(--font-plex-mono), monospace',
-          fontSize: 11,
-          color: 'var(--color-n600)',
-          margin: '4px 0 4px 32px',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-        }}
-      >
+      <div style={{
+        fontFamily: 'var(--font-plex-mono), monospace', fontSize: 11,
+        color: 'var(--color-n600)', margin: '4px 0', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+      }}>
         {msg.content}
       </div>
     )
   }
   if (msg.role === 'confirm') {
     return (
-      <div
-        style={{
-          margin: '10px 0 10px 32px',
-          border: '1px solid var(--color-arc-cyan-deep)',
-          padding: '10px 12px',
-          background: 'var(--color-vellum)',
-        }}
-      >
+      <div style={{
+        margin: '10px 0', border: '1px solid var(--color-arc-cyan-deep)',
+        padding: '10px 12px', background: 'var(--color-vellum)', borderRadius: 10,
+      }}>
         <div style={{ fontSize: 10, fontFamily: 'var(--font-plex-mono), monospace', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--color-n600)', marginBottom: 6 }}>
-          Remember this? ({msg.source === 'user_stated' ? 'you said this' : 'agent inferred this'})
+          Remember this?
         </div>
-        <div style={{ fontFamily: 'var(--font-archivo), system-ui, sans-serif', fontSize: 14, marginBottom: 8, color: 'var(--color-ink)' }}>
-          {msg.content}
-        </div>
+        <div style={{ fontFamily: 'var(--font-archivo)', fontSize: 13, marginBottom: 8 }}>{msg.content}</div>
         {msg.resolved ? (
-          <div style={{ fontSize: 11, fontFamily: 'var(--font-plex-mono), monospace', color: 'var(--color-n600)' }}>
+          <div style={{ fontSize: 11, fontFamily: 'var(--font-plex-mono)', color: 'var(--color-n600)' }}>
             {msg.resolved === 'approved' ? '✓ Saved' : '✗ Not saved'}
           </div>
         ) : (
           <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              onClick={() => onConfirmWrite(msg.callId as string, true)}
-              style={{ background: 'var(--color-arc-cyan)', border: 'none', padding: '4px 10px', cursor: 'pointer', fontSize: 12, fontFamily: 'var(--font-archivo), system-ui, sans-serif' }}
-            >
-              Save
-            </button>
-            <button
-              onClick={() => onConfirmWrite(msg.callId as string, false)}
-              style={{ background: 'none', border: '1px solid var(--color-n300, #d0d0d0)', padding: '4px 10px', cursor: 'pointer', fontSize: 12, fontFamily: 'var(--font-archivo), system-ui, sans-serif' }}
-            >
-              Don't save
-            </button>
+            <button onClick={() => onConfirmWrite(msg.callId as string, true)} className="btn btn-primary btn-sm">Save</button>
+            <button onClick={() => onConfirmWrite(msg.callId as string, false)} className="btn btn-sm">Don&apos;t save</button>
           </div>
         )}
       </div>
@@ -530,138 +593,31 @@ function MessageBubble({ msg, onConfirmWrite }: { msg: Message; onConfirmWrite: 
   }
   if (msg.role === 'typing') {
     return (
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <div
-          style={{
-            width: 24,
-            height: 24,
-            borderRadius: 0,
-            background: 'var(--color-vellum)',
-            border: '1px solid var(--color-n200)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          <Glyph3 size={11} color="var(--color-ink)" />
-        </div>
-        <div
-          style={{
-            background: 'var(--color-vellum)',
-            border: '1px solid var(--color-n200)',
-            padding: '10px 14px',
-            display: 'flex',
-            gap: 4,
-            alignItems: 'center',
-          }}
-        >
-          {[0, 1, 2].map(i => (
-            <div
-              key={i}
-              style={{
-                width: 5,
-                height: 5,
-                borderRadius: 0,
-                background: 'var(--color-arc-cyan)',
-                animation: `h3ros-pulse-opacity 1.2s ease-in-out ${i * 0.2}s infinite`,
-              }}
-            />
-          ))}
-        </div>
+      <div style={{ display: 'flex', gap: 4, padding: '8px 0', alignItems: 'center' }}>
+        {[0, 1, 2].map(i => (
+          <div key={i} style={{
+            width: 5, height: 5, background: 'var(--color-arc-cyan)',
+            animation: `h3ros-pulse-opacity 1.2s ease-in-out ${i * 0.2}s infinite`,
+          }} />
+        ))}
       </div>
     )
   }
 
   const isUser = msg.role === 'user'
   return (
-    <div
-      style={{
-        display: 'flex',
-        gap: 8,
-        marginBottom: 12,
-        flexDirection: isUser ? 'row-reverse' : 'row',
-      }}
-    >
-      {!isUser && (
-        <div
-          style={{
-            width: 24,
-            height: 24,
-            borderRadius: 0,
-            background: 'var(--color-vellum)',
-            border: '1px solid var(--color-n200)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          <Glyph3 size={11} color="var(--color-ink)" />
-        </div>
+    <div style={{ marginBottom: 14 }}>
+      <div style={{
+        fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, letterSpacing: '0.1em',
+        color: isUser ? 'var(--color-n400)' : 'var(--color-arc-cyan)', marginBottom: 4,
+      }}>
+        {isUser ? 'YOU' : <H3roMark size={9} />}
+      </div>
+      {isUser ? (
+        <p style={{ fontFamily: 'var(--font-archivo)', fontSize: 13, lineHeight: 1.5, margin: 0 }}>{msg.content}</p>
+      ) : (
+        <div className="forge-md"><Markdown content={msg.content} /></div>
       )}
-      <div
-        style={{
-          maxWidth: '82%',
-          background: isUser ? 'var(--color-ink)' : 'var(--color-vellum)',
-          color: isUser ? 'var(--color-off-white)' : 'var(--color-ink)',
-          border: isUser ? '1px solid var(--color-ink)' : '1px solid var(--color-n200)',
-          padding: '10px 14px',
-        }}
-      >
-        {isUser ? (
-          <p style={{
-            fontFamily: 'var(--font-archivo), system-ui, sans-serif',
-            fontSize: 14,
-            lineHeight: 1.5,
-            margin: 0,
-            color: 'var(--color-off-white)',
-          }}>{msg.content}</p>
-        ) : (
-          <div className="forge-md">
-            <Markdown content={msg.content} />
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function StarterPrompts({ onSelect }: { onSelect: (p: string) => void }) {
-  return (
-    <div style={{ padding: '12px 0' }}>
-      <div style={{ textAlign: 'center', marginBottom: 16 }}>
-        <EyebrowLabel keyword="COFOUND3R is online" color="var(--color-n400)" />
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {STARTER_PROMPTS.map(p => (
-          <button
-            key={p}
-            onClick={() => onSelect(p)}
-            className="liquid-glass-interactive"
-            style={{
-              padding: '12px 14px',
-              textAlign: 'left',
-              cursor: 'pointer',
-              /* Fill on glass — not glass-on-glass (Apple: avoid stacking) */
-              background: 'rgba(255,255,255,0.14)',
-              border: '1px solid var(--border)',
-              borderRadius: 12,
-              color: 'var(--color-ink)',
-              fontFamily: 'var(--font-archivo), system-ui, sans-serif',
-              fontWeight: 500,
-              fontSize: 13,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              width: '100%',
-            }}
-          >
-            <span style={{ color: 'var(--color-arc-cyan)', fontSize: 12 }}>→</span>
-            {p}
-          </button>
-        ))}
-      </div>
     </div>
   )
 }
@@ -669,61 +625,34 @@ function StarterPrompts({ onSelect }: { onSelect: (p: string) => void }) {
 function SignalsTab() {
   const [summary, setSummary] = useState({ knowledge: 0, projects: 0, tasks: 0 })
   useEffect(() => {
-    Promise.all([
-      api.knowledge.list(),
-      api.projects.list(),
-      api.tasks.list(),
-    ]).then(([k, p, t]) => {
-      setSummary({
-        knowledge: k.length,
-        projects: p.length,
-        tasks: t.filter(x => x.status !== 'completed').length,
+    Promise.all([api.knowledge.list(), api.projects.list(), api.tasks.list()])
+      .then(([k, p, t]) => {
+        setSummary({ knowledge: k.length, projects: p.length, tasks: t.filter(x => x.status !== 'completed').length })
       })
-    }).catch(() => {})
+      .catch(() => {})
   }, [])
 
-  const stats: { label: string; value: number }[] = [
-    { label: 'Archive',       value: summary.knowledge },
-    { label: 'Active builds', value: summary.projects },
-    { label: 'Runsheet',      value: summary.tasks },
-  ]
-
   return (
-    <div style={{ flex: 1, overflow: 'auto', padding: 16, background: 'transparent' }}>
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: 8,
-        marginBottom: 16,
-      }}>
-        {stats.map(s => (
-          <div
-            key={s.label}
-            style={{
-              padding: '14px 16px',
-              background: 'rgba(255,255,255,0.12)',
-              border: '1px solid var(--border)',
-              borderRadius: 12,
-            }}
-          >
+    <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
+        {[
+          { label: 'Archive', value: summary.knowledge },
+          { label: 'Active builds', value: summary.projects },
+          { label: 'Runsheet', value: summary.tasks },
+        ].map(s => (
+          <div key={s.label} style={{
+            padding: '14px 16px', background: 'rgba(255,255,255,0.12)',
+            border: '1px solid var(--border)', borderRadius: 12,
+          }}>
             <EyebrowLabel keyword={s.label} style={{ marginBottom: 6 }} />
-            <div
-              style={{
-                fontFamily: 'var(--font-archivo-black), sans-serif',
-                fontWeight: 400,
-                fontSize: 28,
-                lineHeight: 1,
-                color: 'var(--color-ink)',
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
+            <div style={{
+              fontFamily: 'var(--font-archivo-black), sans-serif', fontSize: 28,
+              lineHeight: 1, color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums',
+            }}>
               {s.value}
             </div>
           </div>
         ))}
-      </div>
-      <div style={{ textAlign: 'center', padding: 12 }}>
-        <EyebrowLabel keyword="FOUND3RY STATE · LIVE" color="var(--color-n400)" />
       </div>
     </div>
   )
@@ -731,93 +660,37 @@ function SignalsTab() {
 
 function OpsTab({ onNavigate }: { onNavigate: (path: string) => void }) {
   const quickActions = [
-    { label: 'New build',     path: '/projects' },
-    { label: 'Add knowledge', path: '/knowledge' },
-    { label: 'View tasks',    path: '/tasks' },
-    { label: 'Launch brief',  path: '/launchpad' },
-  ]
-
-  const crew = [
-    { id: 'field_analyst',     label: 'Field Analyst' },
-    { id: 'systems_architect', label: 'Systems Architect' },
-    { id: 'market_scout',      label: 'Market Scout' },
-    { id: 'launch_strategist', label: 'Launch Strategist' },
+    { label: 'Talk with H3RO', path: '/agents' },
+    { label: 'New build', path: '/projects' },
+    { label: 'View tasks', path: '/tasks' },
+    { label: 'Settings', path: '/settings' },
   ]
 
   return (
-    <div style={{ flex: 1, overflow: 'auto', padding: 16, background: 'transparent' }}>
+    <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
       <EyebrowLabel number="01" keyword="QUICK ACTIONS" style={{ marginBottom: 10 }} />
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 6,
-        marginBottom: 24,
-      }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {quickActions.map(a => (
           <button
             key={a.label}
             onClick={() => onNavigate(a.path)}
             className="liquid-glass-interactive"
             style={{
-              padding: '10px 14px',
-              textAlign: 'left',
-              cursor: 'pointer',
-              background: 'rgba(255,255,255,0.12)',
-              border: '1px solid var(--border)',
-              borderRadius: 12,
-              color: 'var(--color-ink)',
-              fontFamily: 'var(--font-archivo), system-ui, sans-serif',
-              fontWeight: 700,
-              fontSize: 13,
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              width: '100%',
+              padding: '10px 14px', textAlign: 'left', cursor: 'pointer',
+              background: 'rgba(255,255,255,0.12)', border: '1px solid var(--border)',
+              borderRadius: 12, color: 'var(--color-ink)',
+              fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 12,
+              letterSpacing: '0.06em', textTransform: 'uppercase', width: '100%',
             }}
           >
-            <span style={{ color: 'var(--color-arc-cyan)', fontSize: 12 }}>→</span>
+            <span style={{ color: 'var(--color-arc-cyan)', marginRight: 8 }}>→</span>
             {a.label}
-          </button>
-        ))}
-      </div>
-
-      <EyebrowLabel number="02" keyword="DEPLOY CREW" style={{ marginBottom: 10 }} />
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: 6,
-      }}>
-        {crew.map(c => (
-          <button
-            key={c.id}
-            onClick={() => onNavigate(`/agents?agent=${c.id}`)}
-            className="liquid-glass-interactive"
-            style={{
-              padding: '10px',
-              cursor: 'pointer',
-              background: 'rgba(255,255,255,0.12)',
-              border: '1px solid var(--border)',
-              borderRadius: 12,
-              color: 'var(--color-ink)',
-              fontFamily: 'var(--font-ibm-plex-mono), monospace',
-              fontWeight: 500,
-              fontSize: 10,
-              letterSpacing: '0.10em',
-              textTransform: 'uppercase',
-              textAlign: 'center',
-              width: '100%',
-            }}
-          >
-            {c.label}
           </button>
         ))}
       </div>
     </div>
   )
 }
-
 
 function SendIcon() {
   return (

@@ -215,13 +215,13 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
           )}
         </button>
 
-        {/* COFOUND3R */}
-        <GhostButton onClick={onCopilot} title="COFOUND3R (⌘J)">
+        {/* H3RO */}
+        <GhostButton onClick={onCopilot} title="H3RO (⌘J)">
           <CopilotIcon />
           <span className="foundry-header-label" style={{ fontFamily: 'var(--font-archivo), system-ui, sans-serif', fontWeight: 700, display: 'inline-flex', alignItems: 'baseline' }}>
-            COFOUND
+            H
             <Glyph3 size="0.72em" style={{ marginLeft: 1, marginRight: 1, transform: 'translateY(-0.01em)' }} />
-            R
+            RO
           </span>
         </GhostButton>
 

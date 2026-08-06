@@ -18,14 +18,13 @@ interface ForgeCommandProps {
 }
 
 const NAV_COMMANDS = [
-  { id: 'nav-dashboard', label: 'Go to Dashboard', description: 'The forge floor',   path: '/dashboard' },
-  { id: 'nav-knowledge', label: 'Go to Knowledge', description: 'The archive',       path: '/knowledge' },
-  { id: 'nav-projects',  label: 'Go to Projects',  description: 'The workshop',      path: '/projects' },
-  { id: 'nav-launchpad', label: 'Go to Launchpad', description: 'The launch bay',    path: '/launchpad' },
-  { id: 'nav-workspace', label: 'Go to Workspace', description: 'The blueprint',     path: '/workspace' },
-  { id: 'nav-tasks',     label: 'Go to Tasks',     description: 'The runsheet',      path: '/tasks' },
-  { id: 'nav-context',   label: 'Go to Context',   description: 'The signal room',   path: '/context' },
-  { id: 'nav-agents',    label: 'Go to Agents',    description: 'The crew',          path: '/agents' },
+  { id: 'nav-dashboard', label: 'Talk with H3RO', description: 'Voice cofound3r', path: '/dashboard' },
+  { id: 'nav-agents',    label: 'Text chat',      description: 'Typed backup',   path: '/agents' },
+  { id: 'nav-projects',  label: 'Go to Projects',  description: 'The workshop',   path: '/projects' },
+  { id: 'nav-launchpad', label: 'Go to Launchpad', description: 'The launch bay', path: '/launchpad' },
+  { id: 'nav-workspace', label: 'Go to Workspace', description: 'The blueprint',  path: '/workspace' },
+  { id: 'nav-tasks',     label: 'Go to Tasks',     description: 'The runsheet',   path: '/tasks' },
+  { id: 'nav-context',   label: 'Go to Context',   description: 'The signal room', path: '/context' },
 ]
 
 const PIPELINE_COMMANDS = [
@@ -82,9 +81,9 @@ export default function ForgeCommand({ onClose }: ForgeCommandProps) {
         for (const k of (knowledge as any[])) {
           if (k.title?.toLowerCase().includes(q) || k.content?.toLowerCase().includes(q)) {
             results.push({
-              id: `know-${k.id}`, label: k.title || 'Untitled', description: `Knowledge · ${k.type || 'note'}`,
+              id: `know-${k.id}`, label: k.title || 'Untitled', description: `Archive · ${k.type || 'note'}`,
               category: 'knowledge',
-              action: () => { router.push('/knowledge'); onClose() },
+              action: () => { router.push('/dashboard'); onClose() },
             })
           }
         }

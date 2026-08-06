@@ -71,14 +71,15 @@ const nextConfig = {
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
           // Marketing/app pages don't need camera/mic/geolocation; interest-cohort=()
           // opts out of FLoC (legacy Privacy Sandbox tracking signal).
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(self), geolocation=(), interest-cohort=()' },
           {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
               "style-src 'self' 'unsafe-inline'",
-              `connect-src 'self' ${API_URL} ${WS_URL}`,
+              `connect-src 'self' ${API_URL} ${WS_URL} https://www.google.com https://www.googleapis.com`,
+              "media-src 'self' blob:",
               "img-src 'self' data: blob:",
               "font-src 'self' data:",
               "frame-ancestors 'none'",

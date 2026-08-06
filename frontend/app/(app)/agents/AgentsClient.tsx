@@ -251,10 +251,10 @@ export default function AgentsClient() {
           </button>
           <div>
             <div style={{ fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 14, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--color-ink)' }}>
-              COFOUND3R
+              H3RO
             </div>
             <div style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--color-n400)', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 2 }}>
-              Your AI co-founder
+              Text chat backup
             </div>
           </div>
           <div style={{ marginLeft: 'auto', position: 'relative' }}>
@@ -321,7 +321,7 @@ export default function AgentsClient() {
                 What are you building?
               </div>
               <div style={{ fontFamily: 'var(--font-archivo)', fontSize: 14, color: 'var(--color-n600)', marginBottom: 28, lineHeight: 1.5 }}>
-                Your AI co-founder. Ask anything about your venture.
+                Your collaborating cofound3r — text mode. Prefer voice? Talk on the dashboard.
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 {STARTERS.map(s => (
@@ -380,7 +380,7 @@ export default function AgentsClient() {
                     fontSize: 10,
                     color: 'var(--color-arc-cyan)',
                     letterSpacing: '0.04em',
-                  }}>C3R</div>
+                  }}>H3R</div>
                   <div style={{ flex: 1 }}>
                     {ex.limitExceeded ? (
                       <div className="bay-panel" style={{ padding: 16 }}>
@@ -436,7 +436,7 @@ export default function AgentsClient() {
               onChange={e => { setQuery(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 160) + 'px' }}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(query) } }}
               disabled={streaming}
-              placeholder="Ask your co-founder anything…"
+              placeholder="Type to H3RO…"
               rows={1}
               style={{
                 flex: 1,

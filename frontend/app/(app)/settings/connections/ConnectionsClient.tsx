@@ -77,7 +77,7 @@ const PROVIDER_META: Record<string, { label: string; tagline: string; status: 'l
   },
   google: {
     label: 'Google Drive',
-    tagline: 'Create Docs from COFOUND3R responses. Sync files into Knowledge.',
+    tagline: 'Create Docs from H3RO responses.',
     status: 'live',
   },
 }

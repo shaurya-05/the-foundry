@@ -26,52 +26,39 @@ const WALKTHROUGH_STEPS: Step[] = [
     desc: 'The FOUND3RY is where ideas become real. Every tool you need to go from concept to launch — with an agent that actually knows your work.',
     features: [
       'Project plans generated in minutes with auto-created tasks.',
-      'Knowledge base with semantic search.',
+      'H3RO — voice cofound3r with file access by context.',
       'SWOT analysis for every idea.',
       'Real-time team collaboration.',
     ],
   },
   {
     number: '02',
-    title: 'The dashboard is your command center.',
-    subtitle: 'Overview',
-    desc: 'See everything at a glance — active projects, open tasks, velocity trends, and items that need your attention. The dashboard gets smarter as you use it.',
+    title: 'H3RO is your collaborating cofound3r.',
+    subtitle: 'Talk on the dashboard',
+    desc: 'The dashboard centers on H3RO — talk voice-first like Jarvis. Grant files or a folder and he pulls what he needs from context. Overview lives in a tab beside him.',
     features: [
-      'Project health indicators.',
-      'Weekly velocity tracking.',
-      'Attention alerts for overdue and blocked items.',
-      'Quick access to recent activity.',
+      'Voice conversation with a British H3RO voice.',
+      'Grant files — no separate upload archive.',
+      'Hideable transcript when you want the written record.',
+      'Text chat backup on the Text chat page.',
     ],
     nav: '/dashboard',
   },
   {
     number: '03',
-    title: 'Knowledge is your research hub.',
-    subtitle: 'Research and docs',
-    desc: 'Upload research, docs, notes, and links. The AI summarizes everything and creates semantic embeddings so you can find related content instantly.',
-    features: [
-      'Add notes, links, documents, and research.',
-      'Auto-generated summaries.',
-      'Semantic search — find by meaning, not just keywords.',
-      'Knowledge connects to projects automatically.',
-    ],
-    nav: '/knowledge',
-  },
-  {
-    number: '04',
     title: 'Projects turn concepts into plans.',
     subtitle: 'Build tracker',
     desc: 'Name a project and the AI generates a full plan with milestones, technical requirements, and actionable tasks — automatically added to your task board.',
     features: [
       'One-click project plan generation.',
       'Auto-created tasks with priorities.',
-      'Per-project COFOUND3R chat.',
+      'Per-project H3RO chat.',
       'Export as a structured document.',
     ],
     nav: '/projects',
   },
   {
-    number: '05',
+    number: '04',
     title: 'Tasks live on a drag-and-drop board.',
     subtitle: 'Kanban',
     desc: 'Five columns — backlog, todo, in progress, in review, completed. Tasks auto-populate from project plans.',
@@ -84,7 +71,7 @@ const WALKTHROUGH_STEPS: Step[] = [
     nav: '/tasks',
   },
   {
-    number: '07',
+    number: '05',
     title: 'Four specialists work for you.',
     subtitle: 'The crew',
     desc: 'Field Analyst researches markets. Systems Architect designs solutions. Market Scout finds opportunities. Launch Strategist plans go-to-market.',
@@ -97,23 +84,23 @@ const WALKTHROUGH_STEPS: Step[] = [
     nav: '/agents',
   },
   {
-    number: '08',
-    title: 'COFOUND3R reads your entire workspace graph.',
-    subtitle: 'Press ⌘J anywhere',
-    desc: 'COFOUND3R knows every project, task, knowledge item, and idea in your workspace. Ask it anything — "what should I work on?", "summarize my progress", "draft a pitch".',
+    number: '06',
+    title: 'H3RO reads your workspace and files.',
+    subtitle: 'Dashboard · voice',
+    desc: 'H3RO knows your projects, tasks, and any files you grant. Just talk — ask "what should I work on?", "summarize my progress", "draft a pitch".',
     features: [
-      'Full workspace context — knows everything by name.',
-      'Per-project mode with plan and task awareness.',
-      'Streaming responses with markdown formatting.',
+      'Voice-first on the dashboard.',
+      'Grant files or a folder; H3RO pulls by context.',
+      'Hideable transcript when you want the written record.',
       'Press ⌘J anytime from any page.',
     ],
-    openCopilot: true,
+    nav: '/dashboard',
   },
   {
-    number: '09',
+    number: '07',
     title: 'You\'re ready to build.',
     subtitle: 'Start forging',
-    desc: 'Create your first project to see the AI in action. The plan generator, auto-tasks, and COFOUND3R will take it from there.',
+    desc: 'Create your first project to see the AI in action. The plan generator, auto-tasks, and H3RO will take it from there.',
     features: [],
     nav: '/projects',
     isFinal: true,
@@ -306,7 +293,7 @@ export default function OnboardingGuide() {
           )}
           {(current.nav || current.openCopilot) && (
             <Button variant="ghost" size="sm" onClick={goToPage}>
-              {current.openCopilot ? 'Open COFOUND3R (⌘J)' : `Go to ${current.subtitle}`}
+              {current.openCopilot ? 'Open H3RO (⌘J)' : `Go to ${current.subtitle}`}
             </Button>
           )}
           <div style={{ marginLeft: 'auto' }}>

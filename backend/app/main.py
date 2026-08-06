@@ -172,7 +172,7 @@ async def security_headers_middleware(request: Request, call_next):
     # other origins from embedding our responses as resources.
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     response.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
-    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(self), geolocation=(), interest-cohort=()"
     # SSE responses get `no-transform` added -- the standard HTTP
     # directive (RFC 7234 §5.2.2.4) telling compliant intermediaries
     # (Cloudflare included) not to recompress/transform the response.

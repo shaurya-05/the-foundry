@@ -18,6 +18,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const isCommandCenter = pathname === '/dashboard'
+  const isFullBleed = pathname === '/dashboard' || pathname === '/agents'
 
   useEffect(() => {
     if (!loading && !user) {
@@ -27,14 +28,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const [commandOpen, setCommandOpen] = useState(false)
   const [signalsOpen, setSignalsOpen] = useState(false)
-  // Command center: Forge is the primary surface — open by default on dashboard
   const [copilotOpen, setCopilotOpen] = useState(false)
   const [notifCount, setNotifCount] = useState(0)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-
-  useEffect(() => {
-    if (isCommandCenter) setCopilotOpen(true)
-  }, [isCommandCenter])
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -46,12 +42,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         setCommandOpen(false)
         setSignalsOpen(false)
         setSidebarOpen(false)
-        if (!isCommandCenter) setCopilotOpen(false)
+        setCopilotOpen(false)
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [isCommandCenter])
+  }, [])
 
   useEffect(() => { setSidebarOpen(false) }, [pathname])
 
@@ -91,9 +87,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <main
           style={{
             flex: 1,
-            overflow: pathname === '/agents' ? 'hidden' : 'auto',
-            padding: pathname === '/agents' ? '0' : isCommandCenter ? '20px 24px' : '24px',
-            paddingRight: isCommandCenter && copilotOpen ? 24 : undefined,
+            overflow: isFullBleed ? 'hidden' : 'auto',
+            padding: isFullBleed ? (isCommandCenter ? '12px 16px 0' : '0') : '24px',
             display: 'flex',
             flexDirection: 'column',
             position: 'relative',
@@ -115,7 +110,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {copilotOpen && (
         <ForgeCopilot
           onClose={() => setCopilotOpen(false)}
-          commandCenter={isCommandCenter}
+          commandCenter={false}
         />
       )}
     </div>
