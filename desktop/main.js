@@ -2,12 +2,49 @@ const { app, BrowserWindow, dialog } = require('electron')
 const path = require('path')
 const { loadRawEnv, buildBackendEnv, buildFrontendEnv, resolvePorts } = require('./lib/env')
 const { startBackend, startFrontend, waitForHttp, stopAll } = require('./lib/sidecars')
+const { registerSetupIpc } = require('./lib/setup-ipc')
 
 /** @type {import('electron').BrowserWindow | null} */
 let mainWindow = null
+/** @type {import('electron').BrowserWindow | null} */
+let setupWindow = null
 /** @type {Array<{ pid: number, kill: () => Promise<void>, label: string }>} */
 let sidecars = []
 let shuttingDown = false
+/** True while leaving setup and starting sidecars — suppress window-all-closed quit. */
+let continuingFromSetup = false
+let sidecarsStarted = false
+
+const preloadPath = path.join(__dirname, 'preload.js')
+
+function createSetupWindow() {
+  setupWindow = new BrowserWindow({
+    width: 560,
+    height: 640,
+    minWidth: 440,
+    minHeight: 480,
+    title: 'FOUND3RY Setup',
+    show: false,
+    autoHideMenuBar: true,
+    backgroundColor: '#0c0d10',
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+
+  setupWindow.once('ready-to-show', () => {
+    setupWindow?.show()
+  })
+
+  setupWindow.on('closed', () => {
+    setupWindow = null
+  })
+
+  setupWindow.loadFile(path.join(__dirname, 'setup', 'index.html'))
+}
 
 async function createWindow(frontendUrl) {
   mainWindow = new BrowserWindow({
@@ -36,7 +73,10 @@ async function createWindow(frontendUrl) {
   await mainWindow.loadURL(frontendUrl)
 }
 
-async function boot() {
+/**
+ * Existing Phase 1/2 sidecar boot — unchanged behavior once called.
+ */
+async function startSidecarsAndWindow() {
   const raw = loadRawEnv()
   const ports = resolvePorts(raw)
   const frontendUrl = `http://127.0.0.1:${ports.frontend}`
@@ -48,6 +88,7 @@ async function boot() {
     const backend = startBackend(backendEnv, ports.backend)
     const frontend = startFrontend(frontendEnv, ports.frontend)
     sidecars = [backend, frontend]
+    sidecarsStarted = true
 
     console.log(`[desktop] waiting for backend http://127.0.0.1:${ports.backend}/api/health`)
     await waitForHttp(`http://127.0.0.1:${ports.backend}/api/health`, {
@@ -57,19 +98,39 @@ async function boot() {
     await waitForHttp(frontendUrl, { timeoutMs: 120000 })
 
     await createWindow(frontendUrl)
+
+    if (setupWindow && !setupWindow.isDestroyed()) {
+      setupWindow.close()
+    }
   } catch (err) {
     console.error('[desktop] boot failed:', err)
     await stopAll(sidecars)
     sidecars = []
+    sidecarsStarted = false
     dialog.showErrorBox(
       'FOUND3RY failed to start',
       `${err instanceof Error ? err.message : String(err)}\n\n` +
-        'Phase 1 still requires Docker Desktop with postgres_prod + redis_prod ' +
-        'healthy (ports 5433 / 6380), and a working Python with backend ' +
-        'requirements installed (or desktop/resources/python from prepare).',
+        'Desktop expects SQLite + in-memory cache by default (no Docker). ' +
+        'Also needs a working Python with backend requirements installed, ' +
+        'and Ollama for local models (or skip setup and chat will fail until it is ready).',
     )
     app.quit()
   }
+}
+
+async function onSetupContinue() {
+  if (continuingFromSetup || sidecarsStarted) return
+  continuingFromSetup = true
+  try {
+    await startSidecarsAndWindow()
+  } finally {
+    continuingFromSetup = false
+  }
+}
+
+async function boot() {
+  registerSetupIpc({ onContinue: onSetupContinue })
+  createSetupWindow()
 }
 
 async function shutdown() {
@@ -85,6 +146,7 @@ async function shutdown() {
 app.whenReady().then(boot)
 
 app.on('window-all-closed', async () => {
+  if (continuingFromSetup) return
   await shutdown()
   app.quit()
 })

@@ -24,7 +24,9 @@
     },
     "files": [
       "main.js",
+      "preload.js",
       "lib/**/*",
+      "setup/**/*",
       "package.json"
     ],
     "extraResources": [

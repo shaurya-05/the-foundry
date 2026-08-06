@@ -1,6 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 const { envFileCandidates } = require('./paths')
+const { modelEnvDefaults } = require('./ollama')
 
 /**
  * Minimal KEY=VALUE parser (no export, no multiline). Skips comments/blank.
@@ -70,6 +71,10 @@ function buildBackendEnv(raw, ports) {
     process.env.SQLITE_DB_PATH ||
     ''
 
+  // Model tags come from lib/ollama.js REQUIRED_MODELS — single source of truth.
+  // Env-file overrides still win if someone sets OLLAMA_*_MODEL explicitly.
+  const modelDefaults = modelEnvDefaults()
+
   const env = {
     ...process.env,
     ENVIRONMENT: raw.ENVIRONMENT || 'development',
@@ -96,6 +101,11 @@ function buildBackendEnv(raw, ports) {
     USE_LOCAL_DOCUMENT: raw.USE_LOCAL_DOCUMENT || '1',
     OLLAMA_BASE_URL: raw.OLLAMA_BASE_URL || 'http://127.0.0.1:11434/v1',
     OLLAMA_API_KEY: raw.OLLAMA_API_KEY || 'ollama-local',
+    OLLAMA_CLASSIFIER_MODEL: raw.OLLAMA_CLASSIFIER_MODEL || modelDefaults.OLLAMA_CLASSIFIER_MODEL,
+    OLLAMA_FACTUAL_MODEL: raw.OLLAMA_FACTUAL_MODEL || modelDefaults.OLLAMA_FACTUAL_MODEL,
+    OLLAMA_STRATEGIC_MODEL: raw.OLLAMA_STRATEGIC_MODEL || modelDefaults.OLLAMA_STRATEGIC_MODEL,
+    OLLAMA_RESEARCH_MODEL: raw.OLLAMA_RESEARCH_MODEL || modelDefaults.OLLAMA_RESEARCH_MODEL,
+    OLLAMA_DOCUMENT_MODEL: raw.OLLAMA_DOCUMENT_MODEL || modelDefaults.OLLAMA_DOCUMENT_MODEL,
     ANTHROPIC_API_KEY: raw.ANTHROPIC_API_KEY || '',
     VOYAGE_API_KEY: raw.VOYAGE_API_KEY || '',
     TAVILY_API_KEY: raw.TAVILY_API_KEY || '',

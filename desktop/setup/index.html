@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:;" />
+  <title>FOUND3RY Setup</title>
+  <link rel="stylesheet" href="setup.css" />
+</head>
+<body>
+  <main class="shell">
+    <header class="brand">
+      <div class="mark" aria-hidden="true"></div>
+      <div>
+        <h1>FOUND3RY</h1>
+        <p class="sub">Local AI setup</p>
+      </div>
+    </header>
+
+    <section id="panel" class="panel" aria-live="polite">
+      <p class="status">Checking for Ollama…</p>
+    </section>
+
+    <footer class="foot">
+      <button type="button" id="skip" class="linkish hidden">Skip for now</button>
+    </footer>
+  </main>
+  <script src="setup.js"></script>
+</body>
+</html>
