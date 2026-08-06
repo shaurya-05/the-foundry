@@ -88,6 +88,18 @@ services:
       MODEL_PROVIDER_ALLOWLIST: "api.anthropic.com,api.openai.com,api.perplexity.ai,generativelanguage.googleapis.com,api.together.xyz,api.fireworks.ai,localhost,127.0.0.1,::1,host.docker.internal"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      # Real, direct disk access for H3RO's system_file_read/system_file_list
+      # tools (backend/app/services/system_files_tool.py) -- distinct from
+      # the browser-mediated list_files/read_file tools (file_access_tool.py),
+      # which stay in place unchanged. Scoped to the user's own home
+      # directory, not the whole C: drive (Windows/Program Files/other
+      # accounts stay untouched), and mounted :ro so the container is
+      # structurally incapable of writing or deleting anything here,
+      # regardless of what any tool's application logic does or doesn't
+      # check. The tool layer adds its own path-containment + sensitive-
+      # path denylist on top -- see that file for the full reasoning.
+      - C:/Users/shaur:/host_fs:ro
     ports:
       - "8000:8000"
     depends_on:

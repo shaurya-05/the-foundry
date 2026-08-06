@@ -6,7 +6,7 @@ import { streamWS, LimitExceededError } from '@/lib/streaming'
 import Markdown from '@/components/ui/Markdown'
 import { API_URL } from '@/lib/config'
 import { getToken } from '@/lib/auth'
-import Glyph3 from '@/components/brand/Glyph3'
+import H3roMark from '@/components/brand/H3roMark'
 import H3roJarvisOrb from '@/components/h3ro/H3roJarvisOrb'
 import {
   warmVoices,
@@ -18,7 +18,7 @@ import {
 import {
   isFileAccessSupported,
   isFilePickerSupported,
-  connectFolder,
+  grantFullAccess,
   disconnectFolder,
   getConnectedFolder,
   selectFiles,
@@ -27,6 +27,14 @@ import {
   removeSelectedFile,
   handleFileToolRequest,
 } from '@/lib/fileAccess'
+
+type SourceCard = {
+  id: string
+  kind: 'search' | 'document' | 'listing' | 'trace'
+  title: string
+  body: string
+  links?: { title: string; url: string; snippet?: string }[]
+}
 
 type Exchange = {
   q: string
@@ -37,15 +45,60 @@ type Exchange = {
   sources?: SourceCard[]
 }
 
-type SourceCard = {
+type Thread = { id: string; title: string; created_at: string }
+
+type ComposerAttachment = {
   id: string
-  kind: 'search' | 'document' | 'listing' | 'trace'
-  title: string
-  body: string
-  links?: { title: string; url: string; snippet?: string }[]
+  name: string
+  size: number
+  kind: 'text' | 'image' | 'other'
+  text?: string
 }
 
-type Thread = { id: string; title: string; created_at: string }
+const TEXT_EXT = /\.(txt|md|csv|json|ts|tsx|js|jsx|py|html|css|xml|yml|yaml|toml|log|rs|go|java|c|cpp|h|sql)$/i
+const IMAGE_EXT = /\.(png|jpe?g|webp|gif|heic)$/i
+
+async function readAttachment(file: File): Promise<ComposerAttachment> {
+  const id = `${file.name}-${file.lastModified}-${Math.random().toString(36).slice(2, 6)}`
+  if (IMAGE_EXT.test(file.name) || file.type.startsWith('image/')) {
+    return { id, name: file.name, size: file.size, kind: 'image' }
+  }
+  if (TEXT_EXT.test(file.name) || file.type.startsWith('text/') || file.type === 'application/json') {
+    const text = await file.text()
+    return {
+      id,
+      name: file.name,
+      size: file.size,
+      kind: 'text',
+      text: text.slice(0, 80_000) + (text.length > 80_000 ? '\n\n…(truncated)' : ''),
+    }
+  }
+  // Best-effort text for unknown types
+  try {
+    const text = await file.text()
+    if (text && !text.includes('\u0000')) {
+      return {
+        id, name: file.name, size: file.size, kind: 'text',
+        text: text.slice(0, 40_000) + (text.length > 40_000 ? '\n\n…(truncated)' : ''),
+      }
+    }
+  } catch { /* binary */ }
+  return { id, name: file.name, size: file.size, kind: 'other' }
+}
+
+function buildMessageWithAttachments(q: string, attachments: ComposerAttachment[]): string {
+  if (!attachments.length) return q
+  const blocks = attachments.map(a => {
+    if (a.kind === 'text' && a.text) {
+      return `[Attached file: ${a.name}]\n\`\`\`\n${a.text}\n\`\`\``
+    }
+    if (a.kind === 'image') {
+      return `[Attached image: ${a.name} — screenshot/image attached in chat. Describe what you need; or grant Select files / Full access so I can read related files on disk.]`
+    }
+    return `[Attached file: ${a.name} (${a.size} bytes) — binary; grant file access if you need me to inspect it on disk.]`
+  })
+  return `${q.trim()}\n\n${blocks.join('\n\n')}`
+}
 
 const STARTERS = [
   'What should I focus on this week?',
@@ -53,27 +106,6 @@ const STARTERS = [
   'What files do I have available?',
   'Help me prepare for an investor conversation.',
 ]
-
-function H3roMark({ size = 14 }: { size?: number }) {
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '0.02em',
-        fontSize: size,
-        lineHeight: 1,
-        letterSpacing: '0.06em',
-        fontFamily: 'var(--font-archivo), system-ui, sans-serif',
-        fontWeight: 700,
-      }}
-    >
-      <span>H</span>
-      <Glyph3 size="1em" color="currentColor" />
-      <span>RO</span>
-    </span>
-  )
-}
 
 function formatObservation(tool: string, result: unknown): SourceCard | null {
   const id = `${tool}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
@@ -143,9 +175,11 @@ export default function H3roVoiceStage() {
   const [accessReady, setAccessReady] = useState(false)
   const [accessSkipped, setAccessSkipped] = useState(false)
   const [quietInput, setQuietInput] = useState('')
+  const [attachments, setAttachments] = useState<ComposerAttachment[]>([])
   const [pendingTool, setPendingTool] = useState<string | null>(null)
 
   const resultsRef = useRef<HTMLDivElement>(null)
+  const attachInputRef = useRef<HTMLInputElement>(null)
   const listenerRef = useRef<ReturnType<typeof createListener>>(null)
   const speakerRef = useRef<StreamingSpeaker | null>(null)
   const conversationOnRef = useRef(true)
@@ -285,14 +319,22 @@ export default function H3roVoiceStage() {
     setVoiceState((s) => (s === 'listening' ? 'idle' : s))
   }, [])
 
-  async function ask(q: string) {
-    if (!q.trim() || streamingRef.current) return
+  async function ask(q: string, attachOverride?: ComposerAttachment[]) {
+    const attach = attachOverride ?? attachments
+    const payload = buildMessageWithAttachments(q, attach)
+    if (!payload.trim() || streamingRef.current) return
     setError('')
     setStreaming(true)
     setStatus('')
     setPendingTool(null)
     setVoiceState('processing')
-    setExchanges(prev => [...prev, { q, a: '', ts: new Date(), sources: [] }])
+    setAttachments([])
+    setExchanges(prev => [...prev, {
+      q: attach.length ? `${q}${attach.length ? ` · ${attach.length} attachment${attach.length === 1 ? '' : 's'}` : ''}` : q,
+      a: '',
+      ts: new Date(),
+      sources: [],
+    }])
 
     const speaker = new StreamingSpeaker({
       onSpeakingChange: (speaking) => {
@@ -311,7 +353,7 @@ export default function H3roVoiceStage() {
 
     try {
       for await (const chunk of streamWS('/api/copilot/message', {
-        message: q,
+        message: payload,
         thread_id: activeThread,
         agent_mode: true,
       })) {
@@ -412,18 +454,18 @@ export default function H3roVoiceStage() {
       setGrantedFiles(files.map(f => f.name))
       setAccessSkipped(false)
       sessionStorage.removeItem('h3ro_files_skipped')
-      setFilesOpen(true)
+      setFilesOpen(false)
     } catch { /* cancelled */ }
   }
 
-  async function grantFolder() {
+  async function grantFull() {
     try {
-      const handle = await connectFolder()
+      const handle = await grantFullAccess()
       setFolderConnected(true)
       setFolderName(handle.name)
       setAccessSkipped(false)
       sessionStorage.removeItem('h3ro_files_skipped')
-      setFilesOpen(true)
+      setFilesOpen(false)
       return true
     } catch {
       return false
@@ -444,6 +486,16 @@ export default function H3roVoiceStage() {
     setFolderName(null)
   }
 
+  async function onComposerAttach(files: FileList | null) {
+    if (!files?.length) return
+    const next: ComposerAttachment[] = []
+    for (const file of Array.from(files)) {
+      next.push(await readAttachment(file))
+    }
+    setAttachments(prev => [...prev, ...next])
+    if (attachInputRef.current) attachInputRef.current.value = ''
+  }
+
   async function handleOrbActivate() {
     if (voiceState === 'listening') {
       stopListening()
@@ -460,8 +512,7 @@ export default function H3roVoiceStage() {
     const has = folderConnected || grantedFiles.length > 0
     if (!has && !accessSkipped && (isFileAccessSupported() || isFilePickerSupported())) {
       setFilesOpen(true)
-      if (isFileAccessSupported()) await grantFolder()
-      else if (isFilePickerSupported()) await grantFiles()
+      return
     }
     startListening()
   }
@@ -478,7 +529,7 @@ export default function H3roVoiceStage() {
     : conversationOn ? 'Tap to talk' : 'Ready'
 
   const hasAccess = folderConnected || grantedFiles.length > 0
-  const needsAccessPrompt = accessReady && !hasAccess && !accessSkipped && (isFileAccessSupported() || isFilePickerSupported())
+  const needsAccessPrompt = accessReady && !hasAccess && !accessSkipped
   const hasResults = exchanges.length > 0
 
   return (
@@ -518,7 +569,7 @@ export default function H3roVoiceStage() {
             {conversationOn ? '● Live' : '○ Live'}
           </button>
           <button onClick={() => setFilesOpen(v => !v)} style={chipStyle(hasAccess || filesOpen || needsAccessPrompt)}>
-            {hasAccess ? `● Files` : '○ Grant files'}
+            {folderConnected ? '● Full access' : grantedFiles.length ? `● ${grantedFiles.length} files` : '○ File access'}
           </button>
           <select
             value={activeThread || ''}
@@ -542,31 +593,63 @@ export default function H3roVoiceStage() {
 
       {(filesOpen || needsAccessPrompt) && (
         <div className="liquid-glass-strong" style={{
-          padding: '12px 16px', borderRadius: 14, flexShrink: 0,
+          padding: '16px 18px', borderRadius: 14, flexShrink: 0,
           background: needsAccessPrompt ? 'rgba(159,222,250,0.12)' : undefined,
         }}>
-          <div style={{ fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
-            {needsAccessPrompt ? 'H3RO needs browser access to your files' : 'H3RO file access'}
+          <div style={{ fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
+            How should H3RO access your files?
           </div>
-          <div style={{ fontFamily: 'var(--font-archivo)', fontSize: 12, color: 'var(--color-n600)', marginBottom: 10, maxWidth: 640 }}>
-            Grant a folder or files so he can pull context — search results and documents appear on the right.
+          <div style={{ fontFamily: 'var(--font-archivo)', fontSize: 12, color: 'var(--color-n600)', marginBottom: 14, maxWidth: 720, lineHeight: 1.45 }}>
+            Browsers require you to grant access. Choose one — you can change this anytime.
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+            <AccessCard
+              title="Continue without files"
+              desc="Attach docs or screenshots in the type box when you need them — like Cursor or Claude."
+              primary
+              onClick={() => {
+                skipFileAccess()
+                // nudge focus to composer
+                setTimeout(() => attachInputRef.current?.focus(), 0)
+              }}
+            />
+            {(isFilePickerSupported() || typeof window !== 'undefined') && (
+              <AccessCard
+                title="Select files"
+                desc="Pick specific files or screenshots from Finder / File Explorer."
+                onClick={async () => {
+                  if (isFilePickerSupported()) await grantFiles()
+                  else {
+                    // Fallback: open hidden input for browsers without showOpenFilePicker
+                    attachInputRef.current?.click()
+                    skipFileAccess()
+                  }
+                }}
+              />
+            )}
             {isFileAccessSupported() && (
-              <button onClick={grantFolder} className="btn btn-primary btn-sm">
-                {folderConnected ? `Folder: ${folderName}` : 'Allow folder access'}
-              </button>
-            )}
-            {isFilePickerSupported() && (
-              <button onClick={grantFiles} className="btn btn-sm" style={secondaryBtn}>Select files</button>
-            )}
-            {needsAccessPrompt && (
-              <button onClick={skipFileAccess} className="btn btn-sm" style={secondaryBtn}>Continue without files</button>
-            )}
-            {hasAccess && (
-              <button onClick={revokeAllFiles} className="btn btn-sm" style={secondaryBtn}>Revoke all</button>
+              <AccessCard
+                title="Full access"
+                desc="Grant a top-level folder (your user folder, Desktop, or Documents) so H3RO can browse Downloads, Desktop, Screenshots, and everything inside."
+                onClick={() => grantFull()}
+              />
             )}
           </div>
+          {hasAccess && (
+            <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              {folderConnected && (
+                <span style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--color-arc-cyan)' }}>
+                  ● Full access · {folderName}
+                </span>
+              )}
+              {grantedFiles.length > 0 && (
+                <span style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'var(--color-arc-cyan)' }}>
+                  ● {grantedFiles.length} selected file{grantedFiles.length === 1 ? '' : 's'}
+                </span>
+              )}
+              <button onClick={revokeAllFiles} className="btn btn-sm" style={secondaryBtn}>Revoke</button>
+            </div>
+          )}
           {grantedFiles.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
               {grantedFiles.map(name => (
@@ -682,11 +765,51 @@ export default function H3roVoiceStage() {
             borderTop: '1px solid var(--border)',
             flexShrink: 0,
           }}>
+            {attachments.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                {attachments.map(a => (
+                  <span key={a.id} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px',
+                    borderRadius: 8, border: '1px solid var(--border)',
+                    fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, color: 'var(--color-ink)',
+                    background: 'rgba(255,255,255,0.08)',
+                  }}>
+                    {a.kind === 'image' ? '🖼' : '📄'} {a.name}
+                    <button
+                      onClick={() => setAttachments(prev => prev.filter(x => x.id !== a.id))}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-n400)', padding: 0, lineHeight: 1 }}
+                    >×</button>
+                  </span>
+                ))}
+              </div>
+            )}
             <div style={{
               display: 'flex', gap: 8, alignItems: 'flex-end',
               background: 'rgba(255,255,255,0.1)', border: '1px solid var(--border)',
               borderRadius: 12, padding: '8px 10px',
             }}>
+              <input
+                ref={attachInputRef}
+                type="file"
+                multiple
+                accept="image/*,.txt,.md,.csv,.json,.pdf,.ts,.tsx,.js,.jsx,.py,.html,.css"
+                style={{ display: 'none' }}
+                onChange={e => onComposerAttach(e.target.files)}
+              />
+              <button
+                type="button"
+                onClick={() => attachInputRef.current?.click()}
+                title="Attach files or screenshots"
+                style={{
+                  background: 'none', border: '1px solid var(--border)', borderRadius: 8,
+                  width: 32, height: 32, cursor: 'pointer', color: 'var(--color-n600)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M8.5 4.5l-3.2 3.2a1.8 1.8 0 002.5 2.5l3.5-3.5a3 3 0 10-4.2-4.2L3.5 6.1a4 4 0 105.7 5.7l3-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                </svg>
+              </button>
               <textarea
                 value={quietInput}
                 onChange={e => setQuietInput(e.target.value)}
@@ -694,11 +817,14 @@ export default function H3roVoiceStage() {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault()
                     const t = quietInput.trim()
-                    if (t) { setQuietInput(''); ask(t) }
+                    if (t || attachments.length) {
+                      setQuietInput('')
+                      ask(t || 'Please review the attached files.')
+                    }
                   }
                 }}
                 disabled={streaming}
-                placeholder="Or type quietly…"
+                placeholder="Type or attach files…"
                 rows={1}
                 style={{
                   flex: 1, border: 'none', background: 'transparent', resize: 'none',
@@ -709,9 +835,12 @@ export default function H3roVoiceStage() {
               <button
                 onClick={() => {
                   const t = quietInput.trim()
-                  if (t) { setQuietInput(''); ask(t) }
+                  if (t || attachments.length) {
+                    setQuietInput('')
+                    ask(t || 'Please review the attached files.')
+                  }
                 }}
-                disabled={streaming || !quietInput.trim()}
+                disabled={streaming || (!quietInput.trim() && !attachments.length)}
                 className="btn btn-primary btn-sm"
               >
                 Send
@@ -836,6 +965,40 @@ export default function H3roVoiceStage() {
         }
       `}</style>
     </div>
+  )
+}
+
+function AccessCard({
+  title,
+  desc,
+  onClick,
+  primary,
+}: {
+  title: string
+  desc: string
+  onClick: () => void
+  primary?: boolean
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        textAlign: 'left',
+        padding: '14px 14px',
+        borderRadius: 12,
+        border: primary ? '1px solid var(--color-arc-cyan)' : '1px solid var(--border)',
+        background: primary ? 'var(--color-arc-soft)' : 'rgba(255,255,255,0.08)',
+        cursor: 'pointer',
+        color: 'var(--color-ink)',
+      }}
+    >
+      <div style={{ fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
+        {title}
+      </div>
+      <div style={{ fontFamily: 'var(--font-archivo)', fontSize: 12, color: 'var(--color-n600)', lineHeight: 1.45 }}>
+        {desc}
+      </div>
+    </button>
   )
 }
 

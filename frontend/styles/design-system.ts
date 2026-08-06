@@ -50,7 +50,7 @@ export const sectionLabels: Record<string, string> = {
   tasks:     'Task board',
   context:   'AI analysis',
   insights:  'AI analysis',
-  agents:    'Text chat backup',
+  agents:    'Talk with H3RO',
   workspace: 'Blueprint canvas',
   settings:  'Workspace settings',
   ideas:     'Ideas lab',

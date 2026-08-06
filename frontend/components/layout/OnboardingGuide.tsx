@@ -37,10 +37,10 @@ const WALKTHROUGH_STEPS: Step[] = [
     subtitle: 'Talk on the dashboard',
     desc: 'The dashboard centers on H3RO — talk voice-first like Jarvis. Grant files or a folder and he pulls what he needs from context. Overview lives in a tab beside him.',
     features: [
-      'Voice conversation with a British H3RO voice.',
-      'Grant files — no separate upload archive.',
+      'Type or talk on the dashboard — attach files when needed.',
+      'Grant select files or full folder access from Finder / Explorer.',
       'Hideable transcript when you want the written record.',
-      'Text chat backup on the Text chat page.',
+      'Web search and conversation memory built in.',
     ],
     nav: '/dashboard',
   },
@@ -81,7 +81,7 @@ const WALKTHROUGH_STEPS: Step[] = [
       'Market Scout — opportunity identification.',
       'Launch Strategist — go-to-market planning.',
     ],
-    nav: '/agents',
+    nav: '/dashboard',
   },
   {
     number: '06',

@@ -7,7 +7,7 @@ import { API_URL } from '@/lib/config'
 import { getToken } from '@/lib/auth'
 import Link from 'next/link'
 import H3roVoiceStage from '@/components/h3ro/H3roVoiceStage'
-import Glyph3 from '@/components/brand/Glyph3'
+import H3roMark from '@/components/brand/H3roMark'
 
 function timeAgo(ts: string): string {
   const diff = Date.now() - new Date(ts).getTime()
@@ -91,30 +91,11 @@ export default function DashboardClient() {
         flexShrink: 0,
       }}>
         <TabButton active={tab === 'h3ro'} onClick={() => setTab('h3ro')}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.02em', lineHeight: 1 }}>
-            <span>H</span>
-            <Glyph3 size="1em" color="currentColor" />
-            <span>RO</span>
-          </span>
+          <H3roMark size={13} />
         </TabButton>
         <TabButton active={tab === 'overview'} onClick={() => setTab('overview')}>
           Overview
         </TabButton>
-        <Link
-          href="/agents"
-          style={{
-            marginLeft: 'auto',
-            fontFamily: 'var(--font-ibm-plex-mono)',
-            fontSize: 10,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            color: 'var(--color-n400)',
-            textDecoration: 'none',
-            padding: '6px 10px',
-          }}
-        >
-          Text chat →
-        </Link>
       </div>
 
       {tab === 'h3ro' ? (

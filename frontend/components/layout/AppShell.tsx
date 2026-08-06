@@ -18,7 +18,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const isCommandCenter = pathname === '/dashboard'
-  const isFullBleed = pathname === '/dashboard' || pathname === '/agents'
+  const isFullBleed = pathname === '/dashboard'
 
   useEffect(() => {
     if (!loading && !user) {

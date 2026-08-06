@@ -19,19 +19,19 @@ interface ForgeCommandProps {
 
 const NAV_COMMANDS = [
   { id: 'nav-dashboard', label: 'Talk with H3RO', description: 'Voice cofound3r', path: '/dashboard' },
-  { id: 'nav-agents',    label: 'Text chat',      description: 'Typed backup',   path: '/agents' },
   { id: 'nav-projects',  label: 'Go to Projects',  description: 'The workshop',   path: '/projects' },
   { id: 'nav-launchpad', label: 'Go to Launchpad', description: 'The launch bay', path: '/launchpad' },
   { id: 'nav-workspace', label: 'Go to Workspace', description: 'The blueprint',  path: '/workspace' },
   { id: 'nav-tasks',     label: 'Go to Tasks',     description: 'The runsheet',   path: '/tasks' },
   { id: 'nav-context',   label: 'Go to Context',   description: 'The signal room', path: '/context' },
+  { id: 'nav-settings',  label: 'Go to Settings',  description: 'Workspace',      path: '/settings' },
 ]
 
 const PIPELINE_COMMANDS = [
-  { id: 'pipe-deep-recon',  label: 'Run Deep Recon',       description: 'Field Analyst → Systems Architect',  path: '/agents?pipeline=deep_recon' },
-  { id: 'pipe-launch',      label: 'Run Launch Readiness', description: 'Market Scout → Launch Strategist',   path: '/agents?pipeline=launch_readiness' },
-  { id: 'pipe-full-forge',  label: 'Run Full Forge',       description: 'All 4 crew members in sequence',     path: '/agents?pipeline=full_forge' },
-  { id: 'pipe-blueprint',   label: 'Run Blueprint Design', description: 'Systems Architect → Market Scout',   path: '/agents?pipeline=blueprint_design' },
+  { id: 'pipe-deep-recon',  label: 'Run Deep Recon',       description: 'Field Analyst → Systems Architect',  path: '/dashboard?pipeline=deep_recon' },
+  { id: 'pipe-launch',      label: 'Run Launch Readiness', description: 'Market Scout → Launch Strategist',   path: '/dashboard?pipeline=launch_readiness' },
+  { id: 'pipe-full-forge',  label: 'Run Full Forge',       description: 'All 4 crew members in sequence',     path: '/dashboard?pipeline=full_forge' },
+  { id: 'pipe-blueprint',   label: 'Run Blueprint Design', description: 'Systems Architect → Market Scout',   path: '/dashboard?pipeline=blueprint_design' },
 ]
 
 export default function ForgeCommand({ onClose }: ForgeCommandProps) {

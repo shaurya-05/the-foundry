@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import Found3ryWordmark from '@/components/brand/Found3ryWordmark'
 import H3rosWordmark from '@/components/brand/H3rosWordmark'
-import Glyph3 from '@/components/brand/Glyph3'
+import H3roMark from '@/components/brand/H3roMark'
 
 interface NavItem {
   href: string
@@ -15,8 +15,7 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { href: '/dashboard', label: 'H3RO',      sublabel: 'Talk with your cofound3r', icon: <AgentsIcon /> },
-  { href: '/agents',    label: 'Text chat', sublabel: 'Typed backup',             icon: <DashIcon /> },
+  { href: '/dashboard', label: 'H3RO', sublabel: 'Talk with your cofound3r', icon: <AgentsIcon /> },
 ]
 
 export default function Sidebar({ onCopilot }: { onCopilot: () => void }) {
@@ -131,7 +130,7 @@ export default function Sidebar({ onCopilot }: { onCopilot: () => void }) {
       <div style={{ padding: '8px 8px 16px' }}>
         <button
           onClick={onCopilot}
-          className="btn btn-primary"
+          className="btn"
           style={{
             width: '100%',
             display: 'flex',
@@ -140,14 +139,13 @@ export default function Sidebar({ onCopilot }: { onCopilot: () => void }) {
             gap: 8,
             padding: '10px 12px',
             fontSize: 12,
+            background: 'var(--glass-bg)',
+            border: '1px solid var(--border)',
+            color: 'var(--color-ink)',
           }}
         >
           <CopilotIcon />
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.02em', lineHeight: 1 }}>
-            <span>H</span>
-            <Glyph3 size="1em" color="currentColor" />
-            <span>RO</span>
-          </span>
+          <H3roMark size={13} />
           <span style={{
             marginLeft: 'auto',
             fontFamily: 'var(--font-ibm-plex-mono), monospace',
@@ -200,7 +198,7 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
           textTransform: 'uppercase',
           color: active ? 'var(--color-ink)' : 'var(--color-n600)',
         }}>
-          {item.label}
+          {item.label === 'H3RO' ? <H3roMark size={12} /> : item.label}
         </div>
         <div style={{
           fontFamily: 'var(--font-plex-mono), monospace',

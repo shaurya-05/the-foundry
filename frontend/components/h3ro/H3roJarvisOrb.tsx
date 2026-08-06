@@ -241,12 +241,17 @@ export default function H3roJarvisOrb({
             zIndex: 2,
           }}
         >
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.02em' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 0 }}>
             <span>H</span>
             <Glyph3
-              size="1em"
-              color="var(--color-ink)"
-              style={{ display: 'inline-block', verticalAlign: 'middle' }}
+              size="0.72em"
+              color="var(--color-arc-cyan)"
+              style={{
+                display: 'inline-block',
+                marginLeft: '0.02em',
+                marginRight: '0.02em',
+                transform: 'translateY(-0.01em)',
+              }}
             />
             <span>RO</span>
           </span>

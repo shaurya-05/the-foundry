@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import { sectionLabels } from '@/styles/design-system'
 import { useEffect, useState } from 'react'
 import H3rosStamp from '@/components/brand/H3rosStamp'
-import Glyph3 from '@/components/brand/Glyph3'
+import H3roMark from '@/components/brand/H3roMark'
 import { useTheme } from '@/lib/theme'
 
 interface HeaderProps {
@@ -218,11 +218,7 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
         {/* H3RO */}
         <GhostButton onClick={onCopilot} title="H3RO (⌘J)">
           <CopilotIcon />
-          <span className="foundry-header-label" style={{ fontFamily: 'var(--font-archivo), system-ui, sans-serif', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.02em', lineHeight: 1 }}>
-            <span>H</span>
-            <Glyph3 size="1em" color="currentColor" />
-            <span>RO</span>
-          </span>
+          <H3roMark size={13} className="foundry-header-label" />
         </GhostButton>
 
         {/* H3ROS parent stamp (Equity Layer 3) */}

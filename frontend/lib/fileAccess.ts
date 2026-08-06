@@ -103,11 +103,31 @@ async function idbDelete(key: string): Promise<void> {
  * at all). Must be called from a real user gesture (click handler) —
  * browsers reject showDirectoryPicker() calls that aren't.
  */
-export async function connectFolder(): Promise<FileSystemDirectoryHandle> {
+export async function connectFolder(opts?: { startIn?: string }): Promise<FileSystemDirectoryHandle> {
   // @ts-expect-error -- showDirectoryPicker isn't in TS's default lib.dom yet on all versions
-  const handle: FileSystemDirectoryHandle = await window.showDirectoryPicker({ mode: 'read' })
+  const handle: FileSystemDirectoryHandle = await window.showDirectoryPicker({
+    mode: 'read',
+    ...(opts?.startIn ? { startIn: opts.startIn } : {}),
+  })
   await idbSet(HANDLE_KEY, handle)
   return handle
+}
+
+/**
+ * Broad / "full" access — user grants a top-level folder (ideally their
+ * user home, Desktop, or Documents). Browsers cannot grant silent access
+ * to the entire Finder/Explorer; this is the widest permission a web app
+ * can request. Everything inside the granted tree is then readable.
+ */
+export async function grantFullAccess(): Promise<FileSystemDirectoryHandle> {
+  // Prefer starting at desktop so Desktop / Downloads / Documents are nearby
+  try {
+    return await connectFolder({ startIn: 'desktop' })
+  } catch (e) {
+    // startIn may be unsupported — fall back to plain picker
+    if (e instanceof DOMException && e.name === 'AbortError') throw e
+    return await connectFolder()
+  }
 }
 
 export async function disconnectFolder(): Promise<void> {
@@ -120,15 +140,30 @@ export type SelectedFile = {
 }
 
 /**
- * Opens the native multi-file picker. Selected handles are persisted so
- * H3RO can read them later via tool_request without re-prompting (while
- * permission remains granted).
+ * Opens the native multi-file picker (docs, images, screenshots, etc.).
+ * Selected handles are persisted so H3RO can read them later via tools.
  */
 export async function selectFiles(): Promise<SelectedFile[]> {
   // @ts-expect-error -- showOpenFilePicker not always in lib.dom
   const handles: FileSystemFileHandle[] = await window.showOpenFilePicker({
     multiple: true,
     excludeAcceptAllOption: false,
+    types: [
+      {
+        description: 'Documents & data',
+        accept: {
+          'text/*': ['.txt', '.md', '.csv', '.json', '.ts', '.tsx', '.js', '.jsx', '.py', '.html', '.css'],
+          'application/pdf': ['.pdf'],
+          'application/json': ['.json'],
+        },
+      },
+      {
+        description: 'Images & screenshots',
+        accept: {
+          'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.heic'],
+        },
+      },
+    ],
   })
   const existing = (await idbGet<FileSystemFileHandle[]>(FILES_KEY)) || []
   const byName = new Map<string, FileSystemFileHandle>()

@@ -1,6 +1,6 @@
-import AppShell from '@/components/layout/AppShell'
-import AgentsClient from './AgentsClient'
+import { redirect } from 'next/navigation'
 
-export default function AgentsPage() {
-  return <AppShell><AgentsClient /></AppShell>
+/** Text chat backup removed — type directly on the H3RO dashboard. */
+export default function AgentsRedirect() {
+  redirect('/dashboard')
 }

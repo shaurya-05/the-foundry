@@ -5,7 +5,7 @@ import { streamWS, submitToolResult } from '@/lib/streaming'
 import Markdown from '@/components/ui/Markdown'
 import { api } from '@/lib/api'
 import { useRouter } from 'next/navigation'
-import Glyph3 from '@/components/brand/Glyph3'
+import H3roMark from '@/components/brand/H3roMark'
 import EyebrowLabel from '@/components/brand/EyebrowLabel'
 import H3roJarvisOrb from '@/components/h3ro/H3roJarvisOrb'
 import {
@@ -18,7 +18,7 @@ import {
 import {
   isFileAccessSupported,
   isFilePickerSupported,
-  connectFolder,
+  grantFullAccess,
   disconnectFolder,
   getConnectedFolder,
   selectFiles,
@@ -46,25 +46,6 @@ const STARTER_PROMPTS = [
   'Show me workspace status.',
   'What patterns do you see in my work?',
 ]
-
-function H3roMark({ size = 13 }: { size?: number }) {
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '0.02em',
-        fontSize: size,
-        lineHeight: 1,
-        letterSpacing: '0.06em',
-      }}
-    >
-      <span>H</span>
-      <Glyph3 size="1em" color="currentColor" />
-      <span>RO</span>
-    </span>
-  )
-}
 
 export default function ForgeCopilot({ onClose, commandCenter = false }: ForgeCopilotProps) {
   const [messages, setMessages] = useState<Message[]>([])
@@ -274,7 +255,7 @@ export default function ForgeCopilot({ onClose, commandCenter = false }: ForgeCo
 
   async function grantFolder() {
     try {
-      await connectFolder()
+      await grantFullAccess()
       setFolderConnected(true)
       setAccessSkipped(false)
       sessionStorage.removeItem('h3ro_files_skipped')
@@ -361,29 +342,31 @@ export default function ForgeCopilot({ onClose, commandCenter = false }: ForgeCo
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => {
+                setAccessSkipped(true)
+                sessionStorage.setItem('h3ro_files_skipped', '1')
+              }}
+              style={chip(accessSkipped && !hasAccess)}
+            >
+              Continue without
+            </button>
+            {isFilePickerSupported() && (
+              <button onClick={grantFiles} style={chip(grantedFiles.length > 0 || needsAccess)}>
+                {grantedFiles.length ? `● ${grantedFiles.length} files` : 'Select files'}
+              </button>
+            )}
             {isFileAccessSupported() && (
               <button
-                onClick={folderConnected ? revokeAccess : grantFolder}
+                onClick={folderConnected ? undefined : grantFolder}
+                disabled={folderConnected}
                 style={chip(folderConnected || needsAccess)}
               >
-                {folderConnected ? '● Folder' : '○ Allow folder'}
+                {folderConnected ? '● Full access' : 'Full access'}
               </button>
             )}
-            {isFilePickerSupported() && (
-              <button onClick={grantFiles} style={chip(hasAccess || needsAccess)}>
-                {grantedFiles.length ? `● ${grantedFiles.length} files` : '○ Select files'}
-              </button>
-            )}
-            {needsAccess && (
-              <button
-                onClick={() => {
-                  setAccessSkipped(true)
-                  sessionStorage.setItem('h3ro_files_skipped', '1')
-                }}
-                style={chip(false)}
-              >
-                Skip
-              </button>
+            {hasAccess && (
+              <button onClick={revokeAccess} style={chip(false)}>Revoke</button>
             )}
             <button onClick={() => setAgentMode(v => !v)} disabled={streaming} style={chip(agentMode)}>
               {agentMode ? '● Agent' : '○ Agent'}
@@ -397,7 +380,7 @@ export default function ForgeCopilot({ onClose, commandCenter = false }: ForgeCo
               fontFamily: 'var(--font-archivo)', fontSize: 12, color: 'var(--color-n600)',
               marginBottom: 10, lineHeight: 1.4,
             }}>
-              H3RO needs browser file access to pull context — grant a folder or files, or skip.
+              Continue without files and attach in chat, select specific files, or grant full folder access (Desktop / Documents / user folder).
             </div>
           )}
 
@@ -705,7 +688,7 @@ function SignalsTab() {
 
 function OpsTab({ onNavigate }: { onNavigate: (path: string) => void }) {
   const quickActions = [
-    { label: 'Talk with H3RO', path: '/agents' },
+    { label: 'Talk with H3RO', path: '/dashboard' },
     { label: 'New build', path: '/projects' },
     { label: 'View tasks', path: '/tasks' },
     { label: 'Settings', path: '/settings' },
