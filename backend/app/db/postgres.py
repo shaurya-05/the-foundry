@@ -2,9 +2,22 @@ import asyncpg
 import os
 from typing import Optional
 
+# DATABASE_BACKEND selects between the existing Postgres deployment
+# (found3ry.com, unaffected -- this is the default, unchanged behavior)
+# and the desktop build's local SQLite file (see app/db/sqlite.py).
+# Every one of the ~37 call sites across routers/services does
+# `pool = await get_pool()` then `async with pool.acquire() as conn:` --
+# dispatching here means none of them need to know or care which backend
+# is actually running.
+_BACKEND = os.getenv("DATABASE_BACKEND", "postgres")
+
 _pool: Optional[asyncpg.Pool] = None
 
-async def get_pool() -> asyncpg.Pool:
+async def get_pool():
+    if _BACKEND == "sqlite":
+        from app.db.sqlite import get_sqlite_pool
+        return await get_sqlite_pool()
+
     global _pool
     if _pool is None:
         _pool = await asyncpg.create_pool(
@@ -17,6 +30,11 @@ async def get_pool() -> asyncpg.Pool:
     return _pool
 
 async def close_pool():
+    if _BACKEND == "sqlite":
+        from app.db.sqlite import close_sqlite_pool
+        await close_sqlite_pool()
+        return
+
     global _pool
     if _pool:
         await _pool.close()
