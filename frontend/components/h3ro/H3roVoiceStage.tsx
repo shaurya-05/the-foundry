@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
 import { streamWS, LimitExceededError, submitToolResult } from '@/lib/streaming'
 import Markdown from '@/components/ui/Markdown'
@@ -13,6 +13,9 @@ import {
   createListener,
   StreamingSpeaker,
   isSpeechRecognitionSupported,
+  extractWakeCommand,
+  readAlwaysListeningPreference,
+  writeAlwaysListeningPreference,
   type VoiceState,
 } from '@/lib/voice'
 import {
@@ -27,6 +30,7 @@ import {
   removeSelectedFile,
   handleFileToolRequest,
 } from '@/lib/fileAccess'
+import { runSystemAction } from '@/lib/systemActions'
 
 type SourceCard = {
   id: string
@@ -201,6 +205,7 @@ export default function H3roVoiceStage() {
   const [voiceState, setVoiceState] = useState<VoiceState>('idle')
   const [interim, setInterim] = useState('')
   const [conversationOn, setConversationOn] = useState(true)
+  const [alwaysListening, setAlwaysListening] = useState(false)
   const [speechOk, setSpeechOk] = useState(true)
   const [folderConnected, setFolderConnected] = useState(false)
   const [folderName, setFolderName] = useState<string | null>(null)
@@ -212,22 +217,35 @@ export default function H3roVoiceStage() {
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([])
   const [pendingTool, setPendingTool] = useState<string | null>(null)
   const [memoryConfirm, setMemoryConfirm] = useState<{ callId: string; text: string; source: string } | null>(null)
+  const [systemActionConfirm, setSystemActionConfirm] = useState<{
+    callId: string
+    action: string
+    target?: string | null
+    description: string
+  } | null>(null)
 
   const resultsRef = useRef<HTMLDivElement>(null)
   const attachInputRef = useRef<HTMLInputElement>(null)
   const listenerRef = useRef<ReturnType<typeof createListener>>(null)
   const speakerRef = useRef<StreamingSpeaker | null>(null)
   const conversationOnRef = useRef(true)
+  const alwaysListeningRef = useRef(false)
+  const hotPausedRef = useRef(false)
   const streamingRef = useRef(false)
+  const voiceStateRef = useRef<VoiceState>('idle')
   const askRef = useRef<(q: string) => Promise<void>>(async () => {})
   const lastToolRef = useRef<{ tool: string; args: Record<string, unknown> } | null>(null)
+  const startHotMicRef = useRef<() => void>(() => {})
 
   useEffect(() => { conversationOnRef.current = conversationOn }, [conversationOn])
+  useEffect(() => { alwaysListeningRef.current = alwaysListening }, [alwaysListening])
   useEffect(() => { streamingRef.current = streaming }, [streaming])
+  useEffect(() => { voiceStateRef.current = voiceState }, [voiceState])
 
   useEffect(() => {
     warmVoices()
     setSpeechOk(isSpeechRecognitionSupported())
+    setAlwaysListening(readAlwaysListeningPreference())
     loadThreads()
     refreshFileAccess()
     return () => {
@@ -315,8 +333,89 @@ export default function H3roVoiceStage() {
     } catch { router.push('/settings') }
   }
 
+  /** Pause STT intentionally (no auto-restart) — used while TTS speaks / processing. */
+  const pauseRecognition = useCallback(() => {
+    listenerRef.current?.abort()
+    listenerRef.current = null
+  }, [])
+
+  const startHotMic = useCallback(() => {
+    if (!alwaysListeningRef.current) return
+    if (hotPausedRef.current) return
+    if (streamingRef.current) return
+    const vs = voiceStateRef.current
+    if (vs === 'speaking' || vs === 'processing') return
+
+    pauseRecognition()
+    setInterim('')
+
+    const listener = createListener(
+      {
+        onInterim: (t) => {
+          // Only surface interim once a wake fragment appears — avoid ambient chatter in UI.
+          if (/\b(?:hey|hi|ok|okay|h3ro|hero|h\s*3)/i.test(t)) setInterim(t)
+          else setInterim('')
+        },
+        onFinal: (text) => {
+          const command = extractWakeCommand(text)
+          if (command === null) {
+            // No wake word — discard and keep hot.
+            setInterim('')
+            return
+          }
+          setInterim('')
+          if (!command) return // wake-only
+          if (streamingRef.current) return
+          pauseRecognition()
+          setVoiceState('processing')
+          askRef.current(command)
+        },
+        onError: (err) => {
+          setInterim('')
+          if (err === 'not-allowed') {
+            setError('Microphone permission denied. Allow mic access for H3RO.')
+            setAlwaysListening(false)
+            writeAlwaysListeningPreference(false)
+            setVoiceState('idle')
+            return
+          }
+          // Stay hot on routine errors; autoRestart will recover.
+          if (alwaysListeningRef.current && !hotPausedRef.current && !streamingRef.current) {
+            setVoiceState('hot')
+          }
+        },
+        onEnd: () => {
+          setInterim('')
+          // autoRestart keeps the session; only drop visual if mode was turned off.
+          if (!alwaysListeningRef.current && !streamingRef.current) {
+            setVoiceState((s) => (s === 'hot' ? 'idle' : s))
+          }
+        },
+      },
+      { continuous: true, autoRestart: true },
+    )
+    if (!listener) {
+      setSpeechOk(false)
+      return
+    }
+    listenerRef.current = listener
+    setError('')
+    setVoiceState('hot')
+    listener.start()
+  }, [pauseRecognition])
+
+  useEffect(() => {
+    startHotMicRef.current = startHotMic
+  }, [startHotMic])
+
   const startListening = useCallback(() => {
     if (streamingRef.current) return
+    // Push-to-talk must not run while always-listening owns the mic loop.
+    if (alwaysListeningRef.current) {
+      hotPausedRef.current = false
+      startHotMicRef.current()
+      return
+    }
     listenerRef.current?.abort()
     speakerRef.current?.cancel()
     if (typeof window !== 'undefined') window.speechSynthesis?.cancel()
@@ -351,8 +450,51 @@ export default function H3roVoiceStage() {
 
   const stopListening = useCallback(() => {
     listenerRef.current?.stop()
-    setVoiceState((s) => (s === 'listening' ? 'idle' : s))
+    listenerRef.current = null
+    setVoiceState((s) => (s === 'listening' || s === 'hot' ? 'idle' : s))
   }, [])
+
+  function setAlwaysListeningOn(on: boolean) {
+    if (on && !isSpeechRecognitionSupported()) {
+      setSpeechOk(false)
+      return
+    }
+    setAlwaysListening(on)
+    writeAlwaysListeningPreference(on)
+    if (!on) {
+      hotPausedRef.current = false
+      pauseRecognition()
+      setInterim('')
+      setVoiceState((s) => (s === 'hot' ? 'idle' : s))
+    } else {
+      hotPausedRef.current = false
+      alwaysListeningRef.current = true
+      if (!streamingRef.current && voiceStateRef.current !== 'speaking' && voiceStateRef.current !== 'processing') {
+        setTimeout(() => startHotMicRef.current(), 0)
+      }
+    }
+  }
+
+  // Keep hot mic running when preference is on and we return to idle (not user-paused).
+  useEffect(() => {
+    if (!alwaysListening || !speechOk) return
+    if (hotPausedRef.current) return
+    if (streaming || voiceState === 'speaking' || voiceState === 'processing' || voiceState === 'listening') return
+    if (voiceState === 'hot') return
+    if (voiceState === 'idle') {
+      const t = setTimeout(() => {
+        if (
+          alwaysListeningRef.current
+          && !hotPausedRef.current
+          && !streamingRef.current
+          && voiceStateRef.current === 'idle'
+        ) {
+          startHotMicRef.current()
+        }
+      }, 300)
+      return () => clearTimeout(t)
+    }
+  }, [alwaysListening, speechOk, streaming, voiceState])
 
   async function ask(q: string, attachOverride?: ComposerAttachment[]) {
     const attach = attachOverride ?? attachments
@@ -367,6 +509,9 @@ export default function H3roVoiceStage() {
     setStatus('')
     setPendingTool(null)
     setMemoryConfirm(null)
+    setSystemActionConfirm(null)
+    // Don't hear ourselves — stop any hot/push mic before TTS.
+    pauseRecognition()
     setVoiceState('processing')
     setAttachments([])
     setExchanges(prev => [...prev, {
@@ -378,13 +523,20 @@ export default function H3roVoiceStage() {
 
     const speaker = new StreamingSpeaker({
       onSpeakingChange: (speaking) => {
-        if (speaking) setVoiceState('speaking')
+        if (speaking) {
+          pauseRecognition()
+          setVoiceState('speaking')
+        }
       },
       onIdle: () => {
         setVoiceState('idle')
-        if (conversationOnRef.current) {
+        if (alwaysListeningRef.current) {
           setTimeout(() => {
-            if (!streamingRef.current && conversationOnRef.current) startListening()
+            if (!streamingRef.current && alwaysListeningRef.current) startHotMicRef.current()
+          }, 450)
+        } else if (conversationOnRef.current) {
+          setTimeout(() => {
+            if (!streamingRef.current && conversationOnRef.current && !alwaysListeningRef.current) startListening()
           }, 400)
         }
       },
@@ -413,6 +565,8 @@ export default function H3roVoiceStage() {
             setStatus('Listing files…')
           } else if (chunk.tool === 'memory_write') {
             setStatus('Saving to memory…')
+          } else if (chunk.tool === 'system_action') {
+            setStatus('Waiting for approval…')
           } else {
             setStatus(`Working · ${chunk.tool}`)
           }
@@ -423,6 +577,14 @@ export default function H3roVoiceStage() {
             source: chunk.source || 'agent_inferred',
           })
           setStatus('Confirm memory save…')
+        } else if (chunk.type === 'agent_confirm_system_action') {
+          setSystemActionConfirm({
+            callId: chunk.call_id,
+            action: chunk.action,
+            target: chunk.target,
+            description: chunk.description || chunk.action,
+          })
+          setStatus('Confirm system action…')
         } else if (chunk.type === 'tool_request') {
           if (chunk.tool === 'list_files' || chunk.tool === 'read_file') {
             handleFileToolRequest(chunk)
@@ -430,6 +592,7 @@ export default function H3roVoiceStage() {
         } else if (chunk.type === 'agent_observation') {
           setPendingTool(null)
           if (chunk.tool === 'memory_write') setMemoryConfirm(null)
+          if (chunk.tool === 'system_action') setSystemActionConfirm(null)
           const card = formatObservation(chunk.tool, chunk.result)
           if (card) {
             if (chunk.tool === 'read_file' && lastToolRef.current?.tool === 'read_file') {
@@ -494,6 +657,7 @@ export default function H3roVoiceStage() {
       setStatus('')
       setPendingTool(null)
       setMemoryConfirm(null)
+      setSystemActionConfirm(null)
     }
   }
 
@@ -505,6 +669,25 @@ export default function H3roVoiceStage() {
     setMemoryConfirm(null)
     setStatus(approved ? 'Saving…' : 'Skipped memory save')
     await submitToolResult(callId, { approved })
+  }
+
+  async function confirmSystemAction(approved: boolean) {
+    if (!systemActionConfirm) return
+    const { callId, action, target } = systemActionConfirm
+    setSystemActionConfirm(null)
+    if (!approved) {
+      setStatus('Action declined')
+      await submitToolResult(callId, { approved: false, success: false, detail: 'user declined' })
+      return
+    }
+    setStatus('Running action…')
+    const result = await runSystemAction(action, target)
+    await submitToolResult(callId, {
+      approved: true,
+      success: result.success,
+      detail: result.detail,
+    })
+    setStatus(result.success ? result.detail : `Failed · ${result.detail}`)
   }
 
   async function grantFiles() {
@@ -556,6 +739,31 @@ export default function H3roVoiceStage() {
   }
 
   async function handleOrbActivate() {
+    if (alwaysListening) {
+      if (voiceState === 'hot') {
+        // Pause hot mic until user taps again (does not turn the preference off).
+        hotPausedRef.current = true
+        pauseRecognition()
+        setVoiceState('idle')
+        return
+      }
+      if (voiceState === 'speaking') {
+        speakerRef.current?.cancel()
+        if (typeof window !== 'undefined') window.speechSynthesis?.cancel()
+        setVoiceState('idle')
+        return
+      }
+      if (streaming || voiceState === 'processing') return
+      const has = folderConnected || grantedFiles.length > 0
+      if (!has && !accessSkipped && (isFileAccessSupported() || isFilePickerSupported())) {
+        setFilesOpen(true)
+        return
+      }
+      hotPausedRef.current = false
+      startHotMic()
+      return
+    }
+
     if (voiceState === 'listening') {
       stopListening()
       return
@@ -582,10 +790,23 @@ export default function H3roVoiceStage() {
   }
 
   const stateLabel =
-    voiceState === 'listening' ? 'Listening…'
+    voiceState === 'hot' ? 'Mic on · say “Hey H3RO”'
+    : voiceState === 'listening' ? 'Listening…'
     : voiceState === 'processing' ? (status || 'Thinking…')
     : voiceState === 'speaking' ? 'Speaking…'
+    : alwaysListening ? 'Always listening paused · tap to arm'
     : conversationOn ? 'Tap to talk' : 'Ready'
+
+  const labelColor =
+    voiceState === 'hot' ? '#C47A1A'
+    : voiceState === 'idle' ? 'var(--color-n400)'
+    : 'var(--color-arc-cyan)'
+
+  const orbAria =
+    voiceState === 'hot' ? 'Pause always listening'
+    : voiceState === 'listening' ? 'Stop listening'
+    : alwaysListening ? 'Resume always listening'
+    : 'Talk to H3RO'
 
   const hasAccess = folderConnected || grantedFiles.length > 0
   const needsAccessPrompt = accessReady && !hasAccess && !accessSkipped
@@ -624,7 +845,16 @@ export default function H3roVoiceStage() {
           </div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <button onClick={() => setConversationOn(v => !v)} style={chipStyle(conversationOn)} title="Keep listening after speaking">
+          {speechOk && (
+            <button
+              onClick={() => setAlwaysListeningOn(!alwaysListening)}
+              style={chipStyle(alwaysListening, alwaysListening ? '#C47A1A' : undefined)}
+              title="Keep the mic open and respond only after “Hey H3RO” / “Hey hero”. Off by default."
+            >
+              {alwaysListening ? '● Always' : '○ Always'}
+            </button>
+          )}
+          <button onClick={() => setConversationOn(v => !v)} style={chipStyle(conversationOn)} title="Keep listening after speaking (push-to-talk follow-up)">
             {conversationOn ? '● Live' : '○ Live'}
           </button>
           <button onClick={() => setFilesOpen(v => !v)} style={chipStyle(hasAccess || filesOpen || needsAccessPrompt)}>
@@ -773,6 +1003,41 @@ export default function H3roVoiceStage() {
         </div>
       )}
 
+      {systemActionConfirm && (
+        <div className="liquid-glass-strong" style={{
+          padding: '14px 16px', borderRadius: 14, flexShrink: 0,
+          border: '1px solid #C47A1A',
+        }}>
+          <div style={{ fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
+            H3RO wants to run a system action
+          </div>
+          <div style={{
+            fontFamily: 'var(--font-archivo)', fontSize: 12, color: 'var(--color-n600)',
+            marginBottom: 10, lineHeight: 1.45,
+          }}>
+            {systemActionConfirm.description}
+            <span style={{ display: 'block', marginTop: 4, fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, opacity: 0.7 }}>
+              {systemActionConfirm.action}
+              {systemActionConfirm.target ? ` · ${systemActionConfirm.target}` : ''}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" onClick={() => confirmSystemAction(true)} style={{
+              background: '#C47A1A', color: '#fff', border: 'none',
+              padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 12,
+            }}>
+              Allow
+            </button>
+            <button type="button" onClick={() => confirmSystemAction(false)} style={{
+              background: 'transparent', border: '1px solid var(--border)',
+              padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 12,
+            }}>
+              Deny
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Split screen */}
       <div className="h3ro-split" style={{
         flex: 1,
@@ -807,7 +1072,7 @@ export default function H3roVoiceStage() {
               state={voiceState}
               size={200}
               disabled={streaming && voiceState === 'processing'}
-              aria-label={voiceState === 'listening' ? 'Stop listening' : 'Talk to H3RO'}
+              aria-label={orbAria}
               onClick={handleOrbActivate}
             />
             <div style={{
@@ -816,21 +1081,24 @@ export default function H3roVoiceStage() {
               fontSize: 12,
               letterSpacing: '0.14em',
               textTransform: 'uppercase',
-              color: voiceState === 'idle' ? 'var(--color-n400)' : 'var(--color-arc-cyan)',
+              color: labelColor,
             }}>
               {stateLabel}
             </div>
-            {(interim || (!hasResults && voiceState === 'idle')) && (
+            {(interim || (!hasResults && (voiceState === 'idle' || voiceState === 'hot'))) && (
               <div style={{
                 marginTop: 12, maxWidth: 320, textAlign: 'center',
                 fontFamily: 'var(--font-archivo)', fontSize: 14, lineHeight: 1.5,
                 color: interim ? 'var(--color-ink)' : 'var(--color-n600)',
                 fontStyle: interim ? 'normal' : 'italic',
               }}>
-                {interim || 'Talk on the left. Answers, searches, and documents land on the right.'}
+                {interim
+                  || (voiceState === 'hot'
+                    ? 'Listening for “Hey H3RO…” — nothing is sent without the wake word.'
+                    : 'Talk on the left. Answers, searches, and documents land on the right.')}
               </div>
             )}
-            {!hasResults && voiceState === 'idle' && !interim && (
+            {!hasResults && voiceState === 'idle' && !interim && !alwaysListening && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 20, width: '100%', maxWidth: 300 }}>
                 {STARTERS.map(s => (
                   <button
@@ -1184,22 +1452,24 @@ function SourcePanel({ card }: { card: SourceCard }) {
   )
 }
 
-function chipStyle(active: boolean): React.CSSProperties {
+function chipStyle(active: boolean, accent?: string): CSSProperties {
   return {
     padding: '5px 10px',
-    border: '1px solid var(--border)',
+    border: active && accent ? `1px solid ${accent}` : '1px solid var(--border)',
     borderRadius: 8,
-    background: active ? 'var(--color-arc-soft)' : 'rgba(255,255,255,0.08)',
+    background: active
+      ? (accent ? 'rgba(232,165,75,0.16)' : 'var(--color-arc-soft)')
+      : 'rgba(255,255,255,0.08)',
     cursor: 'pointer',
     fontFamily: 'var(--font-ibm-plex-mono)',
     fontSize: 10,
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
-    color: active ? 'var(--color-arc-cyan)' : 'var(--color-n600)',
+    color: active ? (accent || 'var(--color-arc-cyan)') : 'var(--color-n600)',
   }
 }
 
-const secondaryBtn: React.CSSProperties = {
+const secondaryBtn: CSSProperties = {
   background: 'rgba(255,255,255,0.08)',
   border: '1px solid var(--border)',
   color: 'var(--color-ink)',

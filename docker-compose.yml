@@ -29,6 +29,8 @@ services:
       - ./backend/migrations/012_onboarding_completed_at.sql:/docker-entrypoint-initdb.d/012_onboarding_completed_at.sql
       - ./backend/migrations/013_weekly_digest.sql:/docker-entrypoint-initdb.d/013_weekly_digest.sql
       - ./backend/migrations/014_model_registry.sql:/docker-entrypoint-initdb.d/014_model_registry.sql
+      - ./backend/migrations/015_agent_memory.sql:/docker-entrypoint-initdb.d/015_agent_memory.sql
+      - ./backend/migrations/016_watches.sql:/docker-entrypoint-initdb.d/016_watches.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U foundry -d foundry_db"]
       interval: 10s

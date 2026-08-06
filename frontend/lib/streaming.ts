@@ -37,6 +37,7 @@ export type StreamChunk =
   | { type: 'agent_tool_call'; iteration: number; tool: string; args: Record<string, unknown> }
   | { type: 'agent_observation'; iteration: number; tool: string; result: unknown }
   | { type: 'agent_confirm_write'; call_id: string; text: string; source: string }
+  | { type: 'agent_confirm_system_action'; call_id: string; action: string; target?: string | null; description: string }
   | { type: 'agent_final'; answer: string; iterations_used: number }
   | { type: 'agent_stopped'; reason: string; partial_answer: string }
 

@@ -82,6 +82,9 @@ function buildBackendEnv(raw, ports) {
     CACHE_BACKEND: cacheBackend,
     GRAPH_BACKEND: graphBackend,
     CELERY_ENABLED: raw.CELERY_ENABLED || '0',
+    // Phase 6c: allowlisted system actions (open app / lock / open URL).
+    // Desktop defaults ON; never set this in docker-compose — web/prod stays off.
+    ENABLE_SYSTEM_ACTIONS: raw.ENABLE_SYSTEM_ACTIONS || '1',
     DATABASE_URL: databaseUrl,
     REDIS_URL: redisUrl,
     JWT_SECRET: jwtSecret || process.env.JWT_SECRET || 'change_me_in_production',

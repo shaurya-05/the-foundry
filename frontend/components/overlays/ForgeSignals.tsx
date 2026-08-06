@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { api, AppNotification } from '@/lib/api'
+import { api, AppNotification, WatchNotice } from '@/lib/api'
 import EyebrowLabel from '@/components/brand/EyebrowLabel'
 
 interface ForgeSignalsProps {
   onClose: () => void
   onUnreadChange: (count: number) => void
+  onWatchNoticeChange?: (count: number) => void
 }
 
 // Event-type glyph symbols (no emoji, single-char ASCII/Unicode marks)
@@ -23,17 +24,23 @@ const EVENT_GLYPHS: Record<string, string> = {
   agent_run:       '▸',
 }
 
-export default function ForgeSignals({ onClose, onUnreadChange }: ForgeSignalsProps) {
+export default function ForgeSignals({ onClose, onUnreadChange, onWatchNoticeChange }: ForgeSignalsProps) {
   const [notifications, setNotifications] = useState<AppNotification[]>([])
+  const [watchNotices, setWatchNotices] = useState<WatchNotice[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { load() }, [])
 
   async function load() {
     try {
-      const data = await api.notifications.list()
+      const [data, watches] = await Promise.all([
+        api.notifications.list(),
+        api.watches.notices().catch(() => [] as WatchNotice[]),
+      ])
       setNotifications(data)
+      setWatchNotices(watches)
       onUnreadChange(data.filter(n => !n.read).length)
+      onWatchNoticeChange?.(watches.length)
     } catch (e) {
       console.error(e)
     } finally {
@@ -59,6 +66,15 @@ export default function ForgeSignals({ onClose, onUnreadChange }: ForgeSignalsPr
     setNotifications(updated)
     onUnreadChange(updated.filter(n => !n.read).length)
   }
+
+  async function dismissWatch(id: string) {
+    await api.watches.dismissNotice(id)
+    const updated = watchNotices.filter(n => n.id !== id)
+    setWatchNotices(updated)
+    onWatchNoticeChange?.(updated.length)
+  }
+
+  const empty = !loading && notifications.length === 0 && watchNotices.length === 0
 
   return (
     <div
@@ -146,7 +162,7 @@ export default function ForgeSignals({ onClose, onUnreadChange }: ForgeSignalsPr
           <div style={{ padding: 24, textAlign: 'center' }}>
             <EyebrowLabel keyword="LOADING SIGNALS…" color="var(--color-n400)" />
           </div>
-        ) : notifications.length === 0 ? (
+        ) : empty ? (
           <div style={{ padding: 32, textAlign: 'center' }}>
             <EyebrowLabel keyword="NO SIGNALS" color="var(--color-n400)" style={{ marginBottom: 8 }} />
             <p style={{
@@ -161,79 +177,78 @@ export default function ForgeSignals({ onClose, onUnreadChange }: ForgeSignalsPr
             </p>
           </div>
         ) : (
-          notifications.map(n => {
-            const glyph = EVENT_GLYPHS[n.type] || '◆'
-            return (
+          <>
+            {watchNotices.length > 0 && (
+              <div style={{ padding: '10px 18px 4px' }}>
+                <EyebrowLabel keyword="WATCHES" color="var(--color-n400)" />
+              </div>
+            )}
+            {watchNotices.map(w => (
               <div
-                key={n.id}
-                onClick={() => !n.read && markRead(n.id)}
+                key={`watch-${w.id}`}
                 style={{
                   display: 'flex',
                   gap: 12,
                   padding: '12px 18px',
-                  background: n.read ? 'var(--color-off-white)' : 'var(--color-vellum)',
-                  borderLeft: n.read ? '2px solid transparent' : '2px solid var(--color-arc-cyan)',
+                  background: 'var(--color-vellum)',
+                  borderLeft: '2px solid #C47A1A',
                   borderBottom: '1px solid var(--color-n200)',
-                  cursor: 'pointer',
-                  transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
                 }}
               >
                 <div
                   style={{
                     width: 24,
                     height: 24,
-                    background: n.read ? 'var(--color-vellum)' : 'var(--color-off-white)',
+                    background: 'var(--color-off-white)',
                     border: '1px solid var(--color-n200)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontFamily: 'var(--font-plex-mono), monospace',
                     fontSize: 12,
-                    color: 'var(--color-arc-cyan-deep)',
+                    color: '#C47A1A',
                     flexShrink: 0,
                   }}
                   aria-hidden="true"
                 >
-                  {glyph}
+                  ◉
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
                     fontFamily: 'var(--font-archivo), system-ui, sans-serif',
-                    fontWeight: n.read ? 400 : 700,
+                    fontWeight: 700,
                     fontSize: 13,
                     color: 'var(--color-ink)',
                     marginBottom: 2,
                   }}>
-                    {n.title}
+                    Watch · {w.query}
                   </div>
-                  {n.body && (
+                  <div style={{
+                    fontFamily: 'var(--font-plex-serif), serif',
+                    fontStyle: 'italic',
+                    fontWeight: 500,
+                    fontSize: 12,
+                    color: 'var(--color-n600)',
+                    whiteSpace: 'normal',
+                  }}>
+                    {w.pending_notice}
+                  </div>
+                  {w.notice_at && (
                     <div style={{
-                      fontFamily: 'var(--font-plex-serif), serif',
-                      fontStyle: 'italic',
+                      fontFamily: 'var(--font-plex-mono), monospace',
                       fontWeight: 500,
-                      fontSize: 12,
-                      color: 'var(--color-n600)',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
+                      fontSize: 10,
+                      color: 'var(--color-n400)',
+                      marginTop: 4,
+                      letterSpacing: '0.06em',
                     }}>
-                      {n.body}
+                      {new Date(w.notice_at).toLocaleString()}
                     </div>
                   )}
-                  <div style={{
-                    fontFamily: 'var(--font-plex-mono), monospace',
-                    fontWeight: 500,
-                    fontSize: 10,
-                    color: 'var(--color-n400)',
-                    marginTop: 4,
-                    letterSpacing: '0.06em',
-                  }}>
-                    {new Date(n.created_at).toLocaleTimeString()}
-                  </div>
                 </div>
                 <button
-                  onClick={e => { e.stopPropagation(); dismiss(n.id) }}
-                  aria-label="Dismiss"
+                  onClick={() => dismissWatch(w.id)}
+                  aria-label="Dismiss watch notice"
                   style={{
                     background: 'none',
                     border: 'none',
@@ -248,8 +263,103 @@ export default function ForgeSignals({ onClose, onUnreadChange }: ForgeSignalsPr
                   ×
                 </button>
               </div>
-            )
-          })
+            ))}
+
+            {notifications.length > 0 && watchNotices.length > 0 && (
+              <div style={{ padding: '10px 18px 4px' }}>
+                <EyebrowLabel keyword="ACTIVITY" color="var(--color-n400)" />
+              </div>
+            )}
+            {notifications.map(n => {
+              const glyph = EVENT_GLYPHS[n.type] || '◆'
+              return (
+                <div
+                  key={n.id}
+                  onClick={() => !n.read && markRead(n.id)}
+                  style={{
+                    display: 'flex',
+                    gap: 12,
+                    padding: '12px 18px',
+                    background: n.read ? 'var(--color-off-white)' : 'var(--color-vellum)',
+                    borderLeft: n.read ? '2px solid transparent' : '2px solid var(--color-arc-cyan)',
+                    borderBottom: '1px solid var(--color-n200)',
+                    cursor: 'pointer',
+                    transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 24,
+                      height: 24,
+                      background: n.read ? 'var(--color-vellum)' : 'var(--color-off-white)',
+                      border: '1px solid var(--color-n200)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontFamily: 'var(--font-plex-mono), monospace',
+                      fontSize: 12,
+                      color: 'var(--color-arc-cyan-deep)',
+                      flexShrink: 0,
+                    }}
+                    aria-hidden="true"
+                  >
+                    {glyph}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontFamily: 'var(--font-archivo), system-ui, sans-serif',
+                      fontWeight: n.read ? 400 : 700,
+                      fontSize: 13,
+                      color: 'var(--color-ink)',
+                      marginBottom: 2,
+                    }}>
+                      {n.title}
+                    </div>
+                    {n.body && (
+                      <div style={{
+                        fontFamily: 'var(--font-plex-serif), serif',
+                        fontStyle: 'italic',
+                        fontWeight: 500,
+                        fontSize: 12,
+                        color: 'var(--color-n600)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {n.body}
+                      </div>
+                    )}
+                    <div style={{
+                      fontFamily: 'var(--font-plex-mono), monospace',
+                      fontWeight: 500,
+                      fontSize: 10,
+                      color: 'var(--color-n400)',
+                      marginTop: 4,
+                      letterSpacing: '0.06em',
+                    }}>
+                      {new Date(n.created_at).toLocaleTimeString()}
+                    </div>
+                  </div>
+                  <button
+                    onClick={e => { e.stopPropagation(); dismiss(n.id) }}
+                    aria-label="Dismiss"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--color-n400)',
+                      fontSize: 16,
+                      lineHeight: 1,
+                      alignSelf: 'flex-start',
+                      padding: 4,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              )
+            })}
+          </>
         )}
       </div>
     </div>

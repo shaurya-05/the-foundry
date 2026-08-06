@@ -3,7 +3,48 @@
  * Prefers a British male en-GB voice (Jarvis-adjacent).
  */
 
-export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking'
+export type VoiceState = 'idle' | 'hot' | 'listening' | 'processing' | 'speaking'
+
+/** localStorage key for opt-in always-listening (wake-word) mode. Default off. */
+export const ALWAYS_LISTENING_KEY = 'h3ro_always_listening'
+
+/**
+ * Wake phrases: "h3ro", "hero", optional "hey/hi/ok/okay" prefix.
+ * Returns the command with the wake phrase stripped, or null if no wake word.
+ * Empty string means wake-only (acknowledge but don't send).
+ */
+export function extractWakeCommand(transcript: string): string | null {
+  const text = transcript.trim()
+  if (!text) return null
+  // Allow spaced digits in STT: "h 3 r o" / "h3ro" / "hero"
+  const wakeRe =
+    /\b(?:(?:hey|hi|ok|okay)\s+)?(?:h\s*3\s*r\s*o|h3ro|hero)\b[,!.?]*/i
+  if (!wakeRe.test(text)) return null
+  const command = text
+    .replace(wakeRe, ' ')
+    .replace(/^[\s,.\-–—:]+/, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+  return command
+}
+
+export function readAlwaysListeningPreference(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.localStorage.getItem(ALWAYS_LISTENING_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function writeAlwaysListeningPreference(on: boolean): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(ALWAYS_LISTENING_KEY, on ? '1' : '0')
+  } catch {
+    /* ignore */
+  }
+}
 
 type SpeechRecognitionLike = {
   continuous: boolean
@@ -113,17 +154,42 @@ export type ListenHandlers = {
   onEnd?: () => void
 }
 
-export function createListener(handlers: ListenHandlers): { start: () => void; stop: () => void; abort: () => void } | null {
+export type CreateListenerOptions = {
+  /** Default false — push-to-talk. Set true for always-listening. */
+  continuous?: boolean
+  /**
+   * When true, restart recognition after the browser ends the session
+   * (common even with continuous:true). Cleared by stop()/abort().
+   */
+  autoRestart?: boolean
+}
+
+export function createListener(
+  handlers: ListenHandlers,
+  opts?: CreateListenerOptions,
+): { start: () => void; stop: () => void; abort: () => void } | null {
   if (!isSpeechRecognitionSupported()) return null
   const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition
   if (!Ctor) return null
 
+  const continuous = opts?.continuous ?? false
+  const autoRestart = opts?.autoRestart ?? false
+
   const rec = new Ctor()
-  rec.continuous = false
+  rec.continuous = continuous
   rec.interimResults = true
   rec.lang = 'en-GB'
 
   let finalBuf = ''
+  let intentionalStop = false
+  let restartTimer: ReturnType<typeof setTimeout> | null = null
+
+  const clearRestart = () => {
+    if (restartTimer != null) {
+      clearTimeout(restartTimer)
+      restartTimer = null
+    }
+  }
 
   rec.onresult = (ev) => {
     let interim = ''
@@ -142,6 +208,7 @@ export function createListener(handlers: ListenHandlers): { start: () => void; s
 
   rec.onerror = (ev) => {
     if (ev.error === 'aborted' || ev.error === 'no-speech') {
+      // no-speech is routine in continuous mode — still allow auto-restart via onend
       handlers.onEnd?.()
       return
     }
@@ -155,16 +222,33 @@ export function createListener(handlers: ListenHandlers): { start: () => void; s
       handlers.onFinal(text)
     }
     handlers.onEnd?.()
+    if (autoRestart && !intentionalStop) {
+      clearRestart()
+      restartTimer = setTimeout(() => {
+        restartTimer = null
+        if (intentionalStop) return
+        try {
+          rec.start()
+        } catch {
+          /* already started / not allowed */
+        }
+      }, 180)
+    }
   }
 
   return {
     start: () => {
+      intentionalStop = false
       try { rec.start() } catch { /* already started */ }
     },
     stop: () => {
+      intentionalStop = true
+      clearRestart()
       try { rec.stop() } catch { /* ignore */ }
     },
     abort: () => {
+      intentionalStop = true
+      clearRestart()
       try { rec.abort() } catch { /* ignore */ }
     },
   }

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import FileAccessSettings from '@/components/settings/FileAccessSettings'
+import AlwaysListeningSettings from '@/components/settings/AlwaysListeningSettings'
 // Light theme only — no theme toggle needed
 
 const AVATAR_COLORS = [
@@ -170,7 +171,7 @@ export default function SettingsClient() {
           Settings
         </h1>
         <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)' }}>
-          Manage your profile, H3RO file access, workspace, and privacy
+          Manage your profile, H3RO voice and file access, workspace, and privacy
         </p>
       </div>
 
@@ -199,6 +200,11 @@ export default function SettingsClient() {
       {/* ─── H3RO file access ────────────────────────────────────────── */}
       <Section title="H3RO file access" accent="var(--color-arc-cyan)">
         <FileAccessSettings />
+      </Section>
+
+      {/* ─── H3RO voice ──────────────────────────────────────────────── */}
+      <Section title="H3RO voice" accent="#C47A1A">
+        <AlwaysListeningSettings />
       </Section>
 
       {/* ─── Profile ─────────────────────────────────────────────────── */}

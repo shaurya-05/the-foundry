@@ -23,6 +23,7 @@ export default function H3roJarvisOrb({
   'aria-label': ariaLabel = 'Talk to H3RO',
 }: H3roJarvisOrbProps) {
   const active = state !== 'idle'
+  const hot = state === 'hot'
   const listening = state === 'listening'
   const speaking = state === 'speaking'
   const processing = state === 'processing'
@@ -50,12 +51,13 @@ export default function H3roJarvisOrb({
     >
       <span className="h3ro-jarvis-bloom" aria-hidden />
       <span className="h3ro-jarvis-bloom bloom-outer" aria-hidden />
+      {hot && <span className="h3ro-jarvis-hot-ring" aria-hidden />}
 
       {/* Ripples — always on; denser when active */}
       <span className="h3ro-jarvis-ripple r1" aria-hidden />
       <span className="h3ro-jarvis-ripple r2" aria-hidden />
       <span className="h3ro-jarvis-ripple r3" aria-hidden />
-      {(listening || speaking) && (
+      {(listening || speaking || hot) && (
         <>
           <span className="h3ro-jarvis-ripple r4" aria-hidden />
           <span className="h3ro-jarvis-ripple r5" aria-hidden />
@@ -71,20 +73,20 @@ export default function H3roJarvisOrb({
       >
         <defs>
           <radialGradient id={`${uid}-core`} cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="rgba(159,222,250,0.7)" />
-            <stop offset="35%" stopColor="rgba(159,222,250,0.22)" />
-            <stop offset="70%" stopColor="rgba(159,222,250,0.05)" />
-            <stop offset="100%" stopColor="rgba(159,222,250,0)" />
+            <stop offset="0%" stopColor={hot ? 'rgba(232,165,75,0.75)' : 'rgba(159,222,250,0.7)'} />
+            <stop offset="35%" stopColor={hot ? 'rgba(232,165,75,0.28)' : 'rgba(159,222,250,0.22)'} />
+            <stop offset="70%" stopColor={hot ? 'rgba(232,165,75,0.06)' : 'rgba(159,222,250,0.05)'} />
+            <stop offset="100%" stopColor={hot ? 'rgba(232,165,75,0)' : 'rgba(159,222,250,0)'} />
           </radialGradient>
           <linearGradient id={`${uid}-arc`} x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="rgba(159,222,250,0)" />
-            <stop offset="50%" stopColor="rgba(159,222,250,1)" />
-            <stop offset="100%" stopColor="rgba(159,222,250,0)" />
+            <stop offset="0%" stopColor={hot ? 'rgba(232,165,75,0)' : 'rgba(159,222,250,0)'} />
+            <stop offset="50%" stopColor={hot ? 'rgba(232,165,75,1)' : 'rgba(159,222,250,1)'} />
+            <stop offset="100%" stopColor={hot ? 'rgba(232,165,75,0)' : 'rgba(159,222,250,0)'} />
           </linearGradient>
           <linearGradient id={`${uid}-sweep`} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="rgba(159,222,250,0)" />
-            <stop offset="70%" stopColor="rgba(159,222,250,0.15)" />
-            <stop offset="100%" stopColor="rgba(159,222,250,0.55)" />
+            <stop offset="0%" stopColor={hot ? 'rgba(232,165,75,0)' : 'rgba(159,222,250,0)'} />
+            <stop offset="70%" stopColor={hot ? 'rgba(232,165,75,0.18)' : 'rgba(159,222,250,0.15)'} />
+            <stop offset="100%" stopColor={hot ? 'rgba(232,165,75,0.55)' : 'rgba(159,222,250,0.55)'} />
           </linearGradient>
         </defs>
 
@@ -113,7 +115,7 @@ export default function H3roJarvisOrb({
               y1={100 + Math.sin(a) * r1}
               x2={100 + Math.cos(a) * r2}
               y2={100 + Math.sin(a) * r2}
-              stroke="rgba(159,222,250,0.4)"
+              stroke={hot ? 'rgba(232,165,75,0.45)' : 'rgba(159,222,250,0.4)'}
               strokeWidth={major ? 1.4 : 0.55}
               className="h3ro-jarvis-tick"
               style={{ animationDelay: `${(i / 72) * 2.4}s` }}
@@ -122,22 +124,22 @@ export default function H3roJarvisOrb({
         })}
 
         {/* Concentric HUD rings */}
-        <circle cx="100" cy="100" r="95" fill="none" stroke="rgba(159,222,250,0.25)" strokeWidth="1" />
-        <circle cx="100" cy="100" r="82" fill="none" stroke="rgba(159,222,250,0.45)" strokeWidth="1.3" className="h3ro-jarvis-ring ring-a" />
-        <circle cx="100" cy="100" r="70" fill="none" stroke="rgba(159,222,250,0.22)" strokeWidth="0.8" strokeDasharray="2 4" className="h3ro-jarvis-ring ring-dash-cw" />
-        <circle cx="100" cy="100" r="58" fill="none" stroke="rgba(159,222,250,0.4)" strokeWidth="1.1" strokeDasharray="8 6 2 6" className="h3ro-jarvis-ring ring-dash-ccw" />
-        <circle cx="100" cy="100" r="46" fill="none" stroke="rgba(159,222,250,0.55)" strokeWidth="1.5" className="h3ro-jarvis-ring ring-c" />
-        <circle cx="100" cy="100" r="32" fill="none" stroke="rgba(159,222,250,0.35)" strokeWidth="1" className="h3ro-jarvis-ring ring-d" />
+        <circle cx="100" cy="100" r="95" fill="none" stroke={hot ? 'rgba(232,165,75,0.35)' : 'rgba(159,222,250,0.25)'} strokeWidth="1" />
+        <circle cx="100" cy="100" r="82" fill="none" stroke={hot ? 'rgba(232,165,75,0.55)' : 'rgba(159,222,250,0.45)'} strokeWidth="1.3" className="h3ro-jarvis-ring ring-a" />
+        <circle cx="100" cy="100" r="70" fill="none" stroke={hot ? 'rgba(232,165,75,0.3)' : 'rgba(159,222,250,0.22)'} strokeWidth="0.8" strokeDasharray="2 4" className="h3ro-jarvis-ring ring-dash-cw" />
+        <circle cx="100" cy="100" r="58" fill="none" stroke={hot ? 'rgba(232,165,75,0.5)' : 'rgba(159,222,250,0.4)'} strokeWidth="1.1" strokeDasharray="8 6 2 6" className="h3ro-jarvis-ring ring-dash-ccw" />
+        <circle cx="100" cy="100" r="46" fill="none" stroke={hot ? 'rgba(232,165,75,0.65)' : 'rgba(159,222,250,0.55)'} strokeWidth="1.5" className="h3ro-jarvis-ring ring-c" />
+        <circle cx="100" cy="100" r="32" fill="none" stroke={hot ? 'rgba(232,165,75,0.4)' : 'rgba(159,222,250,0.35)'} strokeWidth="1" className="h3ro-jarvis-ring ring-d" />
 
         {/* Orbiting nodes */}
         <g className="h3ro-jarvis-spin spin-orbit">
-          <circle cx="100" cy="18" r="2.5" fill="rgba(159,222,250,0.95)" className="h3ro-jarvis-node" />
-          <circle cx="182" cy="100" r="1.8" fill="rgba(159,222,250,0.7)" />
-          <circle cx="100" cy="182" r="2.2" fill="rgba(159,222,250,0.85)" className="h3ro-jarvis-node" />
+          <circle cx="100" cy="18" r="2.5" fill={hot ? 'rgba(232,165,75,0.95)' : 'rgba(159,222,250,0.95)'} className="h3ro-jarvis-node" />
+          <circle cx="182" cy="100" r="1.8" fill={hot ? 'rgba(232,165,75,0.7)' : 'rgba(159,222,250,0.7)'} />
+          <circle cx="100" cy="182" r="2.2" fill={hot ? 'rgba(232,165,75,0.85)' : 'rgba(159,222,250,0.85)'} className="h3ro-jarvis-node" />
         </g>
         <g className="h3ro-jarvis-spin spin-orbit-rev">
-          <circle cx="42" cy="42" r="2" fill="rgba(159,222,250,0.8)" />
-          <circle cx="158" cy="158" r="1.6" fill="rgba(159,222,250,0.65)" />
+          <circle cx="42" cy="42" r="2" fill={hot ? 'rgba(232,165,75,0.8)' : 'rgba(159,222,250,0.8)'} />
+          <circle cx="158" cy="158" r="1.6" fill={hot ? 'rgba(232,165,75,0.65)' : 'rgba(159,222,250,0.65)'} />
         </g>
 
         {/* Rotating scan arcs */}
@@ -152,7 +154,7 @@ export default function H3roJarvisOrb({
           <path
             d="M100 182 A82 82 0 0 1 18 100"
             fill="none"
-            stroke="rgba(159,222,250,0.4)"
+            stroke={hot ? 'rgba(232,165,75,0.4)' : 'rgba(159,222,250,0.4)'}
             strokeWidth="1.5"
             strokeLinecap="round"
           />
@@ -161,17 +163,17 @@ export default function H3roJarvisOrb({
           <path
             d="M30 70 A70 70 0 0 1 130 30"
             fill="none"
-            stroke="rgba(159,222,250,0.75)"
+            stroke={hot ? 'rgba(232,165,75,0.75)' : 'rgba(159,222,250,0.75)'}
             strokeWidth="1.8"
             strokeLinecap="round"
           />
-          <circle cx="130" cy="30" r="2.4" fill="rgba(159,222,250,1)" className="h3ro-jarvis-node" />
+          <circle cx="130" cy="30" r="2.4" fill={hot ? 'rgba(232,165,75,1)' : 'rgba(159,222,250,1)'} className="h3ro-jarvis-node" />
         </g>
         <g className="h3ro-jarvis-spin spin-slow">
           <path
             d="M160 60 A58 58 0 0 1 160 140"
             fill="none"
-            stroke="rgba(159,222,250,0.5)"
+            stroke={hot ? 'rgba(232,165,75,0.5)' : 'rgba(159,222,250,0.5)'}
             strokeWidth="1.3"
             strokeLinecap="round"
           />
@@ -219,10 +221,39 @@ export default function H3roJarvisOrb({
             className="h3ro-jarvis-ping"
           />
         )}
+
+        {/* Hot mic — steady ambient ear arcs (distinct from active listening ping) */}
+        {hot && (
+          <g className="h3ro-jarvis-hot-mark">
+            <circle
+              cx="100" cy="100" r="40"
+              fill="none"
+              stroke="rgba(232,165,75,0.55)"
+              strokeWidth="1.4"
+              strokeDasharray="3 5"
+              className="h3ro-jarvis-hot-dash"
+            />
+            <path
+              d="M78 100 Q78 78 100 78 Q122 78 122 100"
+              fill="none"
+              stroke="rgba(232,165,75,0.9)"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+            <path
+              d="M70 100 Q70 68 100 68 Q130 68 130 100"
+              fill="none"
+              stroke="rgba(232,165,75,0.45)"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+            />
+            <circle cx="100" cy="108" r="3.2" fill="rgba(232,165,75,0.95)" />
+          </g>
+        )}
       </svg>
 
-      {/* Center wordmark — Arc Cyan Glyph3, same cap height as H/RO */}
-      {!speaking && (
+      {/* Center wordmark — hidden while speaking (waveform) or hot (ear glyph) */}
+      {!speaking && !hot && (
         <span
           className="h3ro-jarvis-mark"
           style={{
@@ -245,7 +276,7 @@ export default function H3roJarvisOrb({
             <span>H</span>
             <Glyph3
               size={markSize * 0.68}
-              color="var(--color-arc-cyan)"
+              color={hot ? '#C47A1A' : 'var(--color-arc-cyan)'}
               style={{ marginLeft: '0.04em', marginRight: '0.04em' }}
             />
             <span>RO</span>

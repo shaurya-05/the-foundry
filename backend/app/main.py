@@ -69,6 +69,7 @@ from app.routers import (
     copilot, context, notifications, command, launchpad,
     blueprint, workspace, auth, subscription, analytics,
     oauth, webhooks, agent, ventures, billing, admin,
+    watches,
 )
 
 @asynccontextmanager
@@ -104,12 +105,45 @@ async def lifespan(app: FastAPI):
     # module docstring. No agent loop calls these yet (Stage 4, not built);
     # this just keeps the registry populated in the real running app.
     try:
-        from app.services import agent_tools, memory_tool, file_access_tool, web_search_tool, system_files_tool  # noqa: F401
+        from app.services import (  # noqa: F401
+            agent_tools,
+            memory_tool,
+            file_access_tool,
+            web_search_tool,
+            system_files_tool,
+            watch_tool,
+        )
+        # Phase 6c: allowlisted system actions — OFF by default everywhere
+        # except the desktop sidecar (ENABLE_SYSTEM_ACTIONS=1 via env.js).
+        # Never set this in docker-compose*.yml.
+        _sys_actions = os.getenv("ENABLE_SYSTEM_ACTIONS", "0").lower()
+        if _sys_actions not in ("0", "false", "no", "off", ""):
+            from app.services import system_action_tool  # noqa: F401
+            system_action_tool.register_system_action_tool()
+            log.info("system_action_tool_enabled")
+        else:
+            log.info("system_action_tool_skipped", reason="ENABLE_SYSTEM_ACTIONS off")
         log.info("agent_tools_registered", tools=list(agent_tools.TOOL_REGISTRY.keys()))
     except Exception as e:
         log.warning("agent_tools_registration_failed", error=str(e))
+
+    # Phase 6b: proactive watch loop. Zero watches ⇒ cheap no-op SELECTs.
+    from app.services.watch_service import watch_loop as _watch_loop
+    watch_stop = asyncio.Event()
+    watch_task = asyncio.create_task(_watch_loop(watch_stop))
+
     log.info("startup_complete", origins=ALLOWED_ORIGINS, environment=ENVIRONMENT)
     yield
+
+    watch_stop.set()
+    watch_task.cancel()
+    try:
+        await watch_task
+    except asyncio.CancelledError:
+        pass
+    except Exception:
+        pass
+
     await close_pool()
     if _cache_backend not in ("memory", "mem", "local", "inprocess"):
         await close_redis()
@@ -119,6 +153,7 @@ async def lifespan(app: FastAPI):
             await close_driver()
         except Exception:
             pass
+
 
 app = FastAPI(
     title="THE FOUNDRY API",
@@ -237,6 +272,7 @@ app.include_router(agent.router)
 app.include_router(ventures.router)
 app.include_router(billing.router, prefix="/api")
 app.include_router(admin.router)
+app.include_router(watches.router)
 
 
 # ─── Health check (deep) ─────────────────────────────────────────────────────

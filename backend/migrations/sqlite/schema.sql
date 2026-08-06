@@ -587,3 +587,20 @@ CREATE TABLE IF NOT EXISTS model_usage_log (
 );
 CREATE INDEX IF NOT EXISTS model_usage_log_created_idx ON model_usage_log (created_at DESC);
 CREATE INDEX IF NOT EXISTS model_usage_log_model_idx ON model_usage_log (model);
+
+-- Phase 6b: proactive watches (user-created topics re-checked in background)
+CREATE TABLE IF NOT EXISTS watches (
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    query TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_checked_at TEXT,
+    last_seen_summary TEXT,
+    pending_notice TEXT,
+    notice_at TEXT,
+    cancelled_at TEXT
+);
+CREATE INDEX IF NOT EXISTS watches_active_idx ON watches (workspace_id, user_id) WHERE cancelled_at IS NULL;
+CREATE INDEX IF NOT EXISTS watches_due_idx ON watches (last_checked_at) WHERE cancelled_at IS NULL;
+CREATE INDEX IF NOT EXISTS watches_notice_idx ON watches (workspace_id, user_id) WHERE pending_notice IS NOT NULL AND cancelled_at IS NULL;

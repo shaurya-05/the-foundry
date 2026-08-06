@@ -7,6 +7,7 @@ import Sidebar from './Sidebar'
 import Header from './Header'
 import { useAuth } from '@/lib/auth'
 import VerificationBanner from './VerificationBanner'
+import { api } from '@/lib/api'
 
 // Lazy-load heavy overlays — only loaded when opened
 const ForgeCommand = dynamic(() => import('@/components/overlays/ForgeCommand'), { ssr: false })
@@ -30,7 +31,24 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [signalsOpen, setSignalsOpen] = useState(false)
   const [copilotOpen, setCopilotOpen] = useState(false)
   const [notifCount, setNotifCount] = useState(0)
+  const [watchNoticeCount, setWatchNoticeCount] = useState(0)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  const refreshWatchNotices = useCallback(async () => {
+    try {
+      const notices = await api.watches.notices()
+      setWatchNoticeCount(notices.length)
+    } catch {
+      /* offline / unauthenticated — leave last count */
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!user) return
+    refreshWatchNotices()
+    const t = setInterval(refreshWatchNotices, 60_000)
+    return () => clearInterval(t)
+  }, [user, refreshWatchNotices])
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -52,6 +70,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => { setSidebarOpen(false) }, [pathname])
 
   const openCopilot = useCallback(() => setCopilotOpen(true), [])
+  const badgeCount = notifCount + watchNoticeCount
 
   if (loading || !user) return null
 
@@ -76,9 +95,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
         <Header
           onCommand={() => setCommandOpen(true)}
-          onSignals={() => setSignalsOpen(v => !v)}
+          onSignals={() => {
+            setSignalsOpen(v => !v)
+            refreshWatchNotices()
+          }}
           onCopilot={openCopilot}
-          notifCount={notifCount}
+          notifCount={badgeCount}
           onMenuToggle={() => setSidebarOpen(v => !v)}
         />
         {user && !user.email_verified && (
@@ -105,6 +127,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <ForgeSignals
           onClose={() => setSignalsOpen(false)}
           onUnreadChange={setNotifCount}
+          onWatchNoticeChange={setWatchNoticeCount}
         />
       )}
       {copilotOpen && (

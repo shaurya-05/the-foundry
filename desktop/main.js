@@ -5,6 +5,7 @@ const { startBackend, startFrontend, waitForHttp, stopAll } = require('./lib/sid
 const { registerSetupIpc } = require('./lib/setup-ipc')
 const { cloudByokBackendEnv } = require('./lib/cloud-byok')
 const { checkForUpdatesInBackground } = require('./lib/auto-update')
+const { registerSystemActionIpc } = require('./lib/system-action-ipc')
 
 /** @type {import('electron').BrowserWindow | null} */
 let mainWindow = null
@@ -17,7 +18,8 @@ let shuttingDown = false
 let continuingFromSetup = false
 let sidecarsStarted = false
 
-const preloadPath = path.join(__dirname, 'preload.js')
+const setupPreloadPath = path.join(__dirname, 'preload.js')
+const mainPreloadPath = path.join(__dirname, 'preload-main.js')
 
 function createSetupWindow() {
   setupWindow = new BrowserWindow({
@@ -30,7 +32,7 @@ function createSetupWindow() {
     autoHideMenuBar: true,
     backgroundColor: '#0c0d10',
     webPreferences: {
-      preload: preloadPath,
+      preload: setupPreloadPath,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -58,6 +60,7 @@ async function createWindow(frontendUrl) {
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
+      preload: mainPreloadPath,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -147,6 +150,7 @@ async function onSetupContinue(opts) {
 
 async function boot() {
   registerSetupIpc({ onContinue: onSetupContinue })
+  registerSystemActionIpc()
   createSetupWindow()
 }
 

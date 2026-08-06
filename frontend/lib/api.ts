@@ -106,6 +106,15 @@ export const api = {
     markAllRead: () => req('/api/notifications/read-all', { method: 'PATCH' }),
     delete: (id: string) => req('/api/notifications/' + id, { method: 'DELETE' }),
   },
+  watches: {
+    list: () => req<WatchItem[]>('/api/watches'),
+    notices: () => req<WatchNotice[]>('/api/watches/notices'),
+    dismissNotice: (id: string) => req<{ ok: boolean }>('/api/watches/notices/' + id + '/dismiss', { method: 'POST' }),
+    runCheck: (force = true) => req<{ checked: { id: string; status: string; notice?: string | null }[]; interval_s: number }>(
+      `/api/watches/run-check?force=${force ? 'true' : 'false'}`,
+      { method: 'POST' },
+    ),
+  },
   command: {
     parse: (raw_input: string) => req<ParsedCommand>('/api/command/parse', { method: 'POST', body: JSON.stringify({ raw_input }) }),
     history: () => req('/api/command/history'),
@@ -258,6 +267,24 @@ export interface AppNotification {
   body?: string
   read: boolean
   created_at: string
+}
+
+export interface WatchNotice {
+  id: string
+  query: string
+  pending_notice: string
+  notice_at: string | null
+  created_at: string | null
+}
+
+export interface WatchItem {
+  id: string
+  query: string
+  created_at: string | null
+  last_checked_at: string | null
+  pending_notice: string | null
+  notice_at: string | null
+  cancelled_at: string | null
 }
 
 export interface ParsedCommand {

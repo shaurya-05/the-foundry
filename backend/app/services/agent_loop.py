@@ -121,11 +121,15 @@ You have:
 - Durable memory (memory_read is provided below) for cross-session facts, uploads/references mentioned before, and conversation digests.
 - Local files (list_files / read_file) when the founder granted browser-scoped access, or (system_file_list / system_file_read) when they granted full system access — pull by context; do not ask them to re-upload. Only one of these pairs will actually work depending on which the founder granted; if a call errors, don't retry the same path with small variations, just say what's missing.
 - Live internet search (web_search) — use it whenever you need current or external information, like a normal AI assistant.
+- Background watches (create_watch / list_watches / cancel_watch) — when the founder asks you to “watch for” or “keep an eye on” a topic, create a watch. Findings surface later as quiet notices, never spoken interruptions.
+- Desktop system actions (system_action) — only when registered: open_app (notepad|calculator|explorer|browser), lock_screen, or open_url. Every call pauses for an Allow click. Never invent apps or paths outside that allowlist.
 
 Rules:
 - A memory_read result is already provided below — use it; don't call memory_read again unless you need a fresh check.
 - When prior-chat digest or memory mentions files/uploads/references, reuse them by name and fetch via file tools when content is needed.
 - Use web_search for news, facts, docs, market data, or anything outside the founder's files/workspace.
+- Use create_watch when they want ongoing monitoring; list_watches / cancel_watch to manage those. Do not invent watches they did not ask for.
+- Use system_action only when the founder clearly asks to open one of the allowlisted apps, lock the screen, or open a specific URL — and only if that tool is available.
 - Use list_files/read_file or system_file_list/system_file_read when the goal needs real file content. If no folder/files are connected, say so plainly rather than guessing.
 - Use memory_write only for durable facts worth remembering across conversations (preferences, decisions, ongoing projects). Every memory_write is reviewed by the user before it's saved.
 - Prefer short speakable sentences when answering conversationally. Lead with the outcome.
@@ -258,6 +262,59 @@ async def run_agent_loop(
                 else:
                     observation = {"skipped": "user did not approve this memory write"}
                 yield {"type": "agent_observation", "iteration": iteration, "tool": name, "result": observation}
+
+            elif name == "system_action":
+                # Phase 6c: human confirm, then frontend/Electron executes.
+                # Backend never runs OS commands — observation is the real
+                # payload from the desktop (or a decline / rejection).
+                from app.services.system_action_tool import (
+                    describe_system_action,
+                    validate_system_action_args,
+                )
+                yield {"type": "agent_tool_call", "iteration": iteration, "tool": name, "args": args}
+                ok, err, normalized = validate_system_action_args(args)
+                if not ok:
+                    observation = {"error": err, "rejected": True}
+                    yield {"type": "agent_observation", "iteration": iteration, "tool": name, "result": observation}
+                else:
+                    call_id, future = create_pending_call(ctx.workspace_id)
+                    action = normalized["action"]
+                    target = normalized.get("target")
+                    yield {
+                        "type": "agent_confirm_system_action",
+                        "call_id": call_id,
+                        "action": action,
+                        "target": target,
+                        "description": describe_system_action(action, target),
+                    }
+                    result_payload = None
+                    async for tick in await_frontend_response(
+                        call_id, future, "system_action_confirm", timeout_s=CONFIRM_TIMEOUT_S,
+                    ):
+                        if tick is not None and tick.get("status") == "ok":
+                            result_payload = tick.get("result") or {}
+                    if result_payload is None:
+                        observation = {
+                            "approved": False,
+                            "success": False,
+                            "detail": "timed out waiting for confirmation",
+                        }
+                    elif not result_payload.get("approved"):
+                        observation = {
+                            "approved": False,
+                            "success": False,
+                            "detail": result_payload.get("detail") or "user declined",
+                        }
+                    else:
+                        # Frontend executed (or reported desktop-unavailable).
+                        observation = {
+                            "approved": True,
+                            "success": bool(result_payload.get("success")),
+                            "detail": result_payload.get("detail") or "",
+                            "action": action,
+                            "target": target,
+                        }
+                    yield {"type": "agent_observation", "iteration": iteration, "tool": name, "result": observation}
 
             elif spec.kind == "sync":
                 yield {"type": "agent_tool_call", "iteration": iteration, "tool": name, "args": args}
