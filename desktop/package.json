@@ -1,0 +1,68 @@
+{
+  "name": "found3ry-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FOUND3RY Phase 1 desktop packaging shell (Electron + local FastAPI/Next sidecars)",
+  "main": "main.js",
+  "author": "FOUND3RY",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "prepare:resources": "node scripts/prepare-resources.mjs",
+    "build:frontend": "node scripts/prepare-resources.mjs --build-only",
+    "pack": "node scripts/prepare-resources.mjs && electron-builder --dir",
+    "dist": "node scripts/prepare-resources.mjs && electron-builder --win nsis",
+    "dist:dir": "node scripts/prepare-resources.mjs && electron-builder --win --dir"
+  },
+  "build": {
+    "appId": "com.found3ry.desktop",
+    "productName": "FOUND3RY",
+    "copyright": "Copyright © FOUND3RY",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "lib/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/frontend",
+        "to": "frontend"
+      },
+      {
+        "from": "resources/backend",
+        "to": "backend"
+      },
+      {
+        "from": "resources/python",
+        "to": "python",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "FOUND3RY-Setup-${version}.${ext}",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "FOUND3RY"
+    },
+    "asar": true
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  }
+}

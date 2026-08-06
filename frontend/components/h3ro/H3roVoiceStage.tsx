@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { streamWS, LimitExceededError } from '@/lib/streaming'
+import { streamWS, LimitExceededError, submitToolResult } from '@/lib/streaming'
 import Markdown from '@/components/ui/Markdown'
 import { API_URL } from '@/lib/config'
 import { getToken } from '@/lib/auth'
@@ -100,6 +100,40 @@ function buildMessageWithAttachments(q: string, attachments: ComposerAttachment[
   return `${q.trim()}\n\n${blocks.join('\n\n')}`
 }
 
+const CHAT_REFS_KEY = 'h3ro_chat_refs'
+
+function rememberChatRefs(attachments: ComposerAttachment[]) {
+  if (typeof window === 'undefined' || !attachments.length) return
+  try {
+    const prev: { name: string; kind: string; at: string }[] = JSON.parse(localStorage.getItem(CHAT_REFS_KEY) || '[]')
+    const next = [
+      ...attachments.map(a => ({ name: a.name, kind: a.kind, at: new Date().toISOString() })),
+      ...prev,
+    ].slice(0, 40)
+    // de-dupe by name keeping newest
+    const seen = new Set<string>()
+    const deduped: typeof next = []
+    for (const r of next) {
+      if (seen.has(r.name)) continue
+      seen.add(r.name)
+      deduped.push(r)
+    }
+    localStorage.setItem(CHAT_REFS_KEY, JSON.stringify(deduped.slice(0, 30)))
+  } catch { /* ignore */ }
+}
+
+function recentChatRefsBlock(): string {
+  if (typeof window === 'undefined') return ''
+  try {
+    const refs: { name: string; kind: string }[] = JSON.parse(localStorage.getItem(CHAT_REFS_KEY) || '[]')
+    if (!refs.length) return ''
+    const list = refs.slice(0, 12).map(r => `${r.name} (${r.kind})`).join(', ')
+    return `\n\n[Prior uploads/references from earlier H3RO chats on this device: ${list}. Reuse by name when relevant; ask to re-attach only if content is missing.]`
+  } catch {
+    return ''
+  }
+}
+
 const STARTERS = [
   'What should I focus on this week?',
   'Search the web for the latest AI funding news.',
@@ -177,6 +211,7 @@ export default function H3roVoiceStage() {
   const [quietInput, setQuietInput] = useState('')
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([])
   const [pendingTool, setPendingTool] = useState<string | null>(null)
+  const [memoryConfirm, setMemoryConfirm] = useState<{ callId: string; text: string; source: string } | null>(null)
 
   const resultsRef = useRef<HTMLDivElement>(null)
   const attachInputRef = useRef<HTMLInputElement>(null)
@@ -321,12 +356,17 @@ export default function H3roVoiceStage() {
 
   async function ask(q: string, attachOverride?: ComposerAttachment[]) {
     const attach = attachOverride ?? attachments
-    const payload = buildMessageWithAttachments(q, attach)
+    let payload = buildMessageWithAttachments(q, attach)
+    if (!activeThread) {
+      payload = `${payload}${recentChatRefsBlock()}`
+    }
     if (!payload.trim() || streamingRef.current) return
+    if (attach.length) rememberChatRefs(attach)
     setError('')
     setStreaming(true)
     setStatus('')
     setPendingTool(null)
+    setMemoryConfirm(null)
     setVoiceState('processing')
     setAttachments([])
     setExchanges(prev => [...prev, {
@@ -371,15 +411,25 @@ export default function H3roVoiceStage() {
             setStatus(`Reading · ${String(chunk.args?.path || 'file')}`)
           } else if (chunk.tool === 'list_files') {
             setStatus('Listing files…')
+          } else if (chunk.tool === 'memory_write') {
+            setStatus('Saving to memory…')
           } else {
             setStatus(`Working · ${chunk.tool}`)
           }
+        } else if (chunk.type === 'agent_confirm_write') {
+          setMemoryConfirm({
+            callId: chunk.call_id,
+            text: chunk.text || '',
+            source: chunk.source || 'agent_inferred',
+          })
+          setStatus('Confirm memory save…')
         } else if (chunk.type === 'tool_request') {
           if (chunk.tool === 'list_files' || chunk.tool === 'read_file') {
             handleFileToolRequest(chunk)
           }
         } else if (chunk.type === 'agent_observation') {
           setPendingTool(null)
+          if (chunk.tool === 'memory_write') setMemoryConfirm(null)
           const card = formatObservation(chunk.tool, chunk.result)
           if (card) {
             if (chunk.tool === 'read_file' && lastToolRef.current?.tool === 'read_file') {
@@ -443,10 +493,19 @@ export default function H3roVoiceStage() {
       setStreaming(false)
       setStatus('')
       setPendingTool(null)
+      setMemoryConfirm(null)
     }
   }
 
   askRef.current = ask
+
+  async function confirmMemoryWrite(approved: boolean) {
+    if (!memoryConfirm) return
+    const callId = memoryConfirm.callId
+    setMemoryConfirm(null)
+    setStatus(approved ? 'Saving…' : 'Skipped memory save')
+    await submitToolResult(callId, { approved })
+  }
 
   async function grantFiles() {
     try {
@@ -561,7 +620,7 @@ export default function H3roVoiceStage() {
             fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--color-n400)',
             letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 2,
           }}>
-            Collaborating cofound3r · pronounced hero
+            Collaborating cofound3r · remembers prior chats · pronounced hero
           </div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -570,6 +629,13 @@ export default function H3roVoiceStage() {
           </button>
           <button onClick={() => setFilesOpen(v => !v)} style={chipStyle(hasAccess || filesOpen || needsAccessPrompt)}>
             {folderConnected ? '● Full access' : grantedFiles.length ? `● ${grantedFiles.length} files` : '○ File access'}
+          </button>
+          <button
+            onClick={() => router.push('/settings')}
+            style={chipStyle(false)}
+            title="Adjust file access in Settings"
+          >
+            Settings
           </button>
           <select
             value={activeThread || ''}
@@ -600,7 +666,7 @@ export default function H3roVoiceStage() {
             How should H3RO access your files?
           </div>
           <div style={{ fontFamily: 'var(--font-archivo)', fontSize: 12, color: 'var(--color-n600)', marginBottom: 14, maxWidth: 720, lineHeight: 1.45 }}>
-            Browsers require you to grant access. Choose one — you can change this anytime.
+            Browsers require you to grant access. Choose one — change anytime here or in Settings → H3RO file access.
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
             <AccessCard
@@ -670,6 +736,40 @@ export default function H3roVoiceStage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {memoryConfirm && (
+        <div className="liquid-glass-strong" style={{
+          padding: '14px 16px', borderRadius: 14, flexShrink: 0,
+          border: '1px solid var(--color-arc-cyan)',
+        }}>
+          <div style={{ fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
+            Save to durable memory?
+          </div>
+          <div style={{
+            fontFamily: 'var(--font-archivo)', fontSize: 12, color: 'var(--color-n600)',
+            marginBottom: 10, lineHeight: 1.45,
+          }}>
+            {memoryConfirm.text}
+            <span style={{ display: 'block', marginTop: 4, fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, opacity: 0.7 }}>
+              source · {memoryConfirm.source}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" onClick={() => confirmMemoryWrite(true)} style={{
+              background: 'var(--color-arc-cyan)', color: 'var(--color-ink)', border: 'none',
+              padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 12,
+            }}>
+              Save
+            </button>
+            <button type="button" onClick={() => confirmMemoryWrite(false)} style={{
+              background: 'transparent', border: '1px solid var(--border)',
+              padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 12,
+            }}>
+              Skip
+            </button>
+          </div>
         </div>
       )}
 

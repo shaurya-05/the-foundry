@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
+import FileAccessSettings from '@/components/settings/FileAccessSettings'
 // Light theme only — no theme toggle needed
 
 const AVATAR_COLORS = [
@@ -169,7 +170,7 @@ export default function SettingsClient() {
           Settings
         </h1>
         <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)' }}>
-          Manage your profile, workspace, and privacy
+          Manage your profile, H3RO file access, workspace, and privacy
         </p>
       </div>
 
@@ -194,6 +195,11 @@ export default function SettingsClient() {
         </div>
         <span style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 12, color: 'var(--text-muted)' }}>→</span>
       </button>
+
+      {/* ─── H3RO file access ────────────────────────────────────────── */}
+      <Section title="H3RO file access" accent="var(--color-arc-cyan)">
+        <FileAccessSettings />
+      </Section>
 
       {/* ─── Profile ─────────────────────────────────────────────────── */}
       <Section title="Profile" accent="var(--color-ink)">

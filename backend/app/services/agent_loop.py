@@ -49,13 +49,20 @@ log = structlog.get_logger()
 
 # Small models occasionally write a tool call out as plain text instead of
 # using the wire format's structured tool_calls field -- observed directly
-# against qwen2.5:7b-instruct (roughly 1 in 3 on some prompts, e.g.
-# "søker {\"name\": \"web_search\", \"arguments\": {\"query\": ...}}"),
-# usually noise tokens followed by a well-formed {"name": ..., "arguments":
-# {...}} blob. Every real tool in TOOL_REGISTRY takes flat (non-nested)
-# arguments, so a non-nested-brace match is sufficient here, not a
+# against qwen2.5:7b-instruct, in two distinct shapes so far (roughly 1 in
+# 3 on some prompts):
+#   1. noise tokens followed by a well-formed {"name": ..., "arguments":
+#      {...}} blob, e.g. "søker {\"name\": \"web_search\", \"arguments\":
+#      {\"query\": ...}}"
+#   2. the bare tool name directly followed by its arguments object with
+#      no wrapper at all, e.g. 'memory_write {"text": "...", "source":
+#      "user_stated"}' -- seen on memory_write specifically, which would
+#      otherwise silently break "remembers the conversation" rather than
+#      just a lookup tool.
+# Every real tool in TOOL_REGISTRY takes flat (non-nested) arguments, so a
+# non-nested-brace match is sufficient for both shapes, not a
 # simplification that loses real cases.
-_GARBLED_TOOL_CALL_RE = re.compile(
+_GARBLED_WRAPPED_RE = re.compile(
     r'\{\s*"name"\s*:\s*"([a-zA-Z_][a-zA-Z0-9_]*)"\s*,\s*"arguments"\s*:\s*(\{[^{}]*\})\s*\}',
     re.DOTALL,
 )
@@ -63,22 +70,33 @@ _GARBLED_TOOL_CALL_RE = re.compile(
 
 def _recover_garbled_tool_call(text: str) -> Optional[list[dict[str, Any]]]:
     """
-    Detect the garbled-tool-call-as-text shape described above and recover
-    a real tool call from it, rather than letting the gibberish reach the
-    user as a "final answer" -- which is what happens upstream if this
-    returns None and tool_calls stays empty.
+    Detect either garbled-tool-call-as-text shape described above and
+    recover a real tool call from it, rather than letting the gibberish
+    reach the user as a "final answer" -- which is what happens upstream
+    if this returns None and tool_calls stays empty.
     """
-    match = _GARBLED_TOOL_CALL_RE.search(text)
-    if not match:
-        return None
-    name, args_json = match.group(1), match.group(2)
-    if name not in TOOL_REGISTRY:
-        return None
-    try:
-        json.loads(args_json)
-    except json.JSONDecodeError:
-        return None
-    return [{"id": "recovered-0", "name": name, "arguments": args_json}]
+    match = _GARBLED_WRAPPED_RE.search(text)
+    if match:
+        name, args_json = match.group(1), match.group(2)
+        if name in TOOL_REGISTRY:
+            try:
+                json.loads(args_json)
+                return [{"id": "recovered-0", "name": name, "arguments": args_json}]
+            except json.JSONDecodeError:
+                pass
+
+    if TOOL_REGISTRY:
+        names_pattern = "|".join(re.escape(n) for n in TOOL_REGISTRY)
+        bare_re = re.compile(rf'\b({names_pattern})\b\s*(\{{[^{{}}]*\}})', re.DOTALL)
+        match = bare_re.search(text)
+        if match:
+            name, args_json = match.group(1), match.group(2)
+            try:
+                json.loads(args_json)
+                return [{"id": "recovered-0", "name": name, "arguments": args_json}]
+            except json.JSONDecodeError:
+                return None
+    return None
 
 MAX_ITERATIONS = 8
 # FACTUAL's qwen2.5:7b-instruct, not STRATEGIC's 14b -- H3RO's primary
@@ -99,15 +117,17 @@ AGENT_SYSTEM_PROMPT = """You are H3RO (pronounced "hero") — an autonomous coll
 
 You have:
 - Conversation history for this thread (already in the messages) — use it; do not ask the founder to repeat themselves.
-- Durable memory (memory_read is provided below) for cross-session facts.
+- Prior-chat digest (when present) summarizing other H3RO threads — treat it as shared continuity so a new chat can pick up mid-stream.
+- Durable memory (memory_read is provided below) for cross-session facts, uploads/references mentioned before, and conversation digests.
 - Local files (list_files / read_file) when the founder granted browser-scoped access, or (system_file_list / system_file_read) when they granted full system access — pull by context; do not ask them to re-upload. Only one of these pairs will actually work depending on which the founder granted; if a call errors, don't retry the same path with small variations, just say what's missing.
 - Live internet search (web_search) — use it whenever you need current or external information, like a normal AI assistant.
 
 Rules:
 - A memory_read result is already provided below — use it; don't call memory_read again unless you need a fresh check.
+- When prior-chat digest or memory mentions files/uploads/references, reuse them by name and fetch via file tools when content is needed.
 - Use web_search for news, facts, docs, market data, or anything outside the founder's files/workspace.
 - Use list_files/read_file or system_file_list/system_file_read when the goal needs real file content. If no folder/files are connected, say so plainly rather than guessing.
-- Use memory_write only for durable facts worth remembering across conversations. Every memory_write is reviewed by the user before it's saved.
+- Use memory_write only for durable facts worth remembering across conversations (preferences, decisions, ongoing projects). Every memory_write is reviewed by the user before it's saved.
 - Prefer short speakable sentences when answering conversationally. Lead with the outcome.
 - After each tool result, decide: is the goal met? If yes, answer in plain text with no tool call. If not, call exactly the tool(s) you need next."""
 
@@ -117,6 +137,7 @@ async def run_agent_loop(
     ctx: ToolContext,
     max_iterations: int = MAX_ITERATIONS,
     history: Optional[list[dict]] = None,
+    cross_thread_context: Optional[str] = None,
 ) -> AsyncIterator[dict[str, Any]]:
     """
     Async generator yielding trace events as the loop progresses.
@@ -150,6 +171,11 @@ async def run_agent_loop(
     messages: list[dict[str, str]] = [
         {"role": "system", "content": AGENT_SYSTEM_PROMPT},
     ]
+    if cross_thread_context and cross_thread_context.strip():
+        messages.append({
+            "role": "user",
+            "content": f"[prior_conversations digest]:\n{cross_thread_context.strip()[:3500]}",
+        })
     # Full prior conversation so H3RO holds memory of the thread.
     for turn in (history or []):
         role = turn.get("role")
@@ -164,10 +190,13 @@ async def run_agent_loop(
         yield {"type": "agent_tool_call", "iteration": 0, "tool": "memory_read", "args": {}}
         result = await memory_tool.execute({}, ctx)
         observation = result.content if result.success else {"error": result.error}
+        # Prefer the most recent entries when the store is large
+        if isinstance(observation, list) and len(observation) > 40:
+            observation = observation[-40:]
         yield {"type": "agent_observation", "iteration": 0, "tool": "memory_read", "result": observation}
         messages.append({
             "role": "user",
-            "content": f"[memory_read result, consulted before you started]: {json.dumps(observation)[:2000]}",
+            "content": f"[memory_read result, consulted before you started]: {json.dumps(observation)[:3500]}",
         })
 
     tool_defs = tool_definitions_for_planner()

@@ -30,7 +30,61 @@ from app.services.agent_tools import ToolContext, ToolResult, ToolSpec, register
 
 log = structlog.get_logger()
 
-VALID_SOURCES = ("user_stated", "agent_inferred")
+VALID_SOURCES = ("user_stated", "agent_inferred", "conversation_digest")
+MAX_MEMORY_ENTRIES = 120
+
+
+async def append_memory_entry(
+    workspace_id: str,
+    user_id: str,
+    text: str,
+    source: str = "conversation_digest",
+) -> dict:
+    """
+    Direct append used by the copilot router for automatic conversation
+    digests (no confirm gate). Also used by memory_write after approval.
+    """
+    text = (text or "").strip()
+    if not text:
+        raise ValueError("text is required")
+    if source not in VALID_SOURCES:
+        raise ValueError(f"source must be one of {VALID_SOURCES}")
+
+    entry = {
+        "text": text,
+        "source": source,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT content FROM agent_memory WHERE workspace_id=$1 AND user_id=$2",
+            workspace_id, user_id,
+        )
+        existing = []
+        if row is not None:
+            raw = row["content"]
+            existing = raw if isinstance(raw, list) else json.loads(raw)
+        existing.append(entry)
+        if len(existing) > MAX_MEMORY_ENTRIES:
+            # Drop oldest conversation digests first, then trim from the front
+            while len(existing) > MAX_MEMORY_ENTRIES:
+                dig_idx = next((i for i, e in enumerate(existing) if e.get("source") == "conversation_digest"), None)
+                if dig_idx is not None:
+                    existing.pop(dig_idx)
+                else:
+                    existing = existing[-MAX_MEMORY_ENTRIES:]
+                    break
+        await conn.execute(
+            """
+            INSERT INTO agent_memory (workspace_id, user_id, content)
+            VALUES ($1, $2, $3::jsonb)
+            ON CONFLICT (workspace_id, user_id)
+            DO UPDATE SET content = $3::jsonb
+            """,
+            workspace_id, user_id, json.dumps(existing),
+        )
+    return entry
 
 
 async def _memory_read_execute(args: dict, ctx: ToolContext) -> ToolResult:
@@ -52,25 +106,13 @@ async def _memory_write_execute(args: dict, ctx: ToolContext) -> ToolResult:
     source = args.get("source")
     if not text:
         return ToolResult(success=False, error="text is required and cannot be empty")
-    if source not in VALID_SOURCES:
-        return ToolResult(success=False, error=f"source must be one of {VALID_SOURCES}, got {source!r}")
+    if source not in ("user_stated", "agent_inferred"):
+        return ToolResult(success=False, error=f"source must be one of ['user_stated', 'agent_inferred'], got {source!r}")
 
-    entry = {
-        "text": text,
-        "source": source,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute(
-            """
-            INSERT INTO agent_memory (workspace_id, user_id, content)
-            VALUES ($1, $2, $3::jsonb)
-            ON CONFLICT (workspace_id, user_id)
-            DO UPDATE SET content = agent_memory.content || $3::jsonb
-            """,
-            ctx.workspace_id, ctx.user_id, json.dumps([entry]),
-        )
+    try:
+        entry = await append_memory_entry(ctx.workspace_id, ctx.user_id, text, source=source)
+    except Exception as e:
+        return ToolResult(success=False, error=str(e))
     log.info("memory_write", workspace_id=ctx.workspace_id, user_id=ctx.user_id, source=source)
     return ToolResult(success=True, content=entry)
 

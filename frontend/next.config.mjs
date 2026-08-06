@@ -7,6 +7,11 @@
 //   2. https://api.found3ry.com (production default)
 //   3. http://localhost:8000 (local dev only)
 
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
 const RAILWAY_REGEX = /\.up\.railway\.app/i
 
 function resolveApiUrl() {
@@ -48,6 +53,14 @@ if (process.env.NODE_ENV === 'production') {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Required for the Electron desktop packaging shell (Phase 1): produces
+  // `.next/standalone` so the desktop app can spawn a local Next.js server
+  // without shipping the full node_modules tree.
+  output: 'standalone',
+  // Pin tracing to this app dir. Without it, a lockfile higher up the tree
+  // (e.g. C:\Users\<user>\package-lock.json) makes Next nest standalone under
+  // a junk path like .next/standalone/FOUND3RY/the-foundry/frontend/.
+  outputFileTracingRoot: path.join(__dirname),
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
   serverExternalPackages: [],

@@ -32,7 +32,11 @@ log = structlog.get_logger()
 # 100 messages stays as an outer sanity cap; the token budget is what
 # actually bites in practice for any thread with real content.
 MAX_HISTORY_MESSAGES = 100
-MAX_HISTORY_TOKENS = 1500
+MAX_HISTORY_TOKENS = 1800
+# Compact digest of OTHER threads so a new chat can pick up without
+# dumping every prior turn into the model window.
+CROSS_THREAD_DIGEST_TOKENS = 700
+CROSS_THREAD_MSG_CAP = 24
 
 
 async def _load_thread_history(conn, thread_id: str, workspace_id: str) -> list[dict]:
@@ -55,6 +59,108 @@ async def _load_thread_history(conn, thread_id: str, workspace_id: str) -> list[
         history.pop(0)
     return history
 
+
+async def _load_cross_thread_digest(
+    conn,
+    workspace_id: str,
+    user_id: str,
+    exclude_thread_id: Optional[str] = None,
+) -> str:
+    """
+    Short rolling digest of recent turns from other H3RO threads so a new
+    conversation can continue without the founder re-explaining context.
+    Excludes the active thread (already covered by thread history).
+    """
+    rows = await conn.fetch(
+        """
+        SELECT thread_id, role, content, created_at
+        FROM copilot_messages
+        WHERE workspace_id = $1
+          AND user_id = $2
+          AND role IN ('user', 'assistant')
+          AND thread_id IS NOT NULL
+          AND ($3::uuid IS NULL OR thread_id <> $3::uuid)
+        ORDER BY created_at DESC
+        LIMIT $4
+        """,
+        workspace_id, user_id, exclude_thread_id, CROSS_THREAD_MSG_CAP,
+    )
+    if not rows:
+        return ""
+
+    # Group newest-first into thread buckets, then reverse each for reading order
+    by_thread: dict[str, list] = {}
+    order: list[str] = []
+    for r in rows:
+        tid = str(r["thread_id"])
+        if tid not in by_thread:
+            by_thread[tid] = []
+            order.append(tid)
+        by_thread[tid].append(r)
+
+    lines: list[str] = []
+    total = 0
+    for tid in order:
+        turns = list(reversed(by_thread[tid]))
+        title = next((t["content"][:80].replace("\n", " ") for t in turns if t["role"] == "user"), "Untitled")
+        block = [f"### Prior chat · {title}"]
+        for t in turns[-6:]:
+            role = "Founder" if t["role"] == "user" else "H3RO"
+            snippet = (t["content"] or "").strip().replace("\n", " ")
+            if len(snippet) > 280:
+                snippet = snippet[:277] + "…"
+            # Surface attachment / file references that were inlined
+            if "[Attached" in (t["content"] or "") or "Attached file:" in (t["content"] or ""):
+                snippet = snippet[:200] + " [had file/upload reference]"
+            line = f"- {role}: {snippet}"
+            cost = estimate_tokens(line)
+            if total + cost > CROSS_THREAD_DIGEST_TOKENS:
+                break
+            block.append(line)
+            total += cost
+        if len(block) > 1:
+            lines.extend(block)
+        if total >= CROSS_THREAD_DIGEST_TOKENS:
+            break
+
+    if not lines:
+        return ""
+    return (
+        "Prior H3RO conversations (other threads). Use these to continue "
+        "seamlessly — do not ask the founder to repeat what is already here.\n\n"
+        + "\n".join(lines)
+    )
+
+
+async def _append_conversation_memory(
+    workspace_id: str,
+    user_id: str,
+    user_message: str,
+    assistant_answer: str,
+    thread_id: str,
+) -> None:
+    """
+    Persist a short handoff note after each completed turn so durable
+    memory stays warm even when the founder starts a brand-new chat.
+    Bypasses the confirm gate — these are system digests, not inferred secrets.
+    """
+    from app.services.memory_tool import append_memory_entry
+
+    u = (user_message or "").strip().replace("\n", " ")
+    a = (assistant_answer or "").strip().replace("\n", " ")
+    if len(u) > 220:
+        u = u[:217] + "…"
+    if len(a) > 320:
+        a = a[:317] + "…"
+    if not u or not a:
+        return
+    text = f"Thread {thread_id[:8]}… · Founder asked: {u} · H3RO: {a}"
+    try:
+        await append_memory_entry(workspace_id, user_id, text, source="conversation_digest")
+    except Exception as e:
+        log.warning("conversation_memory_append_failed", error=str(e)[:200])
+
+
 # Max time we wait AFTER the primary answer completes for the council task
 # to finish. Council is fire-and-forget from the primary stream's POV —
 # never blocks a text_delta yield.
@@ -72,6 +178,7 @@ INTENT_PATTERNS = [
     (r"\b(find|search|connect|link|related|relationship)\b", "find_connections"),
     (r"\b(analyze|deep dive|review|breakdown|evaluate)\s+(project|build)\b", "analyze_project"),
 ]
+
 
 async def _authenticate_ws(websocket: WebSocket) -> Optional[AuthContext]:
     """
@@ -149,6 +256,10 @@ async def copilot_message_ws(websocket: WebSocket):
     thread_id = req.thread_id or str(_uuid.uuid4())
     async with pool.acquire() as conn:
         history = await _load_thread_history(conn, thread_id, auth.workspace_id) if req.thread_id else []
+        # Always load a digest of other threads so new chats pick up prior context
+        cross_digest = await _load_cross_thread_digest(
+            conn, auth.workspace_id, auth.user_id, exclude_thread_id=thread_id,
+        )
         await conn.execute(
             "INSERT INTO copilot_messages (workspace_id, user_id, role, content, project_id, thread_id) VALUES ($1, $2, 'user', $3, $4, $5)",
             auth.workspace_id, auth.user_id, req.message, req.project_id, thread_id,
@@ -160,7 +271,9 @@ async def copilot_message_ws(websocket: WebSocket):
         ctx = ToolContext(workspace_id=auth.workspace_id, user_id=auth.user_id, thread_id=thread_id)
         final_text = ""
         try:
-            async for event in run_agent_loop(req.message, ctx, history=history):
+            async for event in run_agent_loop(
+                req.message, ctx, history=history, cross_thread_context=cross_digest or None,
+            ):
                 await websocket.send_json(event)
                 if event["type"] == "agent_final":
                     final_text = event["answer"]
@@ -173,6 +286,9 @@ async def copilot_message_ws(websocket: WebSocket):
                         "INSERT INTO copilot_messages (workspace_id, user_id, role, content, project_id, model_used, thread_id) VALUES ($1, $2, 'assistant', $3, $4, $5, $6)",
                         auth.workspace_id, auth.user_id, final_text, req.project_id, "agent-loop", thread_id,
                     )
+                await _append_conversation_memory(
+                    auth.workspace_id, auth.user_id, req.message, final_text, thread_id,
+                )
         except WebSocketDisconnect:
             log.info("copilot_ws_client_disconnected", thread_id=thread_id, agent_mode=True)
         finally:
