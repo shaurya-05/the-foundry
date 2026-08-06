@@ -34,16 +34,23 @@ type Exchange = {
   ts: Date
   model?: string
   limitExceeded?: boolean
-  upgradeUrl?: string
-  council?: { model: string; response: string }[]
+  sources?: SourceCard[]
+}
+
+type SourceCard = {
+  id: string
+  kind: 'search' | 'document' | 'listing' | 'trace'
+  title: string
+  body: string
+  links?: { title: string; url: string; snippet?: string }[]
 }
 
 type Thread = { id: string; title: string; created_at: string }
 
 const STARTERS = [
   'What should I focus on this week?',
-  'Review my strategy and find the gaps.',
-  'What are the biggest risks right now?',
+  'Search the web for the latest AI funding news.',
+  'What files do I have available?',
   'Help me prepare for an investor conversation.',
 ]
 
@@ -68,6 +75,55 @@ function H3roMark({ size = 14 }: { size?: number }) {
   )
 }
 
+function formatObservation(tool: string, result: unknown): SourceCard | null {
+  const id = `${tool}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+  if (tool === 'web_search') {
+    const data = result as { query?: string; results?: { title: string; url: string; content?: string }[]; note?: string; error?: string }
+    if (data?.error) {
+      return { id, kind: 'search', title: 'Web search', body: String(data.error) }
+    }
+    const links = (data?.results || []).map(r => ({
+      title: r.title || r.url,
+      url: r.url,
+      snippet: r.content,
+    }))
+    return {
+      id,
+      kind: 'search',
+      title: data?.query ? `Search · ${data.query}` : 'Web search',
+      body: links.length ? `${links.length} result${links.length === 1 ? '' : 's'}` : (data?.note || 'No results'),
+      links,
+    }
+  }
+  if (tool === 'read_file') {
+    const data = result as { content?: string; error?: string }
+    if (data?.error) return { id, kind: 'document', title: 'Document', body: String(data.error) }
+    const content = data?.content || ''
+    return {
+      id,
+      kind: 'document',
+      title: 'Document',
+      body: content.slice(0, 12000) + (content.length > 12000 ? '\n\n…(truncated)' : ''),
+    }
+  }
+  if (tool === 'list_files') {
+    const data = result as { entries?: { name: string; kind: string; size?: number }[]; note?: string; error?: string }
+    if (data?.error) return { id, kind: 'listing', title: 'Files', body: String(data.error) }
+    const lines = (data?.entries || []).map(e =>
+      e.kind === 'directory' ? `📁 ${e.name}/` : `📄 ${e.name}${e.size != null ? ` (${e.size} B)` : ''}`,
+    )
+    return {
+      id,
+      kind: 'listing',
+      title: 'File listing',
+      body: lines.length ? lines.join('\n') : (data?.note || 'Empty'),
+    }
+  }
+  if (tool === 'memory_read' || tool === 'memory_write') return null
+  const text = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+  return { id, kind: 'trace', title: tool, body: text.slice(0, 2000) }
+}
+
 export default function H3roVoiceStage() {
   const router = useRouter()
   const [streaming, setStreaming] = useState(false)
@@ -78,7 +134,6 @@ export default function H3roVoiceStage() {
   const [activeThread, setActiveThread] = useState<string | null>(null)
   const [voiceState, setVoiceState] = useState<VoiceState>('idle')
   const [interim, setInterim] = useState('')
-  const [transcriptOpen, setTranscriptOpen] = useState(false)
   const [conversationOn, setConversationOn] = useState(true)
   const [speechOk, setSpeechOk] = useState(true)
   const [folderConnected, setFolderConnected] = useState(false)
@@ -88,14 +143,15 @@ export default function H3roVoiceStage() {
   const [accessReady, setAccessReady] = useState(false)
   const [accessSkipped, setAccessSkipped] = useState(false)
   const [quietInput, setQuietInput] = useState('')
-  const [showQuiet, setShowQuiet] = useState(false)
+  const [pendingTool, setPendingTool] = useState<string | null>(null)
 
-  const scrollerRef = useRef<HTMLDivElement>(null)
+  const resultsRef = useRef<HTMLDivElement>(null)
   const listenerRef = useRef<ReturnType<typeof createListener>>(null)
   const speakerRef = useRef<StreamingSpeaker | null>(null)
   const conversationOnRef = useRef(true)
   const streamingRef = useRef(false)
   const askRef = useRef<(q: string) => Promise<void>>(async () => {})
+  const lastToolRef = useRef<{ tool: string; args: Record<string, unknown> } | null>(null)
 
   useEffect(() => { conversationOnRef.current = conversationOn }, [conversationOn])
   useEffect(() => { streamingRef.current = streaming }, [streaming])
@@ -113,10 +169,10 @@ export default function H3roVoiceStage() {
   }, [])
 
   useEffect(() => {
-    if (scrollerRef.current && transcriptOpen) {
-      scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight
+    if (resultsRef.current) {
+      resultsRef.current.scrollTop = resultsRef.current.scrollHeight
     }
-  }, [exchanges, streaming, transcriptOpen])
+  }, [exchanges, streaming, status])
 
   async function refreshFileAccess() {
     let has = false
@@ -171,7 +227,6 @@ export default function H3roVoiceStage() {
         }
         setExchanges(rebuilt)
         setActiveThread(threadId)
-        setTranscriptOpen(true)
       }
     } catch { /* ignore */ }
   }
@@ -217,7 +272,6 @@ export default function H3roVoiceStage() {
     })
     if (!listener) {
       setSpeechOk(false)
-      setShowQuiet(true)
       return
     }
     listenerRef.current = listener
@@ -236,8 +290,9 @@ export default function H3roVoiceStage() {
     setError('')
     setStreaming(true)
     setStatus('')
+    setPendingTool(null)
     setVoiceState('processing')
-    setExchanges(prev => [...prev, { q, a: '', ts: new Date() }])
+    setExchanges(prev => [...prev, { q, a: '', ts: new Date(), sources: [] }])
 
     const speaker = new StreamingSpeaker({
       onSpeakingChange: (speaking) => {
@@ -246,7 +301,6 @@ export default function H3roVoiceStage() {
       onIdle: () => {
         setVoiceState('idle')
         if (conversationOnRef.current) {
-          // Brief beat, then listen again — Jarvis loop
           setTimeout(() => {
             if (!streamingRef.current && conversationOnRef.current) startListening()
           }, 400)
@@ -266,9 +320,36 @@ export default function H3roVoiceStage() {
           loadThreads()
         } else if (chunk.type === 'status') {
           setStatus(chunk.text)
+        } else if (chunk.type === 'agent_tool_call') {
+          lastToolRef.current = { tool: chunk.tool, args: chunk.args || {} }
+          setPendingTool(chunk.tool)
+          if (chunk.tool === 'web_search') {
+            setStatus(`Searching · ${String(chunk.args?.query || '…')}`)
+          } else if (chunk.tool === 'read_file') {
+            setStatus(`Reading · ${String(chunk.args?.path || 'file')}`)
+          } else if (chunk.tool === 'list_files') {
+            setStatus('Listing files…')
+          } else {
+            setStatus(`Working · ${chunk.tool}`)
+          }
         } else if (chunk.type === 'tool_request') {
           if (chunk.tool === 'list_files' || chunk.tool === 'read_file') {
             handleFileToolRequest(chunk)
+          }
+        } else if (chunk.type === 'agent_observation') {
+          setPendingTool(null)
+          const card = formatObservation(chunk.tool, chunk.result)
+          if (card) {
+            if (chunk.tool === 'read_file' && lastToolRef.current?.tool === 'read_file') {
+              const path = String(lastToolRef.current.args.path || 'Document')
+              card.title = `Document · ${path}`
+            }
+            setExchanges(prev => {
+              const c = [...prev]
+              const last = c[c.length - 1]
+              c[c.length - 1] = { ...last, sources: [...(last.sources || []), card] }
+              return c
+            })
           }
         } else if (chunk.type === 'text_delta') {
           if (status) setStatus('')
@@ -284,12 +365,6 @@ export default function H3roVoiceStage() {
             c[c.length - 1] = { ...c[c.length - 1], model: chunk.model }
             return c
           })
-        } else if (chunk.type === 'council') {
-          setExchanges(prev => {
-            const c = [...prev]
-            c[c.length - 1] = { ...c[c.length - 1], council: chunk.perspectives }
-            return c
-          })
         } else if (chunk.type === 'agent_final' && chunk.answer) {
           speaker.push(chunk.answer)
           setExchanges(prev => {
@@ -297,6 +372,16 @@ export default function H3roVoiceStage() {
             if (!c[c.length - 1].a) c[c.length - 1] = { ...c[c.length - 1], a: chunk.answer }
             return c
           })
+        } else if (chunk.type === 'agent_stopped') {
+          const partial = chunk.partial_answer || ''
+          if (partial) {
+            speaker.push(partial)
+            setExchanges(prev => {
+              const c = [...prev]
+              c[c.length - 1] = { ...c[c.length - 1], a: c[c.length - 1].a || partial }
+              return c
+            })
+          }
         }
       }
       speaker.finish()
@@ -306,7 +391,7 @@ export default function H3roVoiceStage() {
       if (e instanceof LimitExceededError) {
         setExchanges(prev => {
           const c = [...prev]
-          c[c.length - 1] = { ...c[c.length - 1], limitExceeded: true, upgradeUrl: e.upgradeUrl }
+          c[c.length - 1] = { ...c[c.length - 1], limitExceeded: true }
           return c
         })
       } else {
@@ -315,6 +400,7 @@ export default function H3roVoiceStage() {
     } finally {
       setStreaming(false)
       setStatus('')
+      setPendingTool(null)
     }
   }
 
@@ -358,7 +444,6 @@ export default function H3roVoiceStage() {
     setFolderName(null)
   }
 
-  /** First orb tap requests file access in the same browser gesture. */
   async function handleOrbActivate() {
     if (voiceState === 'listening') {
       stopListening()
@@ -375,13 +460,15 @@ export default function H3roVoiceStage() {
     const has = folderConnected || grantedFiles.length > 0
     if (!has && !accessSkipped && (isFileAccessSupported() || isFilePickerSupported())) {
       setFilesOpen(true)
-      if (isFileAccessSupported()) {
-        await grantFolder()
-      } else if (isFilePickerSupported()) {
-        await grantFiles()
-      }
+      if (isFileAccessSupported()) await grantFolder()
+      else if (isFilePickerSupported()) await grantFiles()
     }
     startListening()
+  }
+
+  function clearSession() {
+    setExchanges([])
+    setActiveThread(null)
   }
 
   const stateLabel =
@@ -392,6 +479,7 @@ export default function H3roVoiceStage() {
 
   const hasAccess = folderConnected || grantedFiles.length > 0
   const needsAccessPrompt = accessReady && !hasAccess && !accessSkipped && (isFileAccessSupported() || isFilePickerSupported())
+  const hasResults = exchanges.length > 0
 
   return (
     <div style={{
@@ -400,406 +488,204 @@ export default function H3roVoiceStage() {
       minHeight: 0,
       flexDirection: 'column',
       overflow: 'hidden',
-      padding: '0 10px 10px',
-      position: 'relative',
+      padding: '0 0 8px',
+      gap: 10,
     }}>
-      <div
-        className="liquid-glass-strong"
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          borderRadius: 18,
-          overflow: 'hidden',
-          minHeight: 0,
-          position: 'relative',
-          background:
-            'radial-gradient(ellipse 80% 60% at 50% 35%, rgba(159,222,250,0.14) 0%, transparent 55%), var(--glass-bg, rgba(255,255,255,0.06))',
-        }}
-      >
-        {/* Top bar */}
-        <div style={{
-          padding: '14px 18px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          borderBottom: '1px solid var(--border)',
-          flexShrink: 0,
-        }}>
-          <div>
-            <div style={{
-              fontFamily: 'var(--font-archivo)',
-              fontWeight: 700,
-              fontSize: 15,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: 'var(--color-ink)',
-            }}>
-              <H3roMark size={15} />
-            </div>
-            <div style={{
-              fontFamily: 'var(--font-ibm-plex-mono)',
-              fontSize: 9,
-              color: 'var(--color-n400)',
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              marginTop: 2,
-            }}>
-              Collaborating cofound3r · pronounced hero
-            </div>
+      {/* Shared top chrome */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: '0 4px 4px',
+        flexShrink: 0,
+      }}>
+        <div>
+          <div style={{
+            fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 15,
+            letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-ink)',
+          }}>
+            <H3roMark size={15} />
           </div>
-
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              onClick={() => setConversationOn(v => !v)}
-              title="Keep listening after H3RO finishes speaking"
-              style={chipStyle(conversationOn)}
-            >
-              {conversationOn ? '● Live' : '○ Live'}
-            </button>
-            <button onClick={() => setFilesOpen(v => !v)} style={chipStyle(hasAccess || filesOpen)}>
-              {hasAccess ? `● Files (${grantedFiles.length}${folderConnected ? '+folder' : ''})` : '○ Grant files'}
-            </button>
-            <button onClick={() => setTranscriptOpen(v => !v)} style={chipStyle(transcriptOpen)}>
-              {transcriptOpen ? 'Hide transcript' : 'Show transcript'}
-            </button>
+          <div style={{
+            fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--color-n400)',
+            letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 2,
+          }}>
+            Collaborating cofound3r · pronounced hero
           </div>
         </div>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={() => setConversationOn(v => !v)} style={chipStyle(conversationOn)} title="Keep listening after speaking">
+            {conversationOn ? '● Live' : '○ Live'}
+          </button>
+          <button onClick={() => setFilesOpen(v => !v)} style={chipStyle(hasAccess || filesOpen || needsAccessPrompt)}>
+            {hasAccess ? `● Files` : '○ Grant files'}
+          </button>
+          <select
+            value={activeThread || ''}
+            onChange={e => {
+              if (e.target.value) loadThread(e.target.value)
+              else clearSession()
+            }}
+            style={{
+              fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, padding: '5px 8px',
+              borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--color-ink)',
+            }}
+          >
+            <option value="">New conversation</option>
+            {threads.map(t => (
+              <option key={t.id} value={t.id}>{t.title || 'Untitled'}</option>
+            ))}
+          </select>
+          <button onClick={clearSession} style={chipStyle(false)}>Clear</button>
+        </div>
+      </div>
 
-        {/* File access — requested by default until granted or skipped */}
-        {(filesOpen || needsAccessPrompt) && (
+      {(filesOpen || needsAccessPrompt) && (
+        <div className="liquid-glass-strong" style={{
+          padding: '12px 16px', borderRadius: 14, flexShrink: 0,
+          background: needsAccessPrompt ? 'rgba(159,222,250,0.12)' : undefined,
+        }}>
+          <div style={{ fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
+            {needsAccessPrompt ? 'H3RO needs browser access to your files' : 'H3RO file access'}
+          </div>
+          <div style={{ fontFamily: 'var(--font-archivo)', fontSize: 12, color: 'var(--color-n600)', marginBottom: 10, maxWidth: 640 }}>
+            Grant a folder or files so he can pull context — search results and documents appear on the right.
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {isFileAccessSupported() && (
+              <button onClick={grantFolder} className="btn btn-primary btn-sm">
+                {folderConnected ? `Folder: ${folderName}` : 'Allow folder access'}
+              </button>
+            )}
+            {isFilePickerSupported() && (
+              <button onClick={grantFiles} className="btn btn-sm" style={secondaryBtn}>Select files</button>
+            )}
+            {needsAccessPrompt && (
+              <button onClick={skipFileAccess} className="btn btn-sm" style={secondaryBtn}>Continue without files</button>
+            )}
+            {hasAccess && (
+              <button onClick={revokeAllFiles} className="btn btn-sm" style={secondaryBtn}>Revoke all</button>
+            )}
+          </div>
+          {grantedFiles.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+              {grantedFiles.map(name => (
+                <span key={name} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px',
+                  borderRadius: 8, border: '1px solid var(--border)',
+                  fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11,
+                }}>
+                  {name}
+                  <button
+                    onClick={async () => {
+                      await removeSelectedFile(name)
+                      setGrantedFiles(prev => prev.filter(n => n !== name))
+                    }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-n400)', padding: 0 }}
+                  >×</button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Split screen */}
+      <div className="h3ro-split" style={{
+        flex: 1,
+        minHeight: 0,
+        display: 'grid',
+        gridTemplateColumns: 'minmax(280px, 1fr) minmax(320px, 1fr)',
+        gap: 10,
+      }}>
+        {/* LEFT — visual + voice */}
+        <div
+          className="liquid-glass-strong"
+          style={{
+            borderRadius: 18,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0,
+            background:
+              'radial-gradient(ellipse 80% 55% at 50% 40%, rgba(159,222,250,0.16) 0%, transparent 58%), var(--glass-bg, rgba(255,255,255,0.06))',
+          }}
+        >
           <div style={{
-            padding: '14px 18px',
-            borderBottom: '1px solid var(--border)',
-            background: needsAccessPrompt ? 'rgba(159,222,250,0.12)' : 'rgba(0,0,0,0.03)',
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '28px 20px 16px',
+            minHeight: 0,
+          }}>
+            <H3roJarvisOrb
+              state={voiceState}
+              size={200}
+              disabled={streaming && voiceState === 'processing'}
+              aria-label={voiceState === 'listening' ? 'Stop listening' : 'Talk to H3RO'}
+              onClick={handleOrbActivate}
+            />
+            <div style={{
+              marginTop: 18,
+              fontFamily: 'var(--font-ibm-plex-mono)',
+              fontSize: 12,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              color: voiceState === 'idle' ? 'var(--color-n400)' : 'var(--color-arc-cyan)',
+            }}>
+              {stateLabel}
+            </div>
+            {(interim || (!hasResults && voiceState === 'idle')) && (
+              <div style={{
+                marginTop: 12, maxWidth: 320, textAlign: 'center',
+                fontFamily: 'var(--font-archivo)', fontSize: 14, lineHeight: 1.5,
+                color: interim ? 'var(--color-ink)' : 'var(--color-n600)',
+                fontStyle: interim ? 'normal' : 'italic',
+              }}>
+                {interim || 'Talk on the left. Answers, searches, and documents land on the right.'}
+              </div>
+            )}
+            {!hasResults && voiceState === 'idle' && !interim && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 20, width: '100%', maxWidth: 300 }}>
+                {STARTERS.map(s => (
+                  <button
+                    key={s}
+                    onClick={() => ask(s)}
+                    style={{
+                      padding: '9px 12px', borderRadius: 10, border: '1px solid var(--border)',
+                      background: 'rgba(255,255,255,0.08)', cursor: 'pointer', textAlign: 'left',
+                      fontFamily: 'var(--font-archivo)', fontSize: 12, color: 'var(--color-ink)',
+                    }}
+                  >
+                    <span style={{ color: 'var(--color-arc-cyan)', marginRight: 6 }}>→</span>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+            {error && (
+              <div style={{ marginTop: 12, color: 'var(--color-signal)', fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, textAlign: 'center' }}>
+                {error}
+              </div>
+            )}
+            {!speechOk && (
+              <div style={{ marginTop: 8, fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, color: 'var(--color-n600)' }}>
+                Voice unavailable — type below
+              </div>
+            )}
+          </div>
+
+          <div style={{
+            padding: '10px 14px 14px',
+            borderTop: '1px solid var(--border)',
             flexShrink: 0,
           }}>
             <div style={{
-              fontFamily: 'var(--font-archivo)',
-              fontWeight: 700,
-              fontSize: 14,
-              color: 'var(--color-ink)',
-              marginBottom: 6,
-            }}>
-              {needsAccessPrompt
-                ? 'H3RO needs browser access to your files'
-                : 'H3RO file access'}
-            </div>
-            <div style={{
-              fontFamily: 'var(--font-archivo)',
-              fontSize: 13,
-              color: 'var(--color-n600)',
-              marginBottom: 12,
-              lineHeight: 1.45,
-              maxWidth: 520,
-            }}>
-              {needsAccessPrompt
-                ? 'Grant a folder or specific files so he can pull context himself — no uploads. Your browser will ask for permission.'
-                : 'Select what he can read; he pulls by context. He can also search the web and remembers this conversation.'}
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: hasAccess ? 10 : 0 }}>
-              {isFileAccessSupported() && (
-                <button onClick={grantFolder} className="btn btn-primary btn-sm">
-                  {folderConnected ? `Folder: ${folderName}` : 'Allow folder access'}
-                </button>
-              )}
-              {isFilePickerSupported() && (
-                <button onClick={grantFiles} className="btn btn-sm" style={secondaryBtn}>
-                  Select files
-                </button>
-              )}
-              {needsAccessPrompt && (
-                <button onClick={skipFileAccess} className="btn btn-sm" style={secondaryBtn}>
-                  Continue without files
-                </button>
-              )}
-              {hasAccess && (
-                <button onClick={revokeAllFiles} className="btn btn-sm" style={secondaryBtn}>
-                  Revoke all
-                </button>
-              )}
-            </div>
-            {folderConnected && (
-              <div style={{ fontFamily: 'var(--font-archivo)', fontSize: 12, color: 'var(--color-ink)', marginBottom: 6 }}>
-                Folder · {folderName} (all files inside)
-              </div>
-            )}
-            {grantedFiles.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {grantedFiles.map(name => (
-                  <span key={name} style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '4px 8px',
-                    borderRadius: 8,
-                    border: '1px solid var(--border)',
-                    fontFamily: 'var(--font-ibm-plex-mono)',
-                    fontSize: 11,
-                    color: 'var(--color-ink)',
-                  }}>
-                    {name}
-                    <button
-                      onClick={async () => {
-                        await removeSelectedFile(name)
-                        setGrantedFiles(prev => prev.filter(n => n !== name))
-                      }}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-n400)', padding: 0, lineHeight: 1 }}
-                      aria-label={`Remove ${name}`}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Voice stage */}
-        <div style={{
-          flex: transcriptOpen ? '0 0 auto' : 1,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: transcriptOpen ? '28px 24px 16px' : '48px 24px',
-          minHeight: transcriptOpen ? 220 : 0,
-          transition: 'padding 0.2s ease',
-        }}>
-          <H3roJarvisOrb
-            state={voiceState}
-            size={transcriptOpen ? 140 : 220}
-            disabled={streaming && voiceState === 'processing'}
-            aria-label={voiceState === 'listening' ? 'Stop listening' : 'Talk to H3RO'}
-            onClick={handleOrbActivate}
-          />
-
-          <div style={{
-            marginTop: 20,
-            fontFamily: 'var(--font-ibm-plex-mono)',
-            fontSize: 12,
-            letterSpacing: '0.14em',
-            textTransform: 'uppercase',
-            color: voiceState === 'idle' ? 'var(--color-n400)' : 'var(--color-arc-cyan)',
-            minHeight: 18,
-          }}>
-            {stateLabel}
-          </div>
-
-          {(interim || (exchanges.length === 0 && voiceState === 'idle')) && (
-            <div style={{
-              marginTop: 14,
-              maxWidth: 420,
-              textAlign: 'center',
-              fontFamily: 'var(--font-archivo)',
-              fontSize: 15,
-              lineHeight: 1.5,
-              color: interim ? 'var(--color-ink)' : 'var(--color-n600)',
-              fontStyle: interim ? 'normal' : 'italic',
-            }}>
-              {interim || 'Talk with H3RO like a cofounder. Transcript stays out of the way until you need it.'}
-            </div>
-          )}
-
-          {exchanges.length === 0 && voiceState === 'idle' && !interim && (
-            <div style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 8,
-              justifyContent: 'center',
-              marginTop: 28,
-              maxWidth: 560,
-            }}>
-              {STARTERS.map(s => (
-                <button
-                  key={s}
-                  onClick={() => ask(s)}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: 10,
-                    border: '1px solid var(--border)',
-                    background: 'rgba(255,255,255,0.08)',
-                    cursor: 'pointer',
-                    fontFamily: 'var(--font-archivo)',
-                    fontSize: 12,
-                    color: 'var(--color-ink)',
-                  }}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {error && (
-            <div style={{
-              marginTop: 12,
-              color: 'var(--color-signal)',
-              fontFamily: 'var(--font-ibm-plex-mono)',
-              fontSize: 12,
-              textAlign: 'center',
-              maxWidth: 420,
-            }}>
-              {error}
-            </div>
-          )}
-
-          {!speechOk && (
-            <div style={{
-              marginTop: 10,
-              fontFamily: 'var(--font-ibm-plex-mono)',
-              fontSize: 11,
-              color: 'var(--color-n600)',
-            }}>
-              Voice not supported in this browser — use quiet input below.
-            </div>
-          )}
-        </div>
-
-        {/* Collapsible transcript */}
-        {transcriptOpen && (
-          <div style={{
-            flex: 1,
-            minHeight: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            borderTop: '1px solid var(--border)',
-            background: 'rgba(0,0,0,0.02)',
-          }}>
-            <div style={{
-              padding: '10px 18px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              borderBottom: '1px solid var(--border)',
-            }}>
-              <div style={{
-                fontFamily: 'var(--font-ibm-plex-mono)',
-                fontSize: 10,
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                color: 'var(--color-n600)',
-              }}>
-                Transcript
-              </div>
-              <select
-                value={activeThread || ''}
-                onChange={e => {
-                  if (e.target.value) loadThread(e.target.value)
-                  else { setExchanges([]); setActiveThread(null) }
-                }}
-                style={{
-                  marginLeft: 'auto',
-                  maxWidth: 220,
-                  fontFamily: 'var(--font-ibm-plex-mono)',
-                  fontSize: 11,
-                  padding: '4px 8px',
-                  borderRadius: 8,
-                  border: '1px solid var(--border)',
-                  background: 'transparent',
-                  color: 'var(--color-ink)',
-                }}
-              >
-                <option value="">New conversation</option>
-                {threads.map(t => (
-                  <option key={t.id} value={t.id}>{t.title || 'Untitled'}</option>
-                ))}
-              </select>
-              <button
-                onClick={() => { setExchanges([]); setActiveThread(null) }}
-                style={chipStyle(false)}
-              >
-                Clear
-              </button>
-            </div>
-            <div ref={scrollerRef} style={{ flex: 1, overflow: 'auto', padding: '16px 18px' }}>
-              {exchanges.length === 0 && (
-                <div style={{ fontFamily: 'var(--font-archivo)', fontSize: 13, color: 'var(--color-n400)' }}>
-                  Nothing yet — start talking.
-                </div>
-              )}
-              {exchanges.map((ex, i) => (
-                <div key={i} style={{ marginBottom: 22, maxWidth: 720 }}>
-                  <div style={{
-                    fontFamily: 'var(--font-ibm-plex-mono)',
-                    fontSize: 10,
-                    color: 'var(--color-n400)',
-                    letterSpacing: '0.08em',
-                    marginBottom: 4,
-                  }}>YOU</div>
-                  <div style={{
-                    fontFamily: 'var(--font-archivo)',
-                    fontSize: 14,
-                    color: 'var(--color-ink)',
-                    marginBottom: 12,
-                    lineHeight: 1.55,
-                  }}>{ex.q}</div>
-                  <div style={{
-                    fontFamily: 'var(--font-ibm-plex-mono)',
-                    fontSize: 10,
-                    color: 'var(--color-arc-cyan)',
-                    letterSpacing: '0.08em',
-                    marginBottom: 4,
-                  }}>
-                    <H3roMark size={10} />
-                  </div>
-                  {ex.limitExceeded ? (
-                    <div>
-                      <div style={{ fontFamily: 'var(--font-archivo)', fontSize: 13, marginBottom: 8 }}>
-                        Message limit reached this month.
-                      </div>
-                      <button onClick={handleUpgrade} className="btn btn-primary btn-sm">Upgrade</button>
-                    </div>
-                  ) : ex.a ? (
-                    <div style={{ fontFamily: 'var(--font-archivo)', fontSize: 14, lineHeight: 1.65, color: 'var(--color-ink)' }}>
-                      <Markdown content={ex.a} streaming={streaming && i === exchanges.length - 1} />
-                    </div>
-                  ) : streaming && i === exchanges.length - 1 ? (
-                    <span style={{ color: 'var(--color-n400)', fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 12 }}>
-                      {status || 'Thinking…'}
-                    </span>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Quiet / typed fallback */}
-        <div style={{
-          padding: '10px 18px 14px',
-          borderTop: '1px solid var(--border)',
-          flexShrink: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
-        }}>
-          <button
-            onClick={() => setShowQuiet(v => !v)}
-            style={{
-              alignSelf: 'center',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              fontFamily: 'var(--font-ibm-plex-mono)',
-              fontSize: 10,
-              color: 'var(--color-n400)',
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-            }}
-          >
-            {showQuiet ? 'Hide typed input' : 'Type instead'}
-          </button>
-          {showQuiet && (
-            <div style={{
-              display: 'flex',
-              gap: 8,
-              alignItems: 'flex-end',
-              background: 'rgba(255,255,255,0.1)',
-              border: '1px solid var(--border)',
-              borderRadius: 12,
-              padding: '8px 10px',
+              display: 'flex', gap: 8, alignItems: 'flex-end',
+              background: 'rgba(255,255,255,0.1)', border: '1px solid var(--border)',
+              borderRadius: 12, padding: '8px 10px',
             }}>
               <textarea
                 value={quietInput}
@@ -812,18 +698,12 @@ export default function H3roVoiceStage() {
                   }
                 }}
                 disabled={streaming}
-                placeholder="Type to H3RO…"
+                placeholder="Or type quietly…"
                 rows={1}
                 style={{
-                  flex: 1,
-                  border: 'none',
-                  background: 'transparent',
-                  resize: 'none',
-                  fontFamily: 'var(--font-archivo)',
-                  fontSize: 14,
-                  color: 'var(--color-ink)',
-                  outline: 'none',
-                  minHeight: 28,
+                  flex: 1, border: 'none', background: 'transparent', resize: 'none',
+                  fontFamily: 'var(--font-archivo)', fontSize: 13, color: 'var(--color-ink)',
+                  outline: 'none', minHeight: 28,
                 }}
               />
               <button
@@ -837,8 +717,205 @@ export default function H3roVoiceStage() {
                 Send
               </button>
             </div>
-          )}
+          </div>
         </div>
+
+        {/* RIGHT — text / search / document output */}
+        <div
+          className="liquid-glass-strong"
+          style={{
+            borderRadius: 18,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0,
+            minWidth: 0,
+          }}
+        >
+          <div style={{
+            padding: '12px 16px',
+            borderBottom: '1px solid var(--border)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            flexShrink: 0,
+          }}>
+            <div style={{
+              fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, letterSpacing: '0.1em',
+              textTransform: 'uppercase', color: 'var(--color-n600)',
+            }}>
+              Results
+            </div>
+            {(status || pendingTool) && (
+              <div style={{
+                marginLeft: 'auto',
+                fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10,
+                color: 'var(--color-arc-cyan)', letterSpacing: '0.06em',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%', background: 'var(--color-arc-cyan)',
+                  animation: 'h3ros-pulse-opacity 1.2s ease-in-out infinite',
+                }} />
+                {status || pendingTool}
+              </div>
+            )}
+          </div>
+
+          <div ref={resultsRef} style={{ flex: 1, overflow: 'auto', padding: '16px 18px' }}>
+            {!hasResults && (
+              <div style={{
+                height: '100%', minHeight: 200, display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', textAlign: 'center',
+                color: 'var(--color-n400)', fontFamily: 'var(--font-archivo)', fontSize: 14, lineHeight: 1.55, padding: 24,
+              }}>
+                <div style={{ marginBottom: 8, opacity: 0.7 }}><H3roMark size={18} /></div>
+                Answers, web searches, and documents he finds will appear here.
+              </div>
+            )}
+
+            {exchanges.map((ex, i) => {
+              const isLast = i === exchanges.length - 1
+              const turnSources = ex.sources || []
+              return (
+                <div key={i} style={{ marginBottom: 28 }}>
+                  <div style={{
+                    fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, color: 'var(--color-n400)',
+                    letterSpacing: '0.08em', marginBottom: 6,
+                  }}>YOU</div>
+                  <div style={{
+                    fontFamily: 'var(--font-archivo)', fontSize: 14, color: 'var(--color-ink)',
+                    marginBottom: 14, lineHeight: 1.55,
+                  }}>{ex.q}</div>
+
+                  {turnSources.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+                      {turnSources.map(card => (
+                        <SourcePanel key={card.id} card={card} />
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{
+                    fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, color: 'var(--color-arc-cyan)',
+                    letterSpacing: '0.08em', marginBottom: 6,
+                  }}>
+                    <H3roMark size={10} />
+                  </div>
+                  {ex.limitExceeded ? (
+                    <div>
+                      <div style={{ fontFamily: 'var(--font-archivo)', fontSize: 13, marginBottom: 8 }}>
+                        Message limit reached this month.
+                      </div>
+                      <button onClick={handleUpgrade} className="btn btn-primary btn-sm">Upgrade</button>
+                    </div>
+                  ) : ex.a ? (
+                    <div style={{
+                      fontFamily: 'var(--font-archivo)', fontSize: 14, lineHeight: 1.7, color: 'var(--color-ink)',
+                    }}>
+                      <Markdown content={ex.a} streaming={streaming && isLast} />
+                    </div>
+                  ) : streaming && isLast ? (
+                    <span style={{ color: 'var(--color-n400)', fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 12 }}>
+                      {status || 'Thinking…'}
+                    </span>
+                  ) : null}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+        @media (max-width: 860px) {
+          .h3ro-split {
+            grid-template-columns: 1fr !important;
+            grid-template-rows: minmax(280px, 42vh) minmax(240px, 1fr);
+          }
+        }
+      `}</style>
+    </div>
+  )
+}
+
+function SourcePanel({ card }: { card: SourceCard }) {
+  const kindLabel =
+    card.kind === 'search' ? 'WEB SEARCH'
+    : card.kind === 'document' ? 'DOCUMENT'
+    : card.kind === 'listing' ? 'FILES'
+    : 'SOURCE'
+
+  return (
+    <div style={{
+      border: '1px solid var(--border)',
+      borderRadius: 12,
+      overflow: 'hidden',
+      background: 'rgba(255,255,255,0.06)',
+    }}>
+      <div style={{
+        padding: '8px 12px',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+      }}>
+        <span style={{
+          fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, letterSpacing: '0.1em',
+          color: 'var(--color-arc-cyan)', textTransform: 'uppercase',
+        }}>{kindLabel}</span>
+        <span style={{
+          fontFamily: 'var(--font-archivo)', fontSize: 12, fontWeight: 700,
+          color: 'var(--color-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>{card.title}</span>
+      </div>
+      <div style={{ padding: '12px 14px' }}>
+        {card.links && card.links.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {card.links.map((l, i) => (
+              <div key={i}>
+                <a
+                  href={l.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    fontFamily: 'var(--font-archivo)', fontSize: 13, fontWeight: 700,
+                    color: 'var(--color-arc-cyan)', textDecoration: 'none',
+                  }}
+                >
+                  {l.title}
+                </a>
+                {l.snippet && (
+                  <div style={{
+                    marginTop: 4, fontFamily: 'var(--font-archivo)', fontSize: 12,
+                    color: 'var(--color-n600)', lineHeight: 1.5,
+                  }}>
+                    {l.snippet.slice(0, 280)}{l.snippet.length > 280 ? '…' : ''}
+                  </div>
+                )}
+                <div style={{
+                  marginTop: 2, fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9,
+                  color: 'var(--color-n400)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {l.url}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : card.kind === 'document' || card.kind === 'listing' ? (
+          <pre style={{
+            margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+            fontFamily: card.kind === 'listing' ? 'var(--font-ibm-plex-mono)' : 'var(--font-archivo)',
+            fontSize: card.kind === 'listing' ? 11 : 13,
+            lineHeight: 1.55, color: 'var(--color-ink)',
+          }}>
+            {card.body}
+          </pre>
+        ) : (
+          <div style={{ fontFamily: 'var(--font-archivo)', fontSize: 13, color: 'var(--color-n600)' }}>
+            {card.body}
+          </div>
+        )}
       </div>
     </div>
   )
