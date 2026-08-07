@@ -80,7 +80,10 @@
       ],
       "category": "public.app-category.productivity",
       "artifactName": "FOUND3RY-${version}.${ext}",
-      "identity": null
+      "identity": null,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "FOUND3RY uses your microphone for voice input to H3RO (push-to-talk and the always-listening wake word)."
+      }
     },
     "nsis": {
       "oneClick": false,

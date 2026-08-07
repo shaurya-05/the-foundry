@@ -68,6 +68,13 @@ async function createWindow(frontendUrl) {
     },
   })
 
+  // Explicit allow for mic access (push-to-talk + wake word) rather than
+  // relying on Electron's version-dependent default permission behavior —
+  // this is our own app's session, not arbitrary web content.
+  mainWindow.webContents.session.setPermissionRequestHandler((_webContents, permission, callback) => {
+    callback(permission === 'media')
+  })
+
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show()
   })
