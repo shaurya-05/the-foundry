@@ -379,6 +379,16 @@ export default function H3roVoiceStage() {
             setVoiceState('idle')
             return
           }
+          if (err === 'unavailable') {
+            // Repeated real failures (e.g. this build's speech engine can't
+            // reach a recognition backend) — stop retrying instead of
+            // spinning the mic indicator forever with no result.
+            setError('Always listening isn’t available in this build — push-to-talk and typing still work.')
+            setAlwaysListening(false)
+            writeAlwaysListeningPreference(false)
+            setVoiceState('idle')
+            return
+          }
           // Stay hot on routine errors; autoRestart will recover.
           if (alwaysListeningRef.current && !hotPausedRef.current && !streamingRef.current) {
             setVoiceState('hot')

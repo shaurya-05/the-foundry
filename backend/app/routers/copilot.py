@@ -516,14 +516,25 @@ async def classify_intent(req: IntentRequest, auth: AuthContext = Depends(requir
 async def get_threads(auth: AuthContext = Depends(require_auth)):
     pool = await get_pool()
     async with pool.acquire() as conn:
+        # Portable across Postgres and SQLite: `DISTINCT ON` is Postgres-only
+        # and has no SQLite equivalent, so pick each thread's first message
+        # via a MIN(created_at)-per-thread join instead.
         rows = await conn.fetch(
             """
-            SELECT DISTINCT ON (thread_id) thread_id as id,
-                   SUBSTRING(content, 1, 60) as title,
-                   created_at
-            FROM copilot_messages
-            WHERE workspace_id=$1 AND role='user' AND thread_id IS NOT NULL
-            ORDER BY thread_id, created_at ASC
+            SELECT cm.thread_id as id,
+                   SUBSTR(cm.content, 1, 60) as title,
+                   cm.created_at
+            FROM copilot_messages cm
+            INNER JOIN (
+                SELECT thread_id, MIN(created_at) as first_created_at
+                FROM copilot_messages
+                WHERE workspace_id=$1 AND role='user' AND thread_id IS NOT NULL
+                GROUP BY thread_id
+            ) first_msg
+              ON cm.thread_id = first_msg.thread_id
+             AND cm.created_at = first_msg.first_created_at
+            WHERE cm.workspace_id=$1 AND cm.role='user'
+            ORDER BY cm.created_at DESC
             """,
             auth.workspace_id,
         )

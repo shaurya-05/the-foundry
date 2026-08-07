@@ -184,6 +184,14 @@ export function createListener(
   let intentionalStop = false
   let restartTimer: ReturnType<typeof setTimeout> | null = null
 
+  // Electron's bundled Chromium has no working cloud speech backend, so
+  // continuous/always-listening mode can fail instantly on every restart
+  // (real-world symptom: mic indicator flashing forever, tight fail loop).
+  // Give up after a few consecutive real errors instead of retrying forever.
+  const MAX_CONSECUTIVE_ERRORS = 3
+  let consecutiveErrors = 0
+  let gaveUp = false
+
   const clearRestart = () => {
     if (restartTimer != null) {
       clearTimeout(restartTimer)
@@ -192,6 +200,7 @@ export function createListener(
   }
 
   rec.onresult = (ev) => {
+    consecutiveErrors = 0
     let interim = ''
     for (let i = ev.resultIndex; i < ev.results.length; i++) {
       const piece = ev.results[i][0].transcript
@@ -212,6 +221,7 @@ export function createListener(
       handlers.onEnd?.()
       return
     }
+    consecutiveErrors += 1
     handlers.onError?.(ev.error)
   }
 
@@ -222,11 +232,16 @@ export function createListener(
       handlers.onFinal(text)
     }
     handlers.onEnd?.()
-    if (autoRestart && !intentionalStop) {
+    if (autoRestart && !intentionalStop && !gaveUp) {
+      if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+        gaveUp = true
+        handlers.onError?.('unavailable')
+        return
+      }
       clearRestart()
       restartTimer = setTimeout(() => {
         restartTimer = null
-        if (intentionalStop) return
+        if (intentionalStop || gaveUp) return
         try {
           rec.start()
         } catch {
@@ -239,6 +254,8 @@ export function createListener(
   return {
     start: () => {
       intentionalStop = false
+      gaveUp = false
+      consecutiveErrors = 0
       try { rec.start() } catch { /* already started */ }
     },
     stop: () => {
