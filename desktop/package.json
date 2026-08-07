@@ -1,6 +1,6 @@
 {
   "name": "found3ry-desktop",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "description": "FOUND3RY Phase 1 desktop packaging shell (Electron + local FastAPI/Next sidecars)",
   "main": "main.js",

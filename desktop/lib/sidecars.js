@@ -69,6 +69,18 @@ function wrapChild(child, label) {
   return sidecar
 }
 
+// Homebrew's versioned python@3.11 keg provides `python3.11` but NOT a
+// generic `python3` alias in the same directory (confirmed via `ls` on a
+// real install) -- adding that directory to PATH does nothing for a spawn
+// that asks for the literal name 'python3', since lookup just skips past
+// it to whatever directory DOES have a plain `python3` (Homebrew's latest,
+// e.g. 3.14, which lacks the packages installed specifically for 3.11).
+// Probe absolute paths to the versioned binary directly instead.
+const MAC_PYTHON311_CANDIDATES = [
+  '/opt/homebrew/opt/python@3.11/bin/python3.11',
+  '/usr/local/opt/python@3.11/bin/python3.11',
+]
+
 function resolvePythonExecutable() {
   const bundled = bundledPythonDir()
   const winBundled = path.join(bundled, 'python.exe')
@@ -78,6 +90,11 @@ function resolvePythonExecutable() {
   }
   if (fs.existsSync(nixBundled)) {
     return nixBundled
+  }
+  if (process.platform === 'darwin') {
+    for (const candidate of MAC_PYTHON311_CANDIDATES) {
+      if (fs.existsSync(candidate)) return candidate
+    }
   }
   // Dev / Phase 1 fallback: system Python on PATH.
   return process.platform === 'win32' ? 'python' : 'python3'
