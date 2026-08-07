@@ -177,11 +177,18 @@ CREATE TABLE IF NOT EXISTS projects (
     embedding TEXT,
     metadata TEXT DEFAULT '{}',
     created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
     visibility TEXT NOT NULL DEFAULT 'private',
     clearance_level INTEGER NOT NULL DEFAULT 0,
     notes TEXT DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS projects_workspace_idx ON projects (workspace_id, created_at DESC);
+-- Phase 7a: projects_touch (column backfill for pre-7a DBs is in sqlite.py)
+CREATE TRIGGER IF NOT EXISTS projects_touch AFTER UPDATE ON projects
+WHEN NEW.updated_at = OLD.updated_at
+BEGIN
+    UPDATE projects SET updated_at = datetime('now') WHERE id = NEW.id;
+END;
 
 CREATE TABLE IF NOT EXISTS tasks (
     id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
@@ -490,10 +497,17 @@ CREATE TABLE IF NOT EXISTS ideas (
     content TEXT NOT NULL,
     metadata TEXT DEFAULT '{}',
     created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
     visibility TEXT NOT NULL DEFAULT 'private',
     clearance_level INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS ideas_workspace_idx ON ideas (workspace_id, created_at DESC);
+-- Phase 7a: ideas_touch (column backfill for pre-7a DBs is in sqlite.py)
+CREATE TRIGGER IF NOT EXISTS ideas_touch AFTER UPDATE ON ideas
+WHEN NEW.updated_at = OLD.updated_at
+BEGIN
+    UPDATE ideas SET updated_at = datetime('now') WHERE id = NEW.id;
+END;
 
 CREATE TABLE IF NOT EXISTS oauth_connections (
     id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
@@ -604,3 +618,14 @@ CREATE TABLE IF NOT EXISTS watches (
 CREATE INDEX IF NOT EXISTS watches_active_idx ON watches (workspace_id, user_id) WHERE cancelled_at IS NULL;
 CREATE INDEX IF NOT EXISTS watches_due_idx ON watches (last_checked_at) WHERE cancelled_at IS NULL;
 CREATE INDEX IF NOT EXISTS watches_notice_idx ON watches (workspace_id, user_id) WHERE pending_notice IS NOT NULL AND cancelled_at IS NULL;
+
+-- Phase 7a: cloud account link pairing (tokens live in Electron safeStorage, not here)
+CREATE TABLE IF NOT EXISTS cloud_sync_link (
+    workspace_id TEXT PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
+    cloud_workspace_id TEXT NOT NULL,
+    cloud_user_id TEXT NOT NULL,
+    cloud_email TEXT,
+    linked_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_synced_at TEXT
+);
+CREATE INDEX IF NOT EXISTS cloud_sync_link_cloud_ws_idx ON cloud_sync_link (cloud_workspace_id);

@@ -223,10 +223,55 @@ def _date_trunc(unit: str, value: str) -> str:
     return dt.date().isoformat()
 
 
+async def _ensure_column(
+    conn: aiosqlite.Connection,
+    table: str,
+    column: str,
+    decl: str,
+    *,
+    backfill_sql: str | None = None,
+) -> None:
+    """Idempotent ADD COLUMN for existing desktop DBs.
+
+    Python's bundled SQLite rejects ``ADD COLUMN IF NOT EXISTS`` even on
+    recent versions, so we probe ``pragma_table_info`` instead.
+    """
+    async with conn.execute(f"PRAGMA table_info({table})") as cur:
+        rows = await cur.fetchall()
+    names = {r[1] for r in rows}
+    if column in names:
+        return
+    await conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+    if backfill_sql:
+        await conn.execute(backfill_sql)
+
+
 async def _apply_schema(conn: aiosqlite.Connection) -> None:
     with open(_SCHEMA_PATH, "r", encoding="utf-8") as f:
         schema_sql = f.read()
     await conn.executescript(schema_sql)
+    # Phase 7a: pre-7a desktop DBs created projects/ideas without updated_at.
+    # Fresh CREATE TABLE IF NOT EXISTS leaves those tables untouched.
+    await _ensure_column(
+        conn,
+        "projects",
+        "updated_at",
+        "TEXT",
+        backfill_sql=(
+            "UPDATE projects SET updated_at = COALESCE(updated_at, created_at, datetime('now')) "
+            "WHERE updated_at IS NULL"
+        ),
+    )
+    await _ensure_column(
+        conn,
+        "ideas",
+        "updated_at",
+        "TEXT",
+        backfill_sql=(
+            "UPDATE ideas SET updated_at = COALESCE(updated_at, created_at, datetime('now')) "
+            "WHERE updated_at IS NULL"
+        ),
+    )
     await conn.commit()
 
 

@@ -85,6 +85,16 @@ function buildBackendEnv(raw, ports) {
     // Phase 6c: allowlisted system actions (open app / lock / open URL).
     // Desktop defaults ON; never set this in docker-compose — web/prod stays off.
     ENABLE_SYSTEM_ACTIONS: raw.ENABLE_SYSTEM_ACTIONS || '1',
+    // Phase 7a: optional cloud account linking (no content sync yet).
+    // Default OFF until the user opts in via Settings / .env.desktop.
+    // Never set these in docker-compose — found3ry.com must not "sync to itself."
+    CLOUD_SYNC_ENABLED: raw.CLOUD_SYNC_ENABLED || '0',
+    CLOUD_SYNC_API_URL: (() => {
+      if (raw.CLOUD_SYNC_API_URL) return raw.CLOUD_SYNC_API_URL
+      const on = String(raw.CLOUD_SYNC_ENABLED || '0').toLowerCase()
+      if (['0', 'false', 'no', 'off', ''].includes(on)) return ''
+      return 'https://api.found3ry.com'
+    })(),
     DATABASE_URL: databaseUrl,
     REDIS_URL: redisUrl,
     JWT_SECRET: jwtSecret || process.env.JWT_SECRET || 'change_me_in_production',

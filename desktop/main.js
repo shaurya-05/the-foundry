@@ -6,6 +6,7 @@ const { registerSetupIpc } = require('./lib/setup-ipc')
 const { cloudByokBackendEnv } = require('./lib/cloud-byok')
 const { checkForUpdatesInBackground } = require('./lib/auto-update')
 const { registerSystemActionIpc } = require('./lib/system-action-ipc')
+const { registerCloudLinkIpc } = require('./lib/cloud-link-ipc')
 
 /** @type {import('electron').BrowserWindow | null} */
 let mainWindow = null
@@ -151,6 +152,7 @@ async function onSetupContinue(opts) {
 async function boot() {
   registerSetupIpc({ onContinue: onSetupContinue })
   registerSystemActionIpc()
+  registerCloudLinkIpc()
   createSetupWindow()
 }
 

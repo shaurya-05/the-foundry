@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import FileAccessSettings from '@/components/settings/FileAccessSettings'
 import AlwaysListeningSettings from '@/components/settings/AlwaysListeningSettings'
+import CloudAccountSettings from '@/components/settings/CloudAccountSettings'
 // Light theme only — no theme toggle needed
 
 const AVATAR_COLORS = [
@@ -205,6 +206,11 @@ export default function SettingsClient() {
       {/* ─── H3RO voice ──────────────────────────────────────────────── */}
       <Section title="H3RO voice" accent="#C47A1A">
         <AlwaysListeningSettings />
+      </Section>
+
+      {/* ─── Cloud account (Phase 7a — link only, no content sync) ───── */}
+      <Section title="Cloud account" accent="var(--color-arc-cyan-deep)">
+        <CloudAccountSettings />
       </Section>
 
       {/* ─── Profile ─────────────────────────────────────────────────── */}
