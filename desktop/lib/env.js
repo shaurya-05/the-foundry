@@ -37,6 +37,26 @@ function loadRawEnv() {
   return merged
 }
 
+function loadCloudLinkEnvOverlay() {
+  try {
+    const { cloudLinkBackendEnv, getStoredCloudTokens } = require('./cloud-link')
+    const tokens = cloudLinkBackendEnv()
+    const stored = getStoredCloudTokens()
+    return {
+      CLOUD_SYNC_ACCESS_TOKEN: tokens.CLOUD_SYNC_ACCESS_TOKEN || '',
+      CLOUD_SYNC_REFRESH_TOKEN: tokens.CLOUD_SYNC_REFRESH_TOKEN || '',
+      stored_cloud_api_url: stored.cloud_api_url || '',
+    }
+  } catch (err) {
+    console.warn('[env] cloud link token overlay skipped:', err.message || err)
+    return {
+      CLOUD_SYNC_ACCESS_TOKEN: '',
+      CLOUD_SYNC_REFRESH_TOKEN: '',
+      stored_cloud_api_url: '',
+    }
+  }
+}
+
 /**
  * Build the process env for the FastAPI sidecar.
  *
@@ -75,6 +95,18 @@ function buildBackendEnv(raw, ports) {
   // Env-file overrides still win if someone sets OLLAMA_*_MODEL explicitly.
   const modelDefaults = modelEnvDefaults()
 
+  // Phase 7b: decrypt cloud tokens from safeStorage (empty when unlinked).
+  const linkOverlay = loadCloudLinkEnvOverlay()
+  const syncOn = !['0', 'false', 'no', 'off', ''].includes(
+    String(raw.CLOUD_SYNC_ENABLED || '0').toLowerCase(),
+  )
+  let cloudApiUrl = ''
+  if (raw.CLOUD_SYNC_API_URL) {
+    cloudApiUrl = raw.CLOUD_SYNC_API_URL
+  } else if (syncOn) {
+    cloudApiUrl = linkOverlay.stored_cloud_api_url || 'https://api.found3ry.com'
+  }
+
   const env = {
     ...process.env,
     ENVIRONMENT: raw.ENVIRONMENT || 'development',
@@ -85,16 +117,13 @@ function buildBackendEnv(raw, ports) {
     // Phase 6c: allowlisted system actions (open app / lock / open URL).
     // Desktop defaults ON; never set this in docker-compose — web/prod stays off.
     ENABLE_SYSTEM_ACTIONS: raw.ENABLE_SYSTEM_ACTIONS || '1',
-    // Phase 7a: optional cloud account linking (no content sync yet).
+    // Phase 7a/7b: optional cloud linking + push sync.
     // Default OFF until the user opts in via Settings / .env.desktop.
     // Never set these in docker-compose — found3ry.com must not "sync to itself."
     CLOUD_SYNC_ENABLED: raw.CLOUD_SYNC_ENABLED || '0',
-    CLOUD_SYNC_API_URL: (() => {
-      if (raw.CLOUD_SYNC_API_URL) return raw.CLOUD_SYNC_API_URL
-      const on = String(raw.CLOUD_SYNC_ENABLED || '0').toLowerCase()
-      if (['0', 'false', 'no', 'off', ''].includes(on)) return ''
-      return 'https://api.found3ry.com'
-    })(),
+    CLOUD_SYNC_API_URL: cloudApiUrl,
+    CLOUD_SYNC_ACCESS_TOKEN: linkOverlay.CLOUD_SYNC_ACCESS_TOKEN,
+    CLOUD_SYNC_REFRESH_TOKEN: linkOverlay.CLOUD_SYNC_REFRESH_TOKEN,
     DATABASE_URL: databaseUrl,
     REDIS_URL: redisUrl,
     JWT_SECRET: jwtSecret || process.env.JWT_SECRET || 'change_me_in_production',

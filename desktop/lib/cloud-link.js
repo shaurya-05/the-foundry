@@ -184,6 +184,38 @@ function encryptionStatus() {
 }
 
 /**
+ * Decrypt stored cloud tokens for the backend sidecar env (Phase 7b).
+ * Returns empty strings when unlinked — never throws.
+ */
+function getStoredCloudTokens() {
+  const blob = loadLinkBlob()
+  if (!blob) {
+    return {
+      access_token: '',
+      refresh_token: '',
+      cloud_api_url: '',
+    }
+  }
+  return {
+    access_token: blob.access_token ? String(blob.access_token) : '',
+    refresh_token: blob.refresh_token ? String(blob.refresh_token) : '',
+    cloud_api_url: blob.cloud_api_url ? String(blob.cloud_api_url) : '',
+  }
+}
+
+/**
+ * Env overlay for the backend sidecar — cloud sync tokens from safeStorage.
+ * Safe to merge always; empty when unlinked.
+ */
+function cloudLinkBackendEnv() {
+  const tokens = getStoredCloudTokens()
+  return {
+    CLOUD_SYNC_ACCESS_TOKEN: tokens.access_token,
+    CLOUD_SYNC_REFRESH_TOKEN: tokens.refresh_token,
+  }
+}
+
+/**
  * Link flow: cloud auth → encrypt tokens → POST local /api/cloud-sync/link
  *
  * @param {{
@@ -321,6 +353,8 @@ module.exports = {
   clearLinkBlob,
   hasStoredLink,
   encryptionStatus,
+  getStoredCloudTokens,
+  cloudLinkBackendEnv,
   encPath,
   plainPath,
   requestJson,

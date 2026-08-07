@@ -58,8 +58,10 @@ export default function CloudAccountSettings() {
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [busy, setBusy] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState('')
   const [okMsg, setOkMsg] = useState('')
+  const [pushSummary, setPushSummary] = useState('')
 
   const refresh = useCallback(async () => {
     const token = getToken()
@@ -142,6 +144,7 @@ export default function CloudAccountSettings() {
     setBusy(true)
     setError('')
     setOkMsg('')
+    setPushSummary('')
     try {
       const token = getToken()
       const result = await window.foundryCloudLink!.unlink({
@@ -160,12 +163,56 @@ export default function CloudAccountSettings() {
     }
   }
 
+  async function onSyncNow() {
+    setSyncing(true)
+    setError('')
+    setOkMsg('')
+    setPushSummary('')
+    try {
+      const token = getToken()
+      if (!token) {
+        setError('Sign in to your local desktop account first.')
+        return
+      }
+      const res = await fetch(`${API_BASE}/api/cloud-sync/push-now`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const detail = typeof data.detail === 'string' ? data.detail : `Push failed (${res.status})`
+        setError(detail)
+        return
+      }
+      const parts: string[] = []
+      for (const table of ['projects', 'ideas'] as const) {
+        const t = data.tables?.[table]
+        const counts = t?.response?.counts
+        if (counts) {
+          parts.push(
+            `${table}: sent ${t.sent}, inserted ${counts.inserted}, updated ${counts.updated}, skipped ${counts['skipped-older']}, errors ${counts.error}`,
+          )
+        } else {
+          parts.push(`${table}: sent ${t?.sent ?? 0}`)
+        }
+      }
+      setOkMsg('Push completed.')
+      setPushSummary(parts.join('\n'))
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Push failed')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ fontSize: 13, color: 'var(--text-muted)', fontFamily: 'var(--font-archivo)', lineHeight: 1.45, maxWidth: 560 }}>
         Optionally link this install to a found3ry.com account (create one or sign in).
-        Your local desktop account stays separate. Tokens are encrypted on this device;
-        content sync is not enabled yet.
+        Your local desktop account stays separate. Tokens are encrypted on this device.
+        After linking, restart the app once so the cloud token loads into the backend, then use Sync now
+        to push local projects and ideas (one-way, local → cloud).
       </div>
 
       {!syncEnabled && (
@@ -204,6 +251,11 @@ export default function CloudAccountSettings() {
             {localStatus?.encryption?.usingEncryptedFile && (
               <div style={{ color: 'var(--text-muted)', marginTop: 4 }}>Tokens: encrypted (safeStorage)</div>
             )}
+            {apiStatus?.last_synced_at && (
+              <div style={{ color: 'var(--text-muted)', marginTop: 4 }}>
+                Last push: {apiStatus.last_synced_at}
+              </div>
+            )}
           </>
         ) : (
           <div style={{ color: 'var(--text-muted)' }}>Not linked</div>
@@ -211,9 +263,19 @@ export default function CloudAccountSettings() {
       </div>
 
       {linked ? (
-        <button type="button" onClick={onUnlink} disabled={busy} style={btnGhost}>
-          {busy ? 'Working…' : 'Unlink cloud account'}
-        </button>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <button
+            type="button"
+            onClick={onSyncNow}
+            disabled={busy || syncing || !syncEnabled}
+            style={{ ...btnPrimary, opacity: busy || syncing || !syncEnabled ? 0.6 : 1 }}
+          >
+            {syncing ? 'Syncing…' : 'Sync now'}
+          </button>
+          <button type="button" onClick={onUnlink} disabled={busy || syncing} style={btnGhost}>
+            {busy ? 'Working…' : 'Unlink cloud account'}
+          </button>
+        </div>
       ) : (
         <form onSubmit={onLink} style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 400 }}>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -279,6 +341,16 @@ export default function CloudAccountSettings() {
       )}
       {okMsg && (
         <div style={{ fontSize: 12, color: 'var(--color-n600)', fontFamily: 'var(--font-ibm-plex-mono)' }}>{okMsg}</div>
+      )}
+      {pushSummary && (
+        <pre style={{
+          margin: 0, padding: '10px 12px', borderRadius: 8,
+          border: '1px solid var(--border)', fontSize: 11,
+          fontFamily: 'var(--font-ibm-plex-mono)', color: 'var(--text-muted)',
+          whiteSpace: 'pre-wrap',
+        }}>
+          {pushSummary}
+        </pre>
       )}
     </div>
   )
