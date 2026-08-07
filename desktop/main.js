@@ -169,6 +169,8 @@ async function shutdown() {
 app.whenReady().then(boot)
 
 app.on('window-all-closed', async () => {
+  // Deliberate: quit on last window close on all platforms (including macOS).
+  // Dock-persistence + activate reopen is out of scope for Phase 8.
   if (continuingFromSetup) return
   await shutdown()
   app.quit()
@@ -183,18 +185,25 @@ app.on('before-quit', (event) => {
   })
 })
 
-// Last-resort: if the main process is killed hard, Windows job objects aren't
-// attached here — Phase 1 relies on before-quit + window-all-closed + taskkill /T.
+// Last-resort: if the main process is killed hard, async shutdown may not finish.
+// Windows: taskkill /T. POSIX (macOS/Linux): SIGKILL the recorded sidecar pid.
 process.on('exit', () => {
   // sync best-effort; async kill may not finish
   for (const s of sidecars) {
     try {
-      if (process.platform === 'win32' && s.pid) {
+      if (!s.pid) continue
+      if (process.platform === 'win32') {
         require('child_process').spawnSync(
           'taskkill',
           ['/pid', String(s.pid), '/T', '/F'],
           { stdio: 'ignore', windowsHide: true },
         )
+      } else {
+        try {
+          process.kill(s.pid, 'SIGKILL')
+        } catch {
+          /* already dead */
+        }
       }
     } catch {
       /* ignore */

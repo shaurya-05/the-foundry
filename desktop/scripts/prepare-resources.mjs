@@ -163,9 +163,11 @@ function stageBackend() {
 
 function stagePythonHint() {
   /**
-   * Phase 1: optional portable Python. If DESKTOP_PYTHON_SRC points at a
-   * Windows embeddable / venv directory containing python.exe, copy it.
-   * Otherwise leave resources/python empty and rely on system Python.
+   * Optional portable Python for either platform. In practice neither Windows
+   * nor macOS packaging sets DESKTOP_PYTHON_SRC today — both rely on system
+   * Python on PATH (python / python3 via resolvePythonExecutable). If
+   * DESKTOP_PYTHON_SRC points at a pre-built runtime directory, copy it into
+   * resources/python; otherwise leave a README stub.
    */
   const dest = path.join(resourcesRoot, 'python')
   const src = process.env.DESKTOP_PYTHON_SRC
@@ -177,15 +179,16 @@ function stagePythonHint() {
     copyDir(src, dest)
     fs.writeFileSync(
       path.join(dest, 'README.txt'),
-      'Bundled Python runtime for FOUND3RY Phase 1 sidecars.\n',
+      'Bundled Python runtime for FOUND3RY desktop sidecars.\n',
     )
   } else {
     fs.writeFileSync(
       path.join(dest, 'README.txt'),
       [
         'No portable Python was bundled.',
-        'Phase 1 uses system Python on PATH (python -m uvicorn).',
-        'Set DESKTOP_PYTHON_SRC to a directory containing python.exe to bundle one.',
+        'The packaged app uses system Python on PATH (python / python3 -m uvicorn).',
+        'Optional: set DESKTOP_PYTHON_SRC to a portable runtime directory to bundle one.',
+        'This is unused in the default Windows and macOS packaging paths today.',
         '',
       ].join('\n'),
     )

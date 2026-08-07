@@ -4,19 +4,37 @@
  * No path parameters. No arbitrary commands. Callers may only request
  * action + (for open_app) a keyed name from OPEN_APP_ALLOWLIST.
  * set_volume is intentionally omitted for v1 (no robust dependency-free
- * Windows volume API without fragile key-simulation or native modules).
+ * volume API without fragile key-simulation or native modules).
+ *
+ * Public keys (notepad|calculator|explorer|browser) are stable across
+ * platforms; the executor maps each key to the right OS command.
  */
 const { spawn } = require('child_process')
 const { shell } = require('electron')
 
-/** @type {Record<string, { label: string, file: string, args?: string[] }>} */
-const OPEN_APP_ALLOWLIST = {
-  notepad: { label: 'Notepad', file: 'notepad.exe', args: [] },
-  calculator: { label: 'Calculator', file: 'calc.exe', args: [] },
-  explorer: { label: 'File Explorer', file: 'explorer.exe', args: [] },
-  // Opens the user's default browser to a blank page (no arbitrary path).
-  browser: { label: 'Default browser', file: '__browser__', args: [] },
+/**
+ * @returns {Record<string, { label: string, file: string, args?: string[] }>}
+ */
+function buildOpenAppAllowlist() {
+  if (process.platform === 'darwin') {
+    return {
+      notepad: { label: 'TextEdit', file: 'open', args: ['-a', 'TextEdit'] },
+      calculator: { label: 'Calculator', file: 'open', args: ['-a', 'Calculator'] },
+      explorer: { label: 'Finder', file: 'open', args: ['.'] },
+      browser: { label: 'Default browser', file: '__browser__', args: [] },
+    }
+  }
+  // Windows (and any other platform until mapped): Phase 6c originals.
+  return {
+    notepad: { label: 'Notepad', file: 'notepad.exe', args: [] },
+    calculator: { label: 'Calculator', file: 'calc.exe', args: [] },
+    explorer: { label: 'File Explorer', file: 'explorer.exe', args: [] },
+    browser: { label: 'Default browser', file: '__browser__', args: [] },
+  }
 }
+
+/** @type {Record<string, { label: string, file: string, args?: string[] }>} */
+const OPEN_APP_ALLOWLIST = buildOpenAppAllowlist()
 
 const ACTIONS = new Set(['open_app', 'lock_screen', 'open_url'])
 
@@ -112,11 +130,19 @@ function openAllowlistedApp(entry) {
 function lockScreen() {
   return new Promise((resolve) => {
     try {
-      const child = spawn(
-        'rundll32.exe',
-        ['user32.dll,LockWorkStation'],
-        { detached: true, stdio: 'ignore', windowsHide: true, shell: false },
-      )
+      const child =
+        process.platform === 'darwin'
+          ? spawn('pmset', ['displaysleepnow'], {
+              detached: true,
+              stdio: 'ignore',
+              shell: false,
+            })
+          : spawn('rundll32.exe', ['user32.dll,LockWorkStation'], {
+              detached: true,
+              stdio: 'ignore',
+              windowsHide: true,
+              shell: false,
+            })
       child.on('error', (err) => {
         resolve({
           success: false,
@@ -124,7 +150,13 @@ function lockScreen() {
         })
       })
       child.unref()
-      resolve({ success: true, detail: 'Locked the screen' })
+      resolve({
+        success: true,
+        detail:
+          process.platform === 'darwin'
+            ? 'Requested display sleep (lock)'
+            : 'Locked the screen',
+      })
     } catch (err) {
       resolve({
         success: false,
