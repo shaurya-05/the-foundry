@@ -1,13 +1,14 @@
 """
-Cloud sync API — Phase 7a link + Phase 7b push (local -> cloud).
+Cloud sync API — Phase 7a link + Phase 7b push + Phase 7c pull.
 
 Receiving (`POST /push`): last-write-wins upsert for projects/ideas.
-Sending (`POST /push-now`): desktop-only; reads CLOUD_SYNC_* env and pushes
-local rows newer than cloud_sync_link.last_synced_at.
+Export (`GET /export`): cloud rows for a linked desktop to pull.
+Sending (`POST /push-now` / `POST /pull-now`): desktop-only; reads
+CLOUD_SYNC_* env. Push and pull use separate watermarks
+(last_synced_at / last_pulled_at).
 
-Tokens stay in Electron safeStorage; the desktop sidecar receives them via
-CLOUD_SYNC_ACCESS_TOKEN / CLOUD_SYNC_REFRESH_TOKEN at boot. No refresh or
-scheduler in this phase.
+Pull reuses `_upsert_project` / `_upsert_idea` / `_serialize_local_row`
+unchanged — no second LWW implementation.
 """
 from __future__ import annotations
 
@@ -17,7 +18,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal, Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.db.postgres import get_pool
@@ -25,7 +26,8 @@ from app.dependencies import AuthContext, require_auth
 
 router = APIRouter(prefix="/api/cloud-sync", tags=["cloud-sync"])
 
-PUSH_TABLES = ("projects", "ideas")
+SYNC_TABLES = ("projects", "ideas")
+PUSH_TABLES = SYNC_TABLES  # alias kept for callers / clarity
 
 # Columns we accept/sync. embedding is intentionally excluded from projects.
 PROJECT_COLS = (
@@ -63,17 +65,22 @@ class PushRequest(BaseModel):
     rows: list[dict[str, Any]] = Field(default_factory=list)
 
 
+def _empty_status(*, enabled: bool) -> dict:
+    return {
+        "enabled": enabled,
+        "linked": False,
+        "cloud_workspace_id": None,
+        "cloud_user_id": None,
+        "cloud_email": None,
+        "linked_at": None,
+        "last_synced_at": None,
+        "last_pulled_at": None,
+    }
+
+
 def _row_to_status(row) -> dict:
     if row is None:
-        return {
-            "enabled": True,
-            "linked": False,
-            "cloud_workspace_id": None,
-            "cloud_user_id": None,
-            "cloud_email": None,
-            "linked_at": None,
-            "last_synced_at": None,
-        }
+        return _empty_status(enabled=True)
 
     def _ts(v):
         if v is None:
@@ -90,6 +97,7 @@ def _row_to_status(row) -> dict:
         "cloud_email": row["cloud_email"],
         "linked_at": _ts(row["linked_at"]),
         "last_synced_at": _ts(row["last_synced_at"]),
+        "last_pulled_at": _ts(row.get("last_pulled_at")),
     }
 
 
@@ -380,15 +388,7 @@ def _serialize_local_row(table: str, row: dict) -> dict:
 @router.get("/status")
 async def status(auth: AuthContext = Depends(require_auth)):
     if not cloud_sync_enabled():
-        return {
-            "enabled": False,
-            "linked": False,
-            "cloud_workspace_id": None,
-            "cloud_user_id": None,
-            "cloud_email": None,
-            "linked_at": None,
-            "last_synced_at": None,
-        }
+        return _empty_status(enabled=False)
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -413,7 +413,8 @@ async def link(req: LinkRequest, auth: AuthContext = Depends(require_auth)):
                 cloud_user_id = EXCLUDED.cloud_user_id,
                 cloud_email = EXCLUDED.cloud_email,
                 linked_at = NOW(),
-                last_synced_at = NULL
+                last_synced_at = NULL,
+                last_pulled_at = NULL
             RETURNING *
             """,
             auth.workspace_id,
@@ -433,14 +434,54 @@ async def unlink(auth: AuthContext = Depends(require_auth)):
             "DELETE FROM cloud_sync_link WHERE workspace_id=$1",
             auth.workspace_id,
         )
+    return _empty_status(enabled=True)
+
+
+@router.get("/export")
+async def export_rows(
+    auth: AuthContext = Depends(require_auth),
+    table: Literal["projects", "ideas"] = Query(...),
+    since: Optional[str] = Query(None),
+):
+    """
+    Cloud-side export for desktop pull. Scoped to auth.workspace_id.
+    Not gated by CLOUD_SYNC_ENABLED (same reasoning as POST /push).
+    """
+    if table not in SYNC_TABLES:
+        raise HTTPException(status_code=400, detail=f"Unsupported table: {table}")
+
+    since_ts = _parse_ts(since) if since else None
+    # For SQLite cloud (unlikely) keep the raw string; Postgres wants datetime.
+    since_bind: Any = since_ts
+    if since and os.getenv("DATABASE_BACKEND", "postgres").lower() == "sqlite":
+        since_bind = since
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        if since_bind is None:
+            rows = await conn.fetch(
+                f"SELECT * FROM {table} WHERE workspace_id=$1",
+                auth.workspace_id,
+            )
+        else:
+            rows = await conn.fetch(
+                f"SELECT * FROM {table} WHERE workspace_id=$1 AND updated_at > $2",
+                auth.workspace_id,
+                since_bind,
+            )
+
+    payload = []
+    for r in rows:
+        pr = _serialize_local_row(table, dict(r))
+        pr.pop("embedding", None)
+        payload.append(pr)
+
     return {
-        "enabled": True,
-        "linked": False,
-        "cloud_workspace_id": None,
-        "cloud_user_id": None,
-        "cloud_email": None,
-        "linked_at": None,
-        "last_synced_at": None,
+        "table": table,
+        "workspace_id": auth.workspace_id,
+        "since": since,
+        "count": len(payload),
+        "rows": payload,
     }
 
 
@@ -453,7 +494,7 @@ async def push(req: PushRequest, auth: AuthContext = Depends(require_auth)):
     Not gated by CLOUD_SYNC_ENABLED so found3ry.com can accept desktop pushes
     without enabling outbound desktop sync on the server itself.
     """
-    if req.table not in PUSH_TABLES:
+    if req.table not in SYNC_TABLES:
         raise HTTPException(status_code=400, detail=f"Unsupported table: {req.table}")
 
     results: list[dict] = []
@@ -505,14 +546,7 @@ async def push(req: PushRequest, auth: AuthContext = Depends(require_auth)):
     }
 
 
-@router.post("/push-now")
-async def push_now(auth: AuthContext = Depends(require_auth)):
-    """
-    Desktop sending side: push local projects/ideas to CLOUD_SYNC_API_URL.
-    Requires CLOUD_SYNC_ENABLED and CLOUD_SYNC_ACCESS_TOKEN in the sidecar env.
-    """
-    _require_enabled()
-
+def _cloud_env_or_400() -> tuple[str, str]:
     access_token = (os.getenv("CLOUD_SYNC_ACCESS_TOKEN") or "").strip()
     api_url = (os.getenv("CLOUD_SYNC_API_URL") or "").rstrip("/")
     if not access_token:
@@ -528,6 +562,17 @@ async def push_now(auth: AuthContext = Depends(require_auth)):
             status_code=400,
             detail="CLOUD_SYNC_API_URL is not configured",
         )
+    return access_token, api_url
+
+
+@router.post("/push-now")
+async def push_now(auth: AuthContext = Depends(require_auth)):
+    """
+    Desktop sending side: push local projects/ideas to CLOUD_SYNC_API_URL.
+    Requires CLOUD_SYNC_ENABLED and CLOUD_SYNC_ACCESS_TOKEN in the sidecar env.
+    """
+    _require_enabled()
+    access_token, api_url = _cloud_env_or_400()
 
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -545,7 +590,7 @@ async def push_now(auth: AuthContext = Depends(require_auth)):
         push_started = datetime.now(timezone.utc)
 
         tables_out: dict[str, Any] = {}
-        for table in PUSH_TABLES:
+        for table in SYNC_TABLES:
             if last_synced is None:
                 rows = await conn.fetch(
                     f"SELECT * FROM {table} WHERE workspace_id=$1",
@@ -558,7 +603,6 @@ async def push_now(auth: AuthContext = Depends(require_auth)):
                     last_synced,
                 )
             payload_rows = [_serialize_local_row(table, dict(r)) for r in rows]
-            # Strip embedding if a SELECT * ever leaks it
             for pr in payload_rows:
                 pr.pop("embedding", None)
 
@@ -601,7 +645,6 @@ async def push_now(auth: AuthContext = Depends(require_auth)):
                 "response": resp.json(),
             }
 
-        # Refuse to advance the watermark if any row failed.
         hard_errors = []
         for table, info in tables_out.items():
             for r in (info.get("response") or {}).get("results") or []:
@@ -614,7 +657,6 @@ async def push_now(auth: AuthContext = Depends(require_auth)):
                 + "; ".join(hard_errors[:5]),
             )
 
-        # One watermark for the whole run (only after all tables succeed).
         await conn.execute(
             """
             UPDATE cloud_sync_link
@@ -629,5 +671,156 @@ async def push_now(auth: AuthContext = Depends(require_auth)):
         "ok": True,
         "pushed_at": push_started.isoformat(),
         "cloud_api_url": api_url,
+        "tables": tables_out,
+    }
+
+
+@router.post("/pull-now")
+async def pull_now(auth: AuthContext = Depends(require_auth)):
+    """
+    Desktop pull side: fetch cloud projects/ideas via GET /export and apply
+    locally with the same LWW upserts used by POST /push.
+    """
+    _require_enabled()
+    access_token, api_url = _cloud_env_or_400()
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        link_row = await conn.fetchrow(
+            "SELECT * FROM cloud_sync_link WHERE workspace_id=$1",
+            auth.workspace_id,
+        )
+        if link_row is None:
+            raise HTTPException(
+                status_code=400,
+                detail="No cloud account linked for this workspace",
+            )
+
+        last_pulled = link_row.get("last_pulled_at")
+        pull_started = datetime.now(timezone.utc)
+        since_param = None
+        if last_pulled is not None:
+            if hasattr(last_pulled, "isoformat"):
+                since_param = last_pulled.isoformat()
+            else:
+                since_param = str(last_pulled)
+
+        tables_out: dict[str, Any] = {}
+        any_content_change = False
+
+        for table in SYNC_TABLES:
+            params: dict[str, str] = {"table": table}
+            if since_param:
+                params["since"] = since_param
+
+            try:
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    resp = await client.get(
+                        f"{api_url}/api/cloud-sync/export",
+                        headers={
+                            "Authorization": f"Bearer {access_token}",
+                            "Accept": "application/json",
+                        },
+                        params=params,
+                    )
+            except httpx.HTTPError as exc:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Failed to reach cloud API ({api_url}): {exc}",
+                ) from exc
+
+            if resp.status_code == 401:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Cloud session expired — unlink and relink your cloud account",
+                )
+            if resp.status_code >= 400:
+                detail = resp.text[:400]
+                try:
+                    body = resp.json()
+                    detail = body.get("detail") or detail
+                except Exception:
+                    pass
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Cloud export rejected ({resp.status_code}): {detail}",
+                )
+
+            export_body = resp.json()
+            remote_rows = export_body.get("rows") or []
+            results: list[dict] = []
+            for raw in remote_rows:
+                if not isinstance(raw, dict):
+                    results.append({
+                        "id": None,
+                        "outcome": "error",
+                        "detail": "row must be an object",
+                    })
+                    continue
+                try:
+                    if table == "projects":
+                        results.append(await _upsert_project(conn, auth, raw))
+                    else:
+                        results.append(await _upsert_idea(conn, auth, raw))
+                except Exception as exc:
+                    results.append({
+                        "id": str(raw.get("id")) if raw.get("id") is not None else None,
+                        "outcome": "error",
+                        "detail": str(exc),
+                    })
+
+            counts = {
+                "inserted": 0,
+                "updated": 0,
+                "skipped-older": 0,
+                "error": 0,
+            }
+            for r in results:
+                outcome = r.get("outcome")
+                if outcome in counts:
+                    counts[outcome] += 1
+            if counts["inserted"] or counts["updated"]:
+                any_content_change = True
+
+            tables_out[table] = {
+                "fetched": len(remote_rows),
+                "results": results,
+                "counts": counts,
+            }
+
+        hard_errors = []
+        for table, info in tables_out.items():
+            for r in info.get("results") or []:
+                if r.get("outcome") == "error":
+                    hard_errors.append(f"{table}:{r.get('id')}:{r.get('detail')}")
+        if hard_errors:
+            raise HTTPException(
+                status_code=502,
+                detail="Cloud pull completed with row errors; last_pulled_at not advanced: "
+                + "; ".join(hard_errors[:5]),
+            )
+
+        await conn.execute(
+            """
+            UPDATE cloud_sync_link
+            SET last_pulled_at=$2
+            WHERE workspace_id=$1
+            """,
+            auth.workspace_id,
+            pull_started.isoformat(),
+        )
+
+    if any_content_change:
+        from app.db.cache import cache_invalidate
+        await cache_invalidate(
+            f"projects_list:{auth.workspace_id}",
+            f"ws_summary:{auth.workspace_id}",
+        )
+
+    return {
+        "ok": True,
+        "pulled_at": pull_started.isoformat(),
+        "cloud_api_url": api_url,
+        "since": since_param,
         "tables": tables_out,
     }

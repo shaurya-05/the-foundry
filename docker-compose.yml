@@ -32,6 +32,7 @@ services:
       - ./backend/migrations/015_agent_memory.sql:/docker-entrypoint-initdb.d/015_agent_memory.sql
       - ./backend/migrations/016_watches.sql:/docker-entrypoint-initdb.d/016_watches.sql
       - ./backend/migrations/017_cloud_sync_foundation.sql:/docker-entrypoint-initdb.d/017_cloud_sync_foundation.sql
+      - ./backend/migrations/018_cloud_sync_pull.sql:/docker-entrypoint-initdb.d/018_cloud_sync_pull.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U foundry -d foundry_db"]
       interval: 10s

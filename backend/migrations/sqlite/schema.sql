@@ -177,17 +177,22 @@ CREATE TABLE IF NOT EXISTS projects (
     embedding TEXT,
     metadata TEXT DEFAULT '{}',
     created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now')),
     visibility TEXT NOT NULL DEFAULT 'private',
     clearance_level INTEGER NOT NULL DEFAULT 0,
     notes TEXT DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS projects_workspace_idx ON projects (workspace_id, created_at DESC);
 -- Phase 7a: projects_touch (column backfill for pre-7a DBs is in sqlite.py)
+-- Phase 7c: millisecond precision (not datetime('now')'s whole-second
+-- truncation) -- cloud_sync's last-write-wins compares this against
+-- Postgres's microsecond-precision NOW(); two edits in the same second
+-- (a pull immediately followed by a local edit is a realistic case)
+-- must still compare correctly. Retrofit for pre-7c DBs is in sqlite.py.
 CREATE TRIGGER IF NOT EXISTS projects_touch AFTER UPDATE ON projects
 WHEN NEW.updated_at = OLD.updated_at
 BEGIN
-    UPDATE projects SET updated_at = datetime('now') WHERE id = NEW.id;
+    UPDATE projects SET updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') WHERE id = NEW.id;
 END;
 
 CREATE TABLE IF NOT EXISTS tasks (
@@ -497,16 +502,17 @@ CREATE TABLE IF NOT EXISTS ideas (
     content TEXT NOT NULL,
     metadata TEXT DEFAULT '{}',
     created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now')),
     visibility TEXT NOT NULL DEFAULT 'private',
     clearance_level INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS ideas_workspace_idx ON ideas (workspace_id, created_at DESC);
 -- Phase 7a: ideas_touch (column backfill for pre-7a DBs is in sqlite.py)
+-- Phase 7c: millisecond precision -- see projects_touch's comment above.
 CREATE TRIGGER IF NOT EXISTS ideas_touch AFTER UPDATE ON ideas
 WHEN NEW.updated_at = OLD.updated_at
 BEGIN
-    UPDATE ideas SET updated_at = datetime('now') WHERE id = NEW.id;
+    UPDATE ideas SET updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') WHERE id = NEW.id;
 END;
 
 CREATE TABLE IF NOT EXISTS oauth_connections (
@@ -619,13 +625,14 @@ CREATE INDEX IF NOT EXISTS watches_active_idx ON watches (workspace_id, user_id)
 CREATE INDEX IF NOT EXISTS watches_due_idx ON watches (last_checked_at) WHERE cancelled_at IS NULL;
 CREATE INDEX IF NOT EXISTS watches_notice_idx ON watches (workspace_id, user_id) WHERE pending_notice IS NOT NULL AND cancelled_at IS NULL;
 
--- Phase 7a: cloud account link pairing (tokens live in Electron safeStorage, not here)
+-- Phase 7a/7c: cloud account link pairing (tokens live in Electron safeStorage, not here)
 CREATE TABLE IF NOT EXISTS cloud_sync_link (
     workspace_id TEXT PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
     cloud_workspace_id TEXT NOT NULL,
     cloud_user_id TEXT NOT NULL,
     cloud_email TEXT,
     linked_at TEXT NOT NULL DEFAULT (datetime('now')),
-    last_synced_at TEXT
+    last_synced_at TEXT,
+    last_pulled_at TEXT
 );
 CREATE INDEX IF NOT EXISTS cloud_sync_link_cloud_ws_idx ON cloud_sync_link (cloud_workspace_id);

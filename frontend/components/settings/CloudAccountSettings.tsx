@@ -174,19 +174,22 @@ export default function CloudAccountSettings() {
         setError('Sign in to your local desktop account first.')
         return
       }
-      const res = await fetch(`${API_BASE}/api/cloud-sync/push-now`, {
+      const headers = { Authorization: `Bearer ${token}` }
+      const parts: string[] = []
+
+      const pushRes = await fetch(`${API_BASE}/api/cloud-sync/push-now`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers,
       })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        const detail = typeof data.detail === 'string' ? data.detail : `Push failed (${res.status})`
+      const pushData = await pushRes.json().catch(() => ({}))
+      if (!pushRes.ok) {
+        const detail = typeof pushData.detail === 'string' ? pushData.detail : `Push failed (${pushRes.status})`
         setError(detail)
         return
       }
-      const parts: string[] = []
+      parts.push('— Push —')
       for (const table of ['projects', 'ideas'] as const) {
-        const t = data.tables?.[table]
+        const t = pushData.tables?.[table]
         const counts = t?.response?.counts
         if (counts) {
           parts.push(
@@ -196,11 +199,37 @@ export default function CloudAccountSettings() {
           parts.push(`${table}: sent ${t?.sent ?? 0}`)
         }
       }
-      setOkMsg('Push completed.')
+
+      const pullRes = await fetch(`${API_BASE}/api/cloud-sync/pull-now`, {
+        method: 'POST',
+        headers,
+      })
+      const pullData = await pullRes.json().catch(() => ({}))
+      if (!pullRes.ok) {
+        const detail = typeof pullData.detail === 'string' ? pullData.detail : `Pull failed (${pullRes.status})`
+        setError(`Push succeeded, but pull failed: ${detail}`)
+        setPushSummary(parts.join('\n'))
+        await refresh()
+        return
+      }
+      parts.push('— Pull —')
+      for (const table of ['projects', 'ideas'] as const) {
+        const t = pullData.tables?.[table]
+        const counts = t?.counts
+        if (counts) {
+          parts.push(
+            `${table}: fetched ${t.fetched}, inserted ${counts.inserted}, updated ${counts.updated}, skipped ${counts['skipped-older']}, errors ${counts.error}`,
+          )
+        } else {
+          parts.push(`${table}: fetched ${t?.fetched ?? 0}`)
+        }
+      }
+
+      setOkMsg('Sync completed (push then pull).')
       setPushSummary(parts.join('\n'))
       await refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Push failed')
+      setError(err instanceof Error ? err.message : 'Sync failed')
     } finally {
       setSyncing(false)
     }
@@ -212,7 +241,7 @@ export default function CloudAccountSettings() {
         Optionally link this install to a found3ry.com account (create one or sign in).
         Your local desktop account stays separate. Tokens are encrypted on this device.
         After linking, restart the app once so the cloud token loads into the backend, then use Sync now
-        to push local projects and ideas (one-way, local → cloud).
+        to push local changes and pull cloud changes for projects and ideas (last-write-wins by timestamp).
       </div>
 
       {!syncEnabled && (
@@ -254,6 +283,11 @@ export default function CloudAccountSettings() {
             {apiStatus?.last_synced_at && (
               <div style={{ color: 'var(--text-muted)', marginTop: 4 }}>
                 Last push: {apiStatus.last_synced_at}
+              </div>
+            )}
+            {apiStatus?.last_pulled_at && (
+              <div style={{ color: 'var(--text-muted)', marginTop: 4 }}>
+                Last pull: {apiStatus.last_pulled_at}
               </div>
             )}
           </>

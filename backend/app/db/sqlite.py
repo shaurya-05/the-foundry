@@ -272,6 +272,35 @@ async def _apply_schema(conn: aiosqlite.Connection) -> None:
             "WHERE updated_at IS NULL"
         ),
     )
+    # Phase 7c: pre-7c desktop DBs lack last_pulled_at on cloud_sync_link.
+    await _ensure_column(conn, "cloud_sync_link", "last_pulled_at", "TEXT")
+    # Phase 7c: projects_touch/ideas_touch originally used datetime('now'),
+    # which truncates to whole seconds. cloud_sync's last-write-wins compares
+    # this against Postgres's microsecond-precision NOW() -- a local edit
+    # landing in the same second as a just-pulled cloud timestamp could be
+    # wrongly judged "not newer" purely from precision loss. schema.sql's
+    # CREATE TRIGGER IF NOT EXISTS won't replace an already-existing trigger
+    # on a pre-7c desktop DB, so drop and recreate explicitly here.
+    await conn.execute("DROP TRIGGER IF EXISTS projects_touch")
+    await conn.execute(
+        """
+        CREATE TRIGGER projects_touch AFTER UPDATE ON projects
+        WHEN NEW.updated_at = OLD.updated_at
+        BEGIN
+            UPDATE projects SET updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') WHERE id = NEW.id;
+        END
+        """
+    )
+    await conn.execute("DROP TRIGGER IF EXISTS ideas_touch")
+    await conn.execute(
+        """
+        CREATE TRIGGER ideas_touch AFTER UPDATE ON ideas
+        WHEN NEW.updated_at = OLD.updated_at
+        BEGIN
+            UPDATE ideas SET updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') WHERE id = NEW.id;
+        END
+        """
+    )
     await conn.commit()
 
 
