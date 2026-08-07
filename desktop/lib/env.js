@@ -58,6 +58,30 @@ function loadCloudLinkEnvOverlay() {
 }
 
 /**
+ * A GUI-launched app (double-click in Finder/Dock) inherits PATH from
+ * macOS's login environment, NOT the user's shell rc files (~/.zshrc etc)
+ * -- so a `python3` fix added via .zshrc only ever helps Terminal-launched
+ * instances, and the exact same app silently fails to find a working
+ * Python when double-clicked. Prepend the common locations for a
+ * Homebrew-installed versioned Python (both Apple Silicon and Intel
+ * prefixes) so `python3` resolves consistently regardless of how the app
+ * was launched. Prepending nonexistent directories is harmless -- PATH
+ * lookup just skips over them.
+ */
+function augmentedPath() {
+  if (process.platform !== 'darwin') return process.env.PATH || ''
+  const extra = [
+    '/opt/homebrew/opt/python@3.11/bin',
+    '/opt/homebrew/bin',
+    '/usr/local/opt/python@3.11/bin',
+    '/usr/local/bin',
+  ]
+  const existing = (process.env.PATH || '').split(':').filter(Boolean)
+  const merged = [...extra, ...existing]
+  return [...new Set(merged)].join(':')
+}
+
+/**
  * Build the process env for the FastAPI sidecar.
  *
  * Phase 2b desktop default: local SQLite + in-memory cache, no Docker
@@ -112,6 +136,7 @@ function buildBackendEnv(raw, ports) {
 
   const env = {
     ...process.env,
+    PATH: augmentedPath(),
     ENVIRONMENT: raw.ENVIRONMENT || 'development',
     DATABASE_BACKEND: databaseBackend,
     CACHE_BACKEND: cacheBackend,
