@@ -68,11 +68,15 @@ async function createWindow(frontendUrl) {
     },
   })
 
-  // Explicit allow for mic access (push-to-talk + wake word) rather than
-  // relying on Electron's version-dependent default permission behavior —
-  // this is our own app's session, not arbitrary web content.
+  // Explicit allow for mic (push-to-talk / wake word) and File System Access
+  // API directory picks ("Grant full access"). Electron surfaces the latter as
+  // permission 'fileSystem' — denying it makes showDirectoryPicker abort even
+  // when the constructor exists (Phase 13 probe evidence).
   mainWindow.webContents.session.setPermissionRequestHandler((_webContents, permission, callback) => {
-    callback(permission === 'media')
+    callback(permission === 'media' || permission === 'fileSystem')
+  })
+  mainWindow.webContents.session.setPermissionCheckHandler((_webContents, permission) => {
+    return permission === 'media' || permission === 'fileSystem'
   })
 
   mainWindow.once('ready-to-show', () => {

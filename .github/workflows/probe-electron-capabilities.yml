@@ -1,0 +1,41 @@
+# Phase 13 — probe Electron SpeechRecognition + File System Access on real macOS.
+# Manual only. Uploads probe JSON as an artifact (not a Release).
+
+name: Probe Electron capabilities
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe-mac:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install desktop dependencies
+        run: npm ci
+
+      - name: Run Electron capability probe
+        run: |
+          # Headless-ish: still launches Electron; probe window is show:false
+          npx electron scripts/probe-electron-capabilities.js 2>&1 | tee probe-out.txt
+          # Fail the job if probe did not print a result line
+          grep -q 'PHASE13_PROBE_RESULT=' probe-out.txt
+
+      - name: Upload probe output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-probe-macos-${{ github.run_id }}
+          path: desktop/probe-out.txt
+          if-no-files-found: warn
+          retention-days: 14
