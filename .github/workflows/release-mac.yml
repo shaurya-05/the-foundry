@@ -1,0 +1,50 @@
+# Real macOS publish — attaches the unsigned dmg/zip (+ latest-mac.yml for
+# auto-update) to the existing GitHub Release matching desktop/package.json's
+# version. Separate from build-mac.yml (Phase 9), which stays read-only and
+# publish:never on purpose — this workflow is the one deliberate exception
+# that needs write access, used only when a human has decided to publish.
+#
+# Manual trigger only. Never runs automatically.
+
+name: Release macOS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release-mac:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: desktop
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            desktop/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install desktop dependencies
+        run: npm ci
+
+      - name: Stage frontend + backend resources
+        run: node scripts/prepare-resources.mjs
+
+      - name: Build and publish unsigned macOS package (dmg + zip)
+        run: npx electron-builder --mac --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
