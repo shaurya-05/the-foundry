@@ -58,6 +58,9 @@ export default function LandingPage() {
           <button onClick={() => router.push('/about')} className="py-2 px-2.5 sm:px-3.5 bg-transparent border-0 cursor-pointer font-display font-semibold text-[11px] tracking-[0.06em] uppercase text-n-600 hover:text-ink transition-colors duration-100">
             About
           </button>
+          <button onClick={() => router.push('/download')} className="py-2 px-2.5 sm:px-3.5 bg-transparent border-0 cursor-pointer font-display font-semibold text-[11px] tracking-[0.06em] uppercase text-n-600 hover:text-ink transition-colors duration-100">
+            Download
+          </button>
           <SolidNavButton onClick={() => router.push('/login')}>Sign In</SolidNavButton>
         </div>
       </nav>
