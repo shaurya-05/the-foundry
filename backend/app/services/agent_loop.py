@@ -172,8 +172,17 @@ async def run_agent_loop(
 
     yield {"type": "agent_started", "goal": goal}
 
+    # Phase 11 — per-user communication style from preferences.h3ro_style
+    try:
+        from app.services.h3ro_style import format_style_prompt_block, get_user_h3ro_style
+
+        _style = await get_user_h3ro_style(ctx.user_id)
+        _system = AGENT_SYSTEM_PROMPT + "\n\n" + format_style_prompt_block(_style)
+    except Exception:
+        _system = AGENT_SYSTEM_PROMPT
+
     messages: list[dict[str, str]] = [
-        {"role": "system", "content": AGENT_SYSTEM_PROMPT},
+        {"role": "system", "content": _system},
     ]
     if cross_thread_context and cross_thread_context.strip():
         messages.append({

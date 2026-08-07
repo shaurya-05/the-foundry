@@ -455,7 +455,8 @@ async def oauth_callback(
         )
 
     # Route the callback redirect based on onboarding state.
-    if onboarding_step is not None and onboarding_step < 2:
+    # Phase 12: step 0 = still in connect onboarding; >=1 = complete.
+    if onboarding_step is not None and onboarding_step < 1:
         dest = f"{fe}/onboarding/connect?status=connected&provider={provider}"
     else:
         dest = f"{fe}/settings/connections?status=connected&provider={provider}"

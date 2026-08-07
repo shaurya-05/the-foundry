@@ -18,7 +18,7 @@ function OnboardingConnectInner() {
   useEffect(() => {
     if (loading) return
     if (!user) { router.push('/login'); return }
-    if (user.onboarding_step === 0) { router.push('/onboarding/venture'); return }
+    // Phase 12: step 0 is the correct state for this page (optional connect).
   }, [user, loading, router])
 
   // Handle OAuth callback redirect — ?status=connected or ?status=error
@@ -39,12 +39,16 @@ function OnboardingConnectInner() {
     fetch(`${API_URL}/api/workspaces/onboarding-step`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
-      body: JSON.stringify({ step: 2 }),
+      body: JSON.stringify({ step: 1 }),
     })
       .then((res) => {
         if (!res.ok) return res.json().then((d) => { throw new Error(d.detail || 'Step update failed') })
       })
-      .then(() => router.push('/onboarding/ask'))
+      .then(() => {
+        const isSecure = typeof window !== 'undefined' && location.protocol === 'https:' ? '; Secure' : ''
+        document.cookie = `foundry_onboarding_done=1; path=/; SameSite=Lax${isSecure}; max-age=31536000`
+        router.push('/dashboard')
+      })
       .catch((e) => setError(e.message || 'Failed to advance onboarding'))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -71,7 +75,19 @@ function OnboardingConnectInner() {
     }
   }
 
-  function skip() {
+  async function skip() {
+    const t = getToken()
+    if (t) {
+      try {
+        await fetch(`${API_URL}/api/workspaces/onboarding-step`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
+          body: JSON.stringify({ step: 1 }),
+        })
+      } catch {
+        // Don't block navigation if the step PATCH fails
+      }
+    }
     const isSecure = typeof window !== 'undefined' && location.protocol === 'https:' ? '; Secure' : ''
     document.cookie = `foundry_onboarding_done=1; path=/; SameSite=Lax${isSecure}; max-age=31536000`
     router.push('/dashboard')
@@ -121,7 +137,7 @@ function OnboardingConnectInner() {
           borderBottom: '1px solid var(--color-n200)',
           background: 'var(--color-vellum)',
         }}>
-          <EyebrowLabel number="02" keyword="CONNECT" />
+          <EyebrowLabel number="01" keyword="CONNECT" />
         </div>
 
         {/* Content */}
@@ -239,27 +255,6 @@ function OnboardingConnectInner() {
       >
         Skip for now — connect later
       </button>
-
-      {/* Step indicator */}
-      <div style={{
-        marginTop: 20,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-      }}>
-        {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            style={{
-              width: i === 1 ? 20 : 6,
-              height: 6,
-              borderRadius: 3,
-              background: i === 1 ? 'var(--color-arc-cyan)' : 'var(--color-n300)',
-              transition: 'all var(--duration-fast, 120ms)',
-            }}
-          />
-        ))}
-      </div>
     </div>
   )
 }

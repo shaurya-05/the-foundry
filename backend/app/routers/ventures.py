@@ -81,7 +81,7 @@ async def update_onboarding_step(req: OnboardingStepRequest, auth: AuthContext =
         )
         if current is not None and req.step <= current:
             raise HTTPException(status_code=400, detail="step must advance")
-        if req.step >= 3:
+        if req.step >= 1:
             await conn.execute(
                 "UPDATE workspaces SET onboarding_step=$1, onboarding_completed_at=NOW() WHERE id=$2",
                 req.step, auth.workspace_id,

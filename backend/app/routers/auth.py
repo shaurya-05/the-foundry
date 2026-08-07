@@ -437,6 +437,16 @@ async def get_me(authorization: Optional[str] = Header(None)):
             str(user["workspace_id"]),
         )
 
+        prefs = user["preferences"] or {}
+        if isinstance(prefs, str):
+            import json as _json
+            try:
+                prefs = _json.loads(prefs) if prefs.strip() else {}
+            except Exception:
+                prefs = {}
+        if not isinstance(prefs, dict):
+            prefs = {}
+
         return {
             "id": str(user["id"]),
             "email": user["email"],
@@ -448,7 +458,7 @@ async def get_me(authorization: Optional[str] = Header(None)):
             "onboarding_completed_at": ws["onboarding_completed_at"].isoformat() if ws and ws["onboarding_completed_at"] else None,
             "role": user["role"],
             "email_verified": user["email_verified"],
-            "preferences": user["preferences"] or {},
+            "preferences": prefs,
             "members_count": int(members_count),
             "members": [
                 {

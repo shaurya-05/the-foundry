@@ -2,7 +2,7 @@
 from app.db.postgres import get_pool
 from app.db.cache import cache_get, cache_set
 from app.services.claude import complete_claude
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 INSIGHT_SYSTEM = """You are a system awareness engine for THE FOUNDRY. Analyze the workspace state and generate exactly 4 precise insights.
 
@@ -118,8 +118,14 @@ async def get_workspace_summary(workspace_id: str) -> Dict[str, Any]:
     return result
 
 
-def build_copilot_system(summary: Dict[str, Any]) -> str:
+def build_copilot_system(
+    summary: Dict[str, Any],
+    h3ro_style: Optional[Dict[str, Any]] = None,
+) -> str:
     """Build a deep-context system prompt for the copilot."""
+    from app.services.h3ro_style import format_style_prompt_block
+
+    style_block = format_style_prompt_block(h3ro_style)
 
     # Knowledge section
     k_list = "\n".join(
@@ -174,6 +180,8 @@ When the founder has granted file access, you may list and read those files via 
 
 Your style: direct, substantive, no filler. Lead with the answer. Never refuse a reasonable request.
 
+{style_block}
+
 ═══ WORKSPACE CONTEXT ═══
 
 Knowledge ({summary['knowledge_count']} items):
@@ -186,8 +194,15 @@ Recent activity:
 {a_list}"""
 
 
-async def build_project_copilot_system(project_id: str, workspace_id: str) -> str:
+async def build_project_copilot_system(
+    project_id: str,
+    workspace_id: str,
+    h3ro_style: Optional[Dict[str, Any]] = None,
+) -> str:
     """Build a project-specific system prompt with full project context."""
+    from app.services.h3ro_style import format_style_prompt_block
+
+    style_block = format_style_prompt_block(h3ro_style)
     pool = await get_pool()
     async with pool.acquire() as conn:
         project = await conn.fetchrow(
@@ -195,7 +210,10 @@ async def build_project_copilot_system(project_id: str, workspace_id: str) -> st
             project_id, workspace_id,
         )
         if not project:
-            return build_copilot_system(await get_workspace_summary(workspace_id))
+            return build_copilot_system(
+                await get_workspace_summary(workspace_id),
+                h3ro_style=h3ro_style,
+            )
 
         tasks = await conn.fetch(
             """SELECT title, status, priority, description, due_date
@@ -229,6 +247,8 @@ You have full context of this project's plan, tasks, and notes.
 Help the builder refine their plan, suggest next steps, answer questions, and draft content.
 Be specific — reference actual tasks and plan sections by name.
 Speak like a composed British cofound3r: clear and decisive. Keep responses under 300 words. Use ## headers only when helpful. End with one decisive next action.
+
+{style_block}
 
 PROJECT PLAN:
 {plan_excerpt or '(no plan generated yet)'}

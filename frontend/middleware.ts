@@ -22,9 +22,8 @@ export async function middleware(request: NextRequest) {
       if (res.ok) {
         const user = await res.json()
         const step: number = typeof user.onboarding_step === 'number' ? user.onboarding_step : -1
-        if (step === 0) return NextResponse.redirect(new URL('/onboarding/venture', request.url))
-        if (step === 1) return NextResponse.redirect(new URL('/onboarding/connect', request.url))
-        if (step === 2) return NextResponse.redirect(new URL('/onboarding/ask', request.url))
+        // Phase 12: single optional connect step. step 0 → connect; >=1 → done.
+        if (step === 0) return NextResponse.redirect(new URL('/onboarding/connect', request.url))
       }
     } catch {
       // Backend unreachable or token expired — let the page handle auth

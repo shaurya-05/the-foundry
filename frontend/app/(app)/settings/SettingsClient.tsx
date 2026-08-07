@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth'
 import FileAccessSettings from '@/components/settings/FileAccessSettings'
 import AlwaysListeningSettings from '@/components/settings/AlwaysListeningSettings'
 import CloudAccountSettings from '@/components/settings/CloudAccountSettings'
+import H3roStyleSettings from '@/components/settings/H3roStyleSettings'
 // Light theme only — no theme toggle needed
 
 const AVATAR_COLORS = [
@@ -206,6 +207,11 @@ export default function SettingsClient() {
       {/* ─── H3RO voice ──────────────────────────────────────────────── */}
       <Section title="H3RO voice" accent="#C47A1A">
         <AlwaysListeningSettings />
+      </Section>
+
+      {/* ─── H3RO communication style (Phase 11) ─────────────────────── */}
+      <Section title="H3RO communication style" accent="var(--color-arc-cyan-deep)">
+        <H3roStyleSettings />
       </Section>
 
       {/* ─── Cloud account (Phase 7a — link only, no content sync) ───── */}

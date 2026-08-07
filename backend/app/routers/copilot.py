@@ -161,6 +161,16 @@ async def _append_conversation_memory(
         log.warning("conversation_memory_append_failed", error=str(e)[:200])
 
 
+async def _maybe_learn_h3ro_style(user_id: str, user_message: str) -> None:
+    """Phase 11 — post-turn style detection (no confirm gate; fail-closed)."""
+    try:
+        from app.services.h3ro_style import maybe_update_h3ro_style_from_message
+
+        await maybe_update_h3ro_style_from_message(user_id, user_message)
+    except Exception as e:
+        log.warning("h3ro_style_hook_failed", error=str(e)[:200])
+
+
 # Max time we wait AFTER the primary answer completes for the council task
 # to finish. Council is fire-and-forget from the primary stream's POV —
 # never blocks a text_delta yield.
@@ -289,6 +299,7 @@ async def copilot_message_ws(websocket: WebSocket):
                 await _append_conversation_memory(
                     auth.workspace_id, auth.user_id, req.message, final_text, thread_id,
                 )
+                await _maybe_learn_h3ro_style(auth.user_id, req.message)
         except WebSocketDisconnect:
             log.info("copilot_ws_client_disconnected", thread_id=thread_id, agent_mode=True)
         finally:
@@ -299,10 +310,16 @@ async def copilot_message_ws(websocket: WebSocket):
         return
 
     if req.project_id:
-        system = await build_project_copilot_system(req.project_id, auth.workspace_id)
+        from app.services.h3ro_style import get_user_h3ro_style
+        _style = await get_user_h3ro_style(auth.user_id)
+        system = await build_project_copilot_system(
+            req.project_id, auth.workspace_id, h3ro_style=_style,
+        )
     else:
+        from app.services.h3ro_style import get_user_h3ro_style
         summary = await get_workspace_summary(auth.workspace_id)
-        system = build_copilot_system(summary)
+        _style = await get_user_h3ro_style(auth.user_id)
+        system = build_copilot_system(summary, h3ro_style=_style)
 
     try:
         await increment_usage(auth.workspace_id, 'copilot_messages')
@@ -367,6 +384,7 @@ async def copilot_message_ws(websocket: WebSocket):
                     "INSERT INTO copilot_messages (workspace_id, user_id, role, content, project_id, model_used, thread_id) VALUES ($1, $2, 'assistant', $3, $4, $5, $6)",
                     auth.workspace_id, auth.user_id, assistant_text, req.project_id, model_used, thread_id,
                 )
+            await _maybe_learn_h3ro_style(auth.user_id, req.message)
     except WebSocketDisconnect:
         log.info("copilot_ws_client_disconnected", thread_id=thread_id)
         return
