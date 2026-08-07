@@ -132,8 +132,23 @@ async def lifespan(app: FastAPI):
     watch_stop = asyncio.Event()
     watch_task = asyncio.create_task(_watch_loop(watch_stop))
 
+    # Phase 7d: optional cloud sync loop (push then pull per linked workspace).
+    # Idle when CLOUD_SYNC_ENABLED is off — never set that in docker-compose.
+    from app.services.cloud_sync_runner import cloud_sync_loop as _cloud_sync_loop
+    cloud_sync_stop = asyncio.Event()
+    cloud_sync_task = asyncio.create_task(_cloud_sync_loop(cloud_sync_stop))
+
     log.info("startup_complete", origins=ALLOWED_ORIGINS, environment=ENVIRONMENT)
     yield
+
+    cloud_sync_stop.set()
+    cloud_sync_task.cancel()
+    try:
+        await cloud_sync_task
+    except asyncio.CancelledError:
+        pass
+    except Exception:
+        pass
 
     watch_stop.set()
     watch_task.cancel()

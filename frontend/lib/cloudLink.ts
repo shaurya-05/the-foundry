@@ -43,6 +43,7 @@ export type CloudSyncApiStatus = {
   linked_at: string | null
   last_synced_at: string | null
   last_pulled_at: string | null
+  interval_s: number | null
 }
 
 type FoundryCloudLinkApi = {

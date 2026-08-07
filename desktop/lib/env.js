@@ -124,6 +124,8 @@ function buildBackendEnv(raw, ports) {
     CLOUD_SYNC_API_URL: cloudApiUrl,
     CLOUD_SYNC_ACCESS_TOKEN: linkOverlay.CLOUD_SYNC_ACCESS_TOKEN,
     CLOUD_SYNC_REFRESH_TOKEN: linkOverlay.CLOUD_SYNC_REFRESH_TOKEN,
+    // Phase 7d: background push+pull interval (seconds). Floored at 60 in backend.
+    CLOUD_SYNC_INTERVAL_S: raw.CLOUD_SYNC_INTERVAL_S || '600',
     DATABASE_URL: databaseUrl,
     REDIS_URL: redisUrl,
     JWT_SECRET: jwtSecret || process.env.JWT_SECRET || 'change_me_in_production',

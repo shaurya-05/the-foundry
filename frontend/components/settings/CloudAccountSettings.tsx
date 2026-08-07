@@ -176,6 +176,7 @@ export default function CloudAccountSettings() {
       }
       const headers = { Authorization: `Bearer ${token}` }
       const parts: string[] = []
+      let skippedTotal = 0
 
       const pushRes = await fetch(`${API_BASE}/api/cloud-sync/push-now`, {
         method: 'POST',
@@ -192,6 +193,7 @@ export default function CloudAccountSettings() {
         const t = pushData.tables?.[table]
         const counts = t?.response?.counts
         if (counts) {
+          skippedTotal += Number(counts['skipped-older'] || 0)
           parts.push(
             `${table}: sent ${t.sent}, inserted ${counts.inserted}, updated ${counts.updated}, skipped ${counts['skipped-older']}, errors ${counts.error}`,
           )
@@ -217,12 +219,19 @@ export default function CloudAccountSettings() {
         const t = pullData.tables?.[table]
         const counts = t?.counts
         if (counts) {
+          skippedTotal += Number(counts['skipped-older'] || 0)
           parts.push(
             `${table}: fetched ${t.fetched}, inserted ${counts.inserted}, updated ${counts.updated}, skipped ${counts['skipped-older']}, errors ${counts.error}`,
           )
         } else {
           parts.push(`${table}: fetched ${t?.fetched ?? 0}`)
         }
+      }
+
+      if (skippedTotal > 0) {
+        parts.push(
+          `Note: ${skippedTotal} change${skippedTotal === 1 ? ' was' : 's were'} skipped because a newer version existed elsewhere (last-write-wins).`,
+        )
       }
 
       setOkMsg('Sync completed (push then pull).')
@@ -240,8 +249,8 @@ export default function CloudAccountSettings() {
       <div style={{ fontSize: 13, color: 'var(--text-muted)', fontFamily: 'var(--font-archivo)', lineHeight: 1.45, maxWidth: 560 }}>
         Optionally link this install to a found3ry.com account (create one or sign in).
         Your local desktop account stays separate. Tokens are encrypted on this device.
-        After linking, restart the app once so the cloud token loads into the backend, then use Sync now
-        to push local changes and pull cloud changes for projects and ideas (last-write-wins by timestamp).
+        After linking, restart once so tokens load into the backend — then sync runs
+        automatically in the background. Sync now forces an immediate push+pull.
       </div>
 
       {!syncEnabled && (
@@ -280,6 +289,14 @@ export default function CloudAccountSettings() {
             {localStatus?.encryption?.usingEncryptedFile && (
               <div style={{ color: 'var(--text-muted)', marginTop: 4 }}>Tokens: encrypted (safeStorage)</div>
             )}
+            {typeof apiStatus?.interval_s === 'number' && (
+              <div style={{ color: 'var(--text-muted)', marginTop: 4 }}>
+                Auto-sync every {apiStatus.interval_s >= 60
+                  ? `${Math.round(apiStatus.interval_s / 60)} min`
+                  : `${apiStatus.interval_s}s`}
+                {' '}(projects &amp; ideas)
+              </div>
+            )}
             {apiStatus?.last_synced_at && (
               <div style={{ color: 'var(--text-muted)', marginTop: 4 }}>
                 Last push: {apiStatus.last_synced_at}
@@ -288,6 +305,11 @@ export default function CloudAccountSettings() {
             {apiStatus?.last_pulled_at && (
               <div style={{ color: 'var(--text-muted)', marginTop: 4 }}>
                 Last pull: {apiStatus.last_pulled_at}
+              </div>
+            )}
+            {!apiStatus?.last_synced_at && !apiStatus?.last_pulled_at && (
+              <div style={{ color: 'var(--text-muted)', marginTop: 4 }}>
+                No sync run yet — waiting for the next auto interval, or use Sync now.
               </div>
             )}
           </>
