@@ -25,11 +25,13 @@ jobs:
         run: npm ci
 
       - name: Run Electron capability probe
+        env:
+          CI: 'true'
         run: |
-          # Headless-ish: still launches Electron; probe window is show:false
           npx electron scripts/probe-electron-capabilities.js 2>&1 | tee probe-out.txt
-          # Fail the job if probe did not print a result line
           grep -q 'PHASE13_PROBE_RESULT=' probe-out.txt
+          # Surface the STT error line clearly in the job log
+          node -e "const fs=require('fs'); const t=fs.readFileSync('probe-out.txt','utf8'); const m=t.match(/PHASE13_PROBE_RESULT=(.*)/); if(!m) process.exit(2); const j=JSON.parse(m[1]); console.log('STT_ERROR=' + (j.stt && j.stt.error)); console.log('STT_FIRST=' + (j.stt && j.stt.firstEvent)); console.log('GUM_OK=' + (j.getUserMedia && j.getUserMedia.ok)); console.log('GUM_ERR=' + (j.getUserMedia && j.getUserMedia.error)); console.log('FSA_TYPE=' + j.showDirectoryPicker); console.log('UA=' + j.userAgent);"
 
       - name: Upload probe output
         if: always()

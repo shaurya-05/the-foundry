@@ -1,17 +1,23 @@
 /**
- * Phase 13 probe v2 — load over http://127.0.0.1 (secure context), log every
- * session permission request/check, mirror desktop/main.js sandbox + media grant.
+ * Phase 13 probe — load over http://127.0.0.1 (secure context), log every
+ * session permission request/check, mirror desktop/main.js sandbox + grants.
+ *
+ * CI=1 skips interactive showDirectoryPicker (hangs headless runners).
  */
 const http = require('http')
 const { app, BrowserWindow, session } = require('electron')
 
+const IS_CI = process.env.CI === 'true' || process.env.CI === '1'
+
 const PAGE = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>phase13-probe</title></head>
 <body><pre id="out">probing…</pre>
 <script>
+window.__PHASE13_CI = ${IS_CI ? 'true' : 'false'};
 window.__PHASE13_RUN = async () => {
   const out = {
     href: location.href,
     isSecureContext: window.isSecureContext,
+    ci: window.__PHASE13_CI,
     userAgent: navigator.userAgent,
     hasSpeechRecognition: typeof window.SpeechRecognition !== 'undefined',
     hasWebkitSpeechRecognition: typeof window.webkitSpeechRecognition !== 'undefined',
@@ -21,8 +27,8 @@ window.__PHASE13_RUN = async () => {
     mediaDevices: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
     permissions: {},
     stt: { startThrew: null, firstEvent: null, error: null, resultFired: false, endFired: false, timedOut: false },
-    getUserMedia: { ok: false, error: null },
-    showDirectoryPickerCall: { ok: false, error: null },
+    getUserMedia: { ok: false, error: null, skipped: false },
+    showDirectoryPickerCall: { ok: false, error: null, skipped: false },
   };
 
   if (navigator.permissions && navigator.permissions.query) {
@@ -75,7 +81,10 @@ window.__PHASE13_RUN = async () => {
 
   if (out.mediaDevices) {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await Promise.race([
+        navigator.mediaDevices.getUserMedia({ audio: true }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('getUserMedia_timeout_5s')), 5000)),
+      ]);
       out.getUserMedia.ok = true;
       stream.getTracks().forEach((t) => t.stop());
     } catch (e) {
@@ -83,7 +92,10 @@ window.__PHASE13_RUN = async () => {
     }
   }
 
-  if (typeof window.showDirectoryPicker === 'function') {
+  if (window.__PHASE13_CI) {
+    out.showDirectoryPickerCall.skipped = true;
+    out.showDirectoryPickerCall.error = 'skipped_on_ci';
+  } else if (typeof window.showDirectoryPicker === 'function') {
     try {
       await window.showDirectoryPicker({ mode: 'read' });
       out.showDirectoryPickerCall.ok = true;
@@ -110,7 +122,6 @@ app.whenReady().then(async () => {
   const ses = session.defaultSession
   ses.setPermissionRequestHandler((_wc, permission, callback, details) => {
     permissionLog.push({ type: 'request', permission, details: details || null })
-    // Match Phase 13 desktop/main.js policy
     callback(permission === 'media' || permission === 'fileSystem')
   })
   ses.setPermissionCheckHandler((_wc, permission, requestingOrigin, details) => {
@@ -130,7 +141,10 @@ app.whenReady().then(async () => {
   })
 
   await win.loadURL(url)
-  const result = await win.webContents.executeJavaScript('window.__PHASE13_RUN()', true)
+  const result = await Promise.race([
+    win.webContents.executeJavaScript('window.__PHASE13_RUN()', true),
+    new Promise((_, rej) => setTimeout(() => rej(new Error('executeJavaScript_timeout_25s')), 25000)),
+  ])
   result.electronPermissionLog = permissionLog
 
   console.log('PHASE13_PROBE_RESULT=' + JSON.stringify(result))
