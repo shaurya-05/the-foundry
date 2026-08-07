@@ -7,6 +7,14 @@ name: Build macOS
 on:
   workflow_dispatch:
 
+# Read-only by default at the repo level already, but make the ceiling
+# explicit and self-documenting here too: this workflow only checks out,
+# builds, and uploads a CI artifact — it never needs write access, even
+# though a GH_TOKEN is passed through below for electron-builder's publish
+# config probing (--publish never is what actually stops any publish).
+permissions:
+  contents: read
+
 jobs:
   build-mac:
     runs-on: macos-latest
