@@ -1,6 +1,6 @@
 const fs = require('fs')
 const path = require('path')
-const { envFileCandidates } = require('./paths')
+const { envFileCandidates, userDataDir } = require('./paths')
 const { modelEnvDefaults } = require('./ollama')
 
 /**
@@ -85,11 +85,14 @@ function buildBackendEnv(raw, ports) {
   const redisUrl = raw.REDIS_URL || 'redis://127.0.0.1:6380'
 
   // Default SQLite file (SQLITE_DB_PATH is what app/db/sqlite.py reads).
+  // Must NOT default to a path inside the app bundle (backendDir()) --
+  // that gets deleted on every reinstall/update, wiping all user data.
+  // userDataDir() survives updates; only an explicit override wins over it.
   const sqlitePath =
     raw.SQLITE_DB_PATH ||
     raw.SQLITE_PATH ||
     process.env.SQLITE_DB_PATH ||
-    ''
+    path.join(userDataDir(), 'foundry_desktop.db')
 
   // Model tags come from lib/ollama.js REQUIRED_MODELS — single source of truth.
   // Env-file overrides still win if someone sets OLLAMA_*_MODEL explicitly.

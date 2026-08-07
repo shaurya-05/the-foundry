@@ -47,6 +47,17 @@ function bundledPythonDir() {
   return path.join(__dirname, '..', 'resources', 'python')
 }
 
+/**
+ * Stable, update-independent storage location (e.g. ~/Library/Application
+ * Support/FOUND3RY on macOS, %APPDATA%/FOUND3RY on Windows). Replacing the
+ * .app bundle (a manual dmg drag, or an auto-update) deletes everything
+ * under resourcesPath, including any file living next to the backend --
+ * the desktop SQLite database must NOT live there or every update wipes it.
+ */
+function userDataDir() {
+  return app.getPath('userData')
+}
+
 function envFileCandidates() {
   const candidates = []
 
@@ -89,5 +100,6 @@ module.exports = {
   frontendStandaloneDir,
   backendDir,
   bundledPythonDir,
+  userDataDir,
   envFileCandidates,
 }
