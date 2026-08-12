@@ -33,6 +33,7 @@ export default function AlwaysListeningSettings() {
       <div style={{ fontSize: 13, color: 'var(--text-muted)', fontFamily: 'var(--font-archivo)', lineHeight: 1.45, maxWidth: 560 }}>
         Keep the microphone open and only send a turn after you say “Hey H3RO” or “Hey hero”.
         Off by default. When on, the orb shows an amber <strong>mic hot</strong> state so you always know audio is being captured.
+        Saying the wake word while H3RO is speaking can interrupt the reply — works best with headphones so the mic isn’t fighting the speakers.
       </div>
       <label style={{
         display: 'inline-flex',

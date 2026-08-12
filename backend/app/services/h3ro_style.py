@@ -22,11 +22,16 @@ log = structlog.get_logger()
 VERBOSITY = ("concise", "moderate", "detailed")
 TONE = ("casual", "neutral", "formal")
 TECHNICAL_DEPTH = ("plain", "moderate", "technical")
+# "occasional" matches the base personality's default (a dry remark when it
+# fits, never forced) -- this dimension lets a user turn that up or off
+# entirely rather than changing the base personality prompt itself.
+HUMOR = ("none", "occasional", "frequent")
 
 DEFAULT_STYLE: dict[str, Any] = {
     "verbosity": "moderate",
     "tone": "neutral",
     "technical_depth": "moderate",
+    "humor": "occasional",
     "notes": None,
     "updated_at": None,
 }
@@ -40,6 +45,8 @@ _STYLE_HINT_RE = re.compile(
     r"more\s+detail(?:ed)?|less\s+detail|in[\s-]?depth|too\s+long|too\s+short|"
     r"casual|formal|neutral|friendlier|more\s+professional|too\s+casual|too\s+formal|"
     r"too\s+technical|less\s+technical|more\s+technical|simpler|simplify|plain(?:er)?|"
+    r"funnier|more\s+jokes?|less\s+jokes?|no\s+jokes?|drop\s+the\s+jokes?|"
+    r"more\s+humor(?:ous)?|less\s+humor(?:ous)?|no\s+humor|stop\s+joking|be\s+more\s+serious|"
     r"from\s+now\s+on|going\s+forward|"
     r"your\s+(?:answers|responses|style|replies)|"
     r"keep\s+(?:it\s+|them\s+|your\s+answers?\s+)?(?:short|brief|concise)|"
@@ -63,11 +70,13 @@ _STYLE_STRONG_RE = re.compile(
     r"concise|verbose|verbosity|"
     r"more\s+detail(?:ed)?|less\s+detail|in[\s-]?depth|"
     r"too\s+technical|less\s+technical|more\s+technical|"
-    r"friendlier|more\s+professional|plain(?:er)?\s+(?:english|language)"
+    r"friendlier|more\s+professional|plain(?:er)?\s+(?:english|language)|"
+    r"funnier|more\s+jokes?|less\s+jokes?|no\s+jokes?|drop\s+the\s+jokes?|"
+    r"more\s+humor(?:ous)?|less\s+humor(?:ous)?|no\s+humor|stop\s+joking|be\s+more\s+serious"
     r")\b"
 )
 
-_CLASSIFIER_PROMPT = """You detect whether the founder is giving lasting feedback about how H3RO should communicate from now on (verbosity, tone, or technical depth).
+_CLASSIFIER_PROMPT = """You detect whether the founder is giving lasting feedback about how H3RO should communicate from now on (verbosity, tone, technical depth, or humor).
 
 Founder message:
 \"\"\"{message}\"\"\"
@@ -78,6 +87,7 @@ Reply with ONLY a single JSON object, no markdown fences, no commentary. Schema:
   "verbosity": "concise" | "moderate" | "detailed" | null,
   "tone": "casual" | "neutral" | "formal" | null,
   "technical_depth": "plain" | "moderate" | "technical" | null,
+  "humor": "none" | "occasional" | "frequent" | null,
   "notes": short string or null
 }}
 
@@ -88,9 +98,12 @@ Dimension mapping (use exactly these):
 - tone=formal ← formal, more professional, less casual
 - technical_depth=plain ← simpler, less technical, plain language
 - technical_depth=technical ← more technical, deeper jargon OK
+- humor=none ← stop joking, be more serious, no jokes, drop the humor
+- humor=frequent ← funnier, more jokes, more humor, lighten up
+- humor=occasional ← explicitly asking for "some" humor after having had none, or "less serious" without asking for full frequent joking
 
 Rules:
-- Set update=false if this is NOT durable style feedback about how H3RO talks (e.g. "shorter meeting agenda", "formal proposal draft", "more detail on this one answer only").
+- Set update=false if this is NOT durable style feedback about how H3RO talks (e.g. "shorter meeting agenda", "formal proposal draft", "more detail on this one answer only", "that joke wasn't about H3RO's own tone").
 - When update=true, set ONLY the dimension(s) they clearly asked to change; leave others null.
 - "keep answers shorter/concise" → verbosity=concise (NOT tone).
 - notes: at most one short sentence capturing nuance, or null. Do not invent preferences they did not state.
@@ -124,6 +137,9 @@ def normalize_style(raw: Any) -> dict[str, Any]:
     d = raw.get("technical_depth")
     if d in TECHNICAL_DEPTH:
         out["technical_depth"] = d
+    h = raw.get("humor")
+    if h in HUMOR:
+        out["humor"] = h
     notes = raw.get("notes")
     if isinstance(notes, str) and notes.strip():
         out["notes"] = notes.strip()[:240]
@@ -134,14 +150,22 @@ def normalize_style(raw: Any) -> dict[str, Any]:
     return out
 
 
+_HUMOR_PHRASING = {
+    "none": "no jokes or dry asides — keep it fully straight",
+    "occasional": "an occasional dry remark is welcome, never forced",
+    "frequent": "lean into dry humor more than usual, still never forced",
+}
+
+
 def format_style_prompt_block(style: Optional[dict[str, Any]] = None) -> str:
     s = normalize_style(style or DEFAULT_STYLE)
     notes_bit = ""
     if s.get("notes"):
         notes_bit = f" Extra note from the founder: {s['notes']}."
+    humor_bit = _HUMOR_PHRASING.get(s["humor"], _HUMOR_PHRASING["occasional"])
     return (
         "Communication style for this founder, learned from their own feedback: "
-        f"{s['verbosity']} answers, {s['tone']} tone, {s['technical_depth']} technical depth."
+        f"{s['verbosity']} answers, {s['tone']} tone, {s['technical_depth']} technical depth, {humor_bit}."
         f"{notes_bit} "
         "Follow this unless it would conflict with clarity, safety, or correctness."
     )
@@ -260,6 +284,10 @@ async def maybe_update_h3ro_style_from_message(user_id: str, user_message: str) 
         if d in TECHNICAL_DEPTH and d != current["technical_depth"]:
             current["technical_depth"] = d
             changed = True
+        h = parsed.get("humor")
+        if h in HUMOR and h != current["humor"]:
+            current["humor"] = h
+            changed = True
         notes = parsed.get("notes")
         if isinstance(notes, str) and notes.strip():
             note = notes.strip()[:240]
@@ -282,6 +310,7 @@ async def maybe_update_h3ro_style_from_message(user_id: str, user_message: str) 
             verbosity=saved["verbosity"],
             tone=saved["tone"],
             technical_depth=saved["technical_depth"],
+            humor=saved["humor"],
         )
         return saved
     except Exception as e:

@@ -236,6 +236,10 @@ export default function H3roVoiceStage() {
   const askRef = useRef<(q: string) => Promise<void>>(async () => {})
   const lastToolRef = useRef<{ tool: string; args: Record<string, unknown> } | null>(null)
   const startHotMicRef = useRef<() => void>(() => {})
+  // Monotonic session id for ask(). Bumping it (or starting a new ask)
+  // invalidates any in-flight loop so barge-in can stop the old stream
+  // without racing a shared boolean that the next ask() would clear.
+  const askSessionRef = useRef(0)
 
   useEffect(() => { conversationOnRef.current = conversationOn }, [conversationOn])
   useEffect(() => { alwaysListeningRef.current = alwaysListening }, [alwaysListening])
@@ -342,35 +346,74 @@ export default function H3roVoiceStage() {
   const startHotMic = useCallback(() => {
     if (!alwaysListeningRef.current) return
     if (hotPausedRef.current) return
-    if (streamingRef.current) return
-    const vs = voiceStateRef.current
-    if (vs === 'speaking' || vs === 'processing') return
+    // Deliberately NOT gated on streamingRef/processing/speaking — this is
+    // what lets a "hey h3ro" / "h3ro" barge-in interrupt a response already
+    // in flight, rather than only ever arming once H3RO falls fully idle.
 
     pauseRecognition()
     setInterim('')
 
+    // Prevent the same utterance from firing once on interim and again on final.
+    let wakeLockUntil = 0
+
+    const handleWake = (text: string, source: 'interim' | 'final') => {
+      if (Date.now() < wakeLockUntil) return
+      const command = extractWakeCommand(text)
+      // eslint-disable-next-line no-console
+      console.log('[H3RO-DEBUG] on' + (source === 'interim' ? 'InterimWake' : 'Final'), {
+        text,
+        command,
+        voiceState: voiceStateRef.current,
+      })
+      if (command === null) {
+        if (source === 'final') setInterim('')
+        return
+      }
+      setInterim('')
+      const midResponse = voiceStateRef.current === 'processing' || voiceStateRef.current === 'speaking'
+      // Interim barge-in only mid-response: while TTS/processing, finals often
+      // stay deferred, so waiting for onFinal is too late to stop speech.
+      if (source === 'interim' && !midResponse) return
+      // eslint-disable-next-line no-console
+      console.log('[H3RO-DEBUG] wake command matched', { command, midResponse, source })
+      wakeLockUntil = Date.now() + 1500
+      if (midResponse) {
+        askSessionRef.current += 1
+        streamingRef.current = false
+        speakerRef.current?.cancel()
+        if (typeof window !== 'undefined') window.speechSynthesis?.cancel()
+        setStreaming(false)
+      } else if (streamingRef.current) {
+        return
+      }
+      if (!command) {
+        setVoiceState('hot')
+        return
+      }
+      // Keep this same listener alive in always-listening mode (that's
+      // what makes barge-in possible on the response this triggers) --
+      // pausing here was killing the mic before ask() even started.
+      if (!alwaysListeningRef.current) pauseRecognition()
+      setVoiceState('processing')
+      askRef.current(command)
+    }
+
     const listener = createListener(
       {
         onInterim: (t) => {
+          // eslint-disable-next-line no-console
+          console.log('[H3RO-DEBUG] onInterim', { text: t, voiceState: voiceStateRef.current })
           // Only surface interim once a wake fragment appears — avoid ambient chatter in UI.
           if (/\b(?:hey|hi|ok|okay|h3ro|hero|h\s*3)/i.test(t)) setInterim(t)
           else setInterim('')
+          handleWake(t, 'interim')
         },
         onFinal: (text) => {
-          const command = extractWakeCommand(text)
-          if (command === null) {
-            // No wake word — discard and keep hot.
-            setInterim('')
-            return
-          }
-          setInterim('')
-          if (!command) return // wake-only
-          if (streamingRef.current) return
-          pauseRecognition()
-          setVoiceState('processing')
-          askRef.current(command)
+          handleWake(text, 'final')
         },
         onError: (err) => {
+          // eslint-disable-next-line no-console
+          console.log('[H3RO-DEBUG] onError', { err, voiceState: voiceStateRef.current, streaming: streamingRef.current })
           setInterim('')
           if (err === 'not-allowed') {
             setError('Microphone permission denied. Allow mic access for H3RO.')
@@ -395,6 +438,8 @@ export default function H3roVoiceStage() {
           }
         },
         onEnd: () => {
+          // eslint-disable-next-line no-console
+          console.log('[H3RO-DEBUG] onEnd', { voiceState: voiceStateRef.current, streaming: streamingRef.current })
           setInterim('')
           // autoRestart keeps the session; only drop visual if mode was turned off.
           if (!alwaysListeningRef.current && !streamingRef.current) {
@@ -514,14 +559,17 @@ export default function H3roVoiceStage() {
     }
     if (!payload.trim() || streamingRef.current) return
     if (attach.length) rememberChatRefs(attach)
+    const session = ++askSessionRef.current
     setError('')
     setStreaming(true)
     setStatus('')
     setPendingTool(null)
     setMemoryConfirm(null)
     setSystemActionConfirm(null)
-    // Don't hear ourselves — stop any hot/push mic before TTS.
-    pauseRecognition()
+    // Don't hear ourselves during push-to-talk/regular listening — but in
+    // always-listening mode, keep the hot mic live through processing and
+    // speaking so a "hey h3ro" / "h3ro" barge-in can interrupt mid-response.
+    if (!alwaysListeningRef.current) pauseRecognition()
     setVoiceState('processing')
     setAttachments([])
     setExchanges(prev => [...prev, {
@@ -533,12 +581,14 @@ export default function H3roVoiceStage() {
 
     const speaker = new StreamingSpeaker({
       onSpeakingChange: (speaking) => {
+        if (askSessionRef.current !== session) return
         if (speaking) {
-          pauseRecognition()
+          if (!alwaysListeningRef.current) pauseRecognition()
           setVoiceState('speaking')
         }
       },
       onIdle: () => {
+        if (askSessionRef.current !== session) return
         setVoiceState('idle')
         if (alwaysListeningRef.current) {
           setTimeout(() => {
@@ -559,6 +609,7 @@ export default function H3roVoiceStage() {
         thread_id: activeThread,
         agent_mode: true,
       })) {
+        if (askSessionRef.current !== session) break
         if (chunk.type === 'thread_id' && chunk.thread_id) {
           setActiveThread(chunk.thread_id)
           loadThreads()
@@ -649,25 +700,32 @@ export default function H3roVoiceStage() {
           }
         }
       }
-      speaker.finish()
+      if (askSessionRef.current === session) speaker.finish()
+      else speaker.cancel()
     } catch (e: unknown) {
       speaker.cancel()
-      setVoiceState('idle')
-      if (e instanceof LimitExceededError) {
-        setExchanges(prev => {
-          const c = [...prev]
-          c[c.length - 1] = { ...c[c.length - 1], limitExceeded: true }
-          return c
-        })
-      } else {
-        setError(e instanceof Error ? e.message : 'Unknown error')
+      if (askSessionRef.current === session) {
+        setVoiceState('idle')
+        if (e instanceof LimitExceededError) {
+          setExchanges(prev => {
+            const c = [...prev]
+            c[c.length - 1] = { ...c[c.length - 1], limitExceeded: true }
+            return c
+          })
+        } else {
+          setError(e instanceof Error ? e.message : 'Unknown error')
+        }
       }
     } finally {
-      setStreaming(false)
-      setStatus('')
-      setPendingTool(null)
-      setMemoryConfirm(null)
-      setSystemActionConfirm(null)
+      // Only the active session clears streaming — a superseded ask must not
+      // clobber a barge-in replacement that already set streaming true.
+      if (askSessionRef.current === session) {
+        setStreaming(false)
+        setStatus('')
+        setPendingTool(null)
+        setMemoryConfirm(null)
+        setSystemActionConfirm(null)
+      }
     }
   }
 
@@ -757,13 +815,16 @@ export default function H3roVoiceStage() {
         setVoiceState('idle')
         return
       }
-      if (voiceState === 'speaking') {
+      if (voiceState === 'speaking' || voiceState === 'processing') {
+        askSessionRef.current += 1
+        streamingRef.current = false
         speakerRef.current?.cancel()
         if (typeof window !== 'undefined') window.speechSynthesis?.cancel()
+        setStreaming(false)
         setVoiceState('idle')
         return
       }
-      if (streaming || voiceState === 'processing') return
+      if (streaming) return
       const has = folderConnected || grantedFiles.length > 0
       if (!has && !accessSkipped && (isFileAccessSupported() || isFilePickerSupported())) {
         setFilesOpen(true)
@@ -778,9 +839,12 @@ export default function H3roVoiceStage() {
       stopListening()
       return
     }
-    if (voiceState === 'speaking') {
+    if (voiceState === 'speaking' || voiceState === 'processing') {
+      askSessionRef.current += 1
+      streamingRef.current = false
       speakerRef.current?.cancel()
       if (typeof window !== 'undefined') window.speechSynthesis?.cancel()
+      setStreaming(false)
       setVoiceState('idle')
       return
     }
@@ -1081,7 +1145,9 @@ export default function H3roVoiceStage() {
             <H3roJarvisOrb
               state={voiceState}
               size={200}
-              disabled={streaming && voiceState === 'processing'}
+              // Must stay clickable during 'processing'/'speaking' so the
+              // founder can interrupt — handleOrbActivate branches on
+              // voiceState itself and no-ops for any other stray state.
               aria-label={orbAria}
               onClick={handleOrbActivate}
             />

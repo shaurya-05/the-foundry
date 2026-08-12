@@ -7,6 +7,7 @@ type H3roStyle = {
   verbosity: 'concise' | 'moderate' | 'detailed'
   tone: 'casual' | 'neutral' | 'formal'
   technical_depth: 'plain' | 'moderate' | 'technical'
+  humor: 'none' | 'occasional' | 'frequent'
   notes: string | null
   updated_at: string | null
 }
@@ -15,6 +16,7 @@ const DEFAULT_STYLE: H3roStyle = {
   verbosity: 'moderate',
   tone: 'neutral',
   technical_depth: 'moderate',
+  humor: 'occasional',
   notes: null,
   updated_at: null,
 }
@@ -37,6 +39,12 @@ const DEPTH_OPTS = [
   { value: 'technical', label: 'Technical' },
 ] as const
 
+const HUMOR_OPTS = [
+  { value: 'none', label: 'None — fully straight' },
+  { value: 'occasional', label: 'Occasional dry remark' },
+  { value: 'frequent', label: 'Frequent dry humor' },
+] as const
+
 function parseStyle(raw: unknown): H3roStyle {
   if (!raw || typeof raw !== 'object') return { ...DEFAULT_STYLE }
   const o = raw as Record<string, unknown>
@@ -50,6 +58,9 @@ function parseStyle(raw: unknown): H3roStyle {
     technical_depth: DEPTH_OPTS.some(x => x.value === o.technical_depth)
       ? (o.technical_depth as H3roStyle['technical_depth'])
       : DEFAULT_STYLE.technical_depth,
+    humor: HUMOR_OPTS.some(x => x.value === o.humor)
+      ? (o.humor as H3roStyle['humor'])
+      : DEFAULT_STYLE.humor,
     notes: typeof o.notes === 'string' && o.notes.trim() ? o.notes.trim() : null,
     updated_at: typeof o.updated_at === 'string' ? o.updated_at : null,
   }
@@ -62,7 +73,9 @@ function plainSummary(s: H3roStyle): string {
       : s.technical_depth === 'technical'
         ? 'technical depth'
         : 'moderate technical depth'
-  return `${s.verbosity} answers, ${s.tone} tone, ${depth}`
+  const humor =
+    s.humor === 'none' ? 'no humor' : s.humor === 'frequent' ? 'frequent dry humor' : 'occasional dry humor'
+  return `${s.verbosity} answers, ${s.tone} tone, ${depth}, ${humor}`
 }
 
 export default function H3roStyleSettings() {
@@ -103,7 +116,7 @@ export default function H3roStyleSettings() {
     }
   }
 
-  async function onDimChange<K extends 'verbosity' | 'tone' | 'technical_depth'>(
+  async function onDimChange<K extends 'verbosity' | 'tone' | 'technical_depth' | 'humor'>(
     key: K,
     value: H3roStyle[K],
   ) {
@@ -194,6 +207,16 @@ export default function H3roStyleSettings() {
         style={{ ...selectStyle, marginBottom: 12 }}
       >
         {DEPTH_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+
+      <label style={labelStyle}>Humor</label>
+      <select
+        value={style.humor}
+        disabled={saving}
+        onChange={e => onDimChange('humor', e.target.value as H3roStyle['humor'])}
+        style={{ ...selectStyle, marginBottom: 12 }}
+      >
+        {HUMOR_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
 
       <label style={labelStyle}>Notes (optional)</label>

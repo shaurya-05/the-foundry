@@ -202,16 +202,24 @@ export function createListener(
   rec.onresult = (ev) => {
     consecutiveErrors = 0
     let interim = ''
+    let gotFinal = false
     for (let i = ev.resultIndex; i < ev.results.length; i++) {
       const piece = ev.results[i][0].transcript
-      if (ev.results[i].isFinal) finalBuf += piece
-      else interim += piece
+      if (ev.results[i].isFinal) {
+        finalBuf += piece
+        gotFinal = true
+      } else {
+        interim += piece
+      }
     }
     if (interim) handlers.onInterim?.(interim)
-    if (finalBuf && !interim) {
+    // Flush finals even when the same event also carries interim text.
+    // The old `finalBuf && !interim` gate deferred barge-in forever while
+    // TTS echo / overlapping speech kept interim results flowing.
+    if (gotFinal && finalBuf.trim()) {
       const text = finalBuf.trim()
       finalBuf = ''
-      if (text) handlers.onFinal(text)
+      handlers.onFinal(text)
     }
   }
 
@@ -381,12 +389,15 @@ export class StreamingSpeaker {
     this.onSpeakingChange?.(true)
     speak(next, {
       onEnd: () => {
+        // speechSynthesis.cancel() fires onend/onerror — don't resume after barge-in.
+        if (this.cancelled) return
         this.speaking = false
         this.onSpeakingChange?.(false)
         if (this.queue.length) this.pump()
         else if (!this.buffer.trim()) this.onIdle?.()
       },
       onError: () => {
+        if (this.cancelled) return
         this.speaking = false
         this.onSpeakingChange?.(false)
         if (this.queue.length) this.pump()
