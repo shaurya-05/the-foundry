@@ -22,6 +22,15 @@ memory_read is called deterministically as step zero, before the model
 sees anything else -- not left to the model's discretion, since the
 brief requires the planner to consult memory first, not "usually" do so.
 
+Search-before-build runs next for generative goals: if memory, this
+thread, or the prior-chat digest already holds plausible material, the
+loop surfaces those options and stops rather than regenerating. Explicit
+"build something new" / "from scratch" skips that gate.
+
+Before accepting a plain-text final answer, measurable per-task-type
+reflection criteria run when the turn involved research, files, or
+memory work. Failures name the specific criterion and force a re-plan.
+
 memory_write is confirmation-gated unconditionally, regardless of the
 `source` the model claims -- reuses the exact same async_frontend
 round-trip primitive as file-access tools do, treating "ask the user for
@@ -43,10 +52,22 @@ from app.services.agent_tools import (
     TOOL_REGISTRY, ToolContext, await_frontend_response, create_pending_call,
     tool_definitions_for_planner,
 )
+from app.services.agent_reflection import (
+    format_reflect_observation,
+    format_reflect_replan_message,
+    reflect_on_answer,
+    should_run_reflection,
+)
+from app.services.agent_search_before_build import (
+    find_existing_candidates,
+    format_candidates_for_user,
+    looks_like_build_goal,
+    search_before_build_payload,
+    user_wants_fresh_build,
+)
 from app.services.model_provider import MODEL_REGISTRY
 
 log = structlog.get_logger()
-
 # Small models occasionally write a tool call out as plain text instead of
 # using the wire format's structured tool_calls field -- observed directly
 # against qwen2.5:7b-instruct, in two distinct shapes so far (roughly 1 in
@@ -99,6 +120,7 @@ def _recover_garbled_tool_call(text: str) -> Optional[list[dict[str, Any]]]:
     return None
 
 MAX_ITERATIONS = 8
+MAX_REFLECT_RETRIES = 2
 # FACTUAL's qwen2.5:7b-instruct, not STRATEGIC's 14b -- H3RO's primary
 # surface is now voice-first, live back-and-forth conversation (agent_mode
 # defaults to true in ForgeCopilot.tsx), where every turn pays this
@@ -138,8 +160,9 @@ Rules:
 - Use list_files/read_file or system_file_list/system_file_read when the goal needs real file content. If no folder/files are connected, say so plainly rather than guessing.
 - Use memory_write only for durable facts worth remembering across conversations (preferences, decisions, ongoing projects). Every memory_write is reviewed by the user before it's saved.
 - Prefer short speakable sentences when answering conversationally. Lead with the outcome.
-- After each tool result, decide: is the goal met? If yes, answer in plain text with no tool call. If not, call exactly the tool(s) you need next.
-- When you do give that final answer, weigh whether there's one adjacent thing worth a sentence — a risk in their plan, a faster route, something you noticed while working the tools. Say it once if it's real; skip it entirely if you're reaching for filler."""
+- After each tool result, decide: is the goal met against the concrete criteria for this kind of task (research → real sources; files → content actually read; memory → real stored data)? If yes, answer in plain text with no tool call. If not, call exactly the tool(s) you need next — and when reflection names a specific failure, fix that failure, don't blindly retry the same call.
+- When you do give that final answer, weigh whether there's one adjacent thing worth a sentence — a risk in their plan, a faster route, something you noticed while working the tools. Say it once if it's real; skip it entirely if you're reaching for filler.
+- Before inventing a new draft/doc/outline when prior material may already exist, the loop may surface existing candidates and stop for the founder's choice. Respect that — don't regenerate past them unless they ask for something new."""
 
 
 async def run_agent_loop(
@@ -204,6 +227,7 @@ async def run_agent_loop(
     messages.append({"role": "user", "content": goal})
 
     # Step zero: always consult memory before anything else happens.
+    memory_entries: Any = []
     memory_tool = TOOL_REGISTRY.get("memory_read")
     if memory_tool is not None and memory_tool.execute is not None:
         yield {"type": "agent_tool_call", "iteration": 0, "tool": "memory_read", "args": {}}
@@ -212,13 +236,59 @@ async def run_agent_loop(
         # Prefer the most recent entries when the store is large
         if isinstance(observation, list) and len(observation) > 40:
             observation = observation[-40:]
+        memory_entries = observation if isinstance(observation, list) else []
         yield {"type": "agent_observation", "iteration": 0, "tool": "memory_read", "result": observation}
         messages.append({
             "role": "user",
             "content": f"[memory_read result, consulted before you started]: {json.dumps(observation)[:3500]}",
         })
 
+    # Search-before-build: for generative goals, surface existing answers
+    # (memory / this thread / prior-chat digest) before inventing new ones.
+    tools_used: list[str] = []
+    observations_by_tool: dict[str, Any] = {}
+    if memory_tool is not None:
+        tools_used.append("memory_read")
+        observations_by_tool["memory_read"] = memory_entries
+
+    if looks_like_build_goal(goal) and not user_wants_fresh_build(goal):
+        candidates = find_existing_candidates(
+            goal,
+            memory_entries,
+            history=history,
+            cross_thread_context=cross_thread_context,
+        )
+        sbb_payload = search_before_build_payload(goal, candidates)
+        yield {
+            "type": "agent_tool_call",
+            "iteration": 0,
+            "tool": "search_before_build",
+            "args": {"goal": goal[:240]},
+        }
+        yield {
+            "type": "agent_observation",
+            "iteration": 0,
+            "tool": "search_before_build",
+            "result": sbb_payload,
+        }
+        tools_used.append("search_before_build")
+        observations_by_tool["search_before_build"] = sbb_payload
+        messages.append({
+            "role": "user",
+            "content": f"[search_before_build result]: {json.dumps(sbb_payload)[:3500]}",
+        })
+        if candidates:
+            # Deterministic stop: present options; do not fall through to build.
+            answer = format_candidates_for_user(goal, candidates)
+            yield {
+                "type": "agent_final",
+                "answer": answer,
+                "iterations_used": 0,
+            }
+            return
+
     tool_defs = tool_definitions_for_planner()
+    reflect_retries = 0
 
     for iteration in range(1, max_iterations + 1):
         response_text = ""
@@ -239,9 +309,44 @@ async def run_agent_loop(
                 )
                 tool_calls = recovered
             else:
-                # Implicit reflection: the model chose to answer instead of
-                # act, which means it judged the goal met.
-                yield {"type": "agent_final", "answer": response_text or "I don't have a final answer to give.", "iterations_used": iteration}
+                answer = response_text or "I don't have a final answer to give."
+                # Measurable reflection — only for task types that have criteria.
+                if should_run_reflection(goal, tools_used):
+                    reflect = reflect_on_answer(
+                        goal, answer, tools_used, observations_by_tool,
+                    )
+                    reflect_obs = format_reflect_observation(reflect)
+                    yield {
+                        "type": "agent_tool_call",
+                        "iteration": iteration,
+                        "tool": "reflect",
+                        "args": {"task_types": reflect.task_types},
+                    }
+                    yield {
+                        "type": "agent_observation",
+                        "iteration": iteration,
+                        "tool": "reflect",
+                        "result": reflect_obs,
+                    }
+                    if not reflect.passed and reflect_retries < MAX_REFLECT_RETRIES:
+                        reflect_retries += 1
+                        messages.append({"role": "assistant", "content": answer})
+                        messages.append({
+                            "role": "user",
+                            "content": format_reflect_replan_message(reflect),
+                        })
+                        log.info(
+                            "agent_loop_reflect_retry",
+                            iteration=iteration,
+                            failures=[f.id for f in reflect.failures],
+                            retry=reflect_retries,
+                        )
+                        continue
+                yield {
+                    "type": "agent_final",
+                    "answer": answer,
+                    "iterations_used": iteration,
+                }
                 return
 
         messages.append({"role": "assistant", "content": response_text or ""})
@@ -350,6 +455,10 @@ async def run_agent_loop(
                 else:
                     observation = {"error": f"{name} did not respond in time"}
                 yield {"type": "agent_observation", "iteration": iteration, "tool": name, "result": observation}
+
+            if name:
+                tools_used.append(name)
+                observations_by_tool[name] = observation
 
             # web_search results can be longer — allow more room
             cap = 4000 if name == "web_search" else 2000
