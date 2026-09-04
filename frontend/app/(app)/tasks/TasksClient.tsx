@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion, type PanInfo } from 'framer-motion'
 import { api, Task, Project } from '@/lib/api'
 import GlassCard from '@/components/ui/GlassCard'
 import SectionHeader from '@/components/ui/SectionHeader'
@@ -41,6 +41,22 @@ export default function TasksClient() {
   const [editFields, setEditFields] = useState<Partial<Task>>({})
   const [dragging, setDragging] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState<string | null>(null)
+  // apple-design §2/§6: real 1:1 pointer tracking + momentum-aware release,
+  // not an HTML5 draggable recognizer that only reports start/end. Column
+  // hit-testing is done against live bounding rects on every drag frame
+  // (§2 "detect... in parallel... continuous tracking") rather than
+  // relying on native dragover events.
+  const columnRefs = useRef<Record<string, HTMLDivElement | null>>({})
+
+  function columnAtPoint(x: number, y: number): string | null {
+    for (const col of COLUMNS) {
+      const el = columnRefs.current[col.id]
+      if (!el) continue
+      const r = el.getBoundingClientRect()
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return col.id
+    }
+    return null
+  }
 
   useEffect(() => { load() }, [])
 
@@ -90,18 +106,26 @@ export default function TasksClient() {
     return tasks.filter(t => t.status === status)
   }
 
-  function handleDragStart(id: string) { setDragging(id) }
-  function handleDragEnd() { setDragging(null); setDragOver(null) }
-  function handleDragOver(e: React.DragEvent, colId: string) {
-    e.preventDefault()
-    setDragOver(colId)
+  function handlePointerDragStart(id: string) {
+    setDragging(id)
   }
-  async function handleDrop(colId: string) {
-    if (dragging) {
-      await updateStatus(dragging, colId)
-    }
+
+  // Fires continuously during the drag (§2: continuous feedback, not just
+  // start/end) — live-highlights whichever column the pointer is over.
+  function handlePointerDrag(id: string, info: PanInfo) {
+    setDragOver(columnAtPoint(info.point.x, info.point.y))
+  }
+
+  async function handlePointerDragEnd(id: string, info: PanInfo) {
+    const target = columnAtPoint(info.point.x, info.point.y)
     setDragging(null)
     setDragOver(null)
+    if (target) {
+      const current = tasks.find(t => t.id === id)
+      if (current && current.status !== target) {
+        await updateStatus(id, target)
+      }
+    }
   }
 
   const totalActive = tasks.filter(t => t.status !== 'completed').length
@@ -173,8 +197,7 @@ export default function TasksClient() {
           return (
             <div
               key={col.id}
-              onDragOver={e => handleDragOver(e, col.id)}
-              onDrop={() => handleDrop(col.id)}
+              ref={el => { columnRefs.current[col.id] = el }}
               className="bay-panel"
               style={{
                 background: isOver ? undefined : undefined,
@@ -223,17 +246,31 @@ export default function TasksClient() {
                   </div>
                 ) : (
                   colTasks.map(task => (
-                    <div
+                    // apple-design §1/§2/§3: real pointer drag with 1:1
+                    // tracking (not an HTML5 draggable ghost image), instant
+                    // press feedback (whileTap fires on pointer-down), and
+                    // `layout` so settling into the new column's flow is a
+                    // real animated handoff instead of an instant snap.
+                    <motion.div
                       key={task.id}
-                      draggable
-                      onDragStart={() => handleDragStart(task.id)}
-                      onDragEnd={handleDragEnd}
-                      onClick={() => { setModal(task); setEditFields({}) }}
-                      className="gl1 lift"
+                      layout
+                      layoutId={`task-${task.id}`}
+                      drag
+                      dragSnapToOrigin
+                      dragMomentum={!reduceMotion}
+                      dragElastic={reduceMotion ? 0 : 0.12}
+                      whileDrag={reduceMotion ? undefined : { scale: 1.04, zIndex: 20, boxShadow: '0 12px 28px rgba(0,0,0,0.28)' }}
+                      whileTap={reduceMotion ? undefined : { scale: 0.98 }}
+                      transition={{ type: 'spring', bounce: reduceMotion ? 0 : 0.15, duration: 0.35 }}
+                      onDragStart={() => handlePointerDragStart(task.id)}
+                      onDrag={(_e, info) => handlePointerDrag(task.id, info)}
+                      onDragEnd={(_e, info) => handlePointerDragEnd(task.id, info)}
+                      onClick={() => { if (!dragging) { setModal(task); setEditFields({}) } }}
+                      className="gl1"
                       style={{
                         padding: '10px 12px',
-                        cursor: 'grab',
-                        opacity: dragging === task.id ? 0.5 : 1,
+                        cursor: dragging === task.id ? 'grabbing' : 'grab',
+                        opacity: dragging === task.id ? 0.85 : 1,
                         borderLeft: `2px solid ${PRIORITY_COLORS[task.priority] || '#637080'}`,
                       }}
                     >
@@ -276,7 +313,7 @@ export default function TasksClient() {
                           </span>
                         )}
                       </div>
-                    </div>
+                    </motion.div>
                   ))
                 )}
               </div>

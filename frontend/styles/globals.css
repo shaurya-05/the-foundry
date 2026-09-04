@@ -401,7 +401,7 @@ h1, h2, h3 {
   text-transform: none;
 }
 
-h1 { font-size: 2.6rem; line-height: 1.02; letter-spacing: -0.02em; }
+h1 { font-size: 2.6rem; line-height: 1.02; letter-spacing: -0.02em; font-optical-sizing: auto; }
 h2 { font-size: 1.9rem; line-height: 1.08; letter-spacing: -0.015em; }
 h3 { font-size: 1.3rem; line-height: 1.15; letter-spacing: -0.01em; }
 

@@ -97,6 +97,47 @@ export default function WorkspaceClient() {
   const [loaded, setLoaded] = useState(false)
   const canvasRef = useRef<HTMLDivElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
+  // apple-design §6: momentum projection for the pan release — a fast flick
+  // keeps moving and decays, rather than the canvas stopping dead the
+  // instant the mouse is released. No discrete snap points exist here (free
+  // pan, not a sheet/carousel), so this is continuous decay-based inertia
+  // rather than the single-projected-endpoint form of the skill's example.
+  const panVelocityRef = useRef({ vx: 0, vy: 0, lastX: 0, lastY: 0, lastT: 0 })
+  const momentumRafRef = useRef<number | null>(null)
+  const reduceMotionRef = useRef(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    reduceMotionRef.current = mq.matches
+    const onChange = () => { reduceMotionRef.current = mq.matches }
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  useEffect(() => stopMomentum, [])
+
+  function stopMomentum() {
+    if (momentumRafRef.current != null) {
+      cancelAnimationFrame(momentumRafRef.current)
+      momentumRafRef.current = null
+    }
+  }
+
+  function startMomentum(vx: number, vy: number) {
+    const DECAY = 0.94 // per-frame velocity retention — tuned to settle in ~15-20 frames
+    const STOP_THRESHOLD = 0.05 // px/frame
+    let cvx = vx
+    let cvy = vy
+    const step = () => {
+      cvx *= DECAY
+      cvy *= DECAY
+      if (Math.abs(cvx) < STOP_THRESHOLD && Math.abs(cvy) < STOP_THRESHOLD) {
+        momentumRafRef.current = null
+        return
+      }
+      setPan(p => ({ x: p.x + cvx, y: p.y + cvy }))
+      momentumRafRef.current = requestAnimationFrame(step)
+    }
+    momentumRafRef.current = requestAnimationFrame(step)
+  }
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const nodesRef = useRef(nodes)
 
@@ -259,6 +300,7 @@ export default function WorkspaceClient() {
   // ── Node drag (fixed: accounts for pan offset) ───────────────────────────
   function handleNodeMouseDown(e: React.MouseEvent, nodeId: string) {
     e.stopPropagation()
+    stopMomentum()
     setSelected(nodeId)
     setDraggingNode(nodeId)
     const node = nodes.find(n => n.id === nodeId)!
@@ -275,9 +317,13 @@ export default function WorkspaceClient() {
   // ── Canvas pan ──────────────────────────────────────────────────────────
   function handleCanvasMouseDown(e: React.MouseEvent) {
     if (e.target !== canvasRef.current && !(e.target as HTMLElement).dataset.canvas) return
+    // apple-design §3: grabbing mid-flight must stop and reverse the
+    // existing motion immediately, not queue behind it.
+    stopMomentum()
     setSelected(null)
     setIsPanning(true)
     setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
+    panVelocityRef.current = { vx: 0, vy: 0, lastX: e.clientX, lastY: e.clientY, lastT: performance.now() }
   }
 
   // ── Mouse move: drag or pan ──────────────────────────────────────────────
@@ -291,6 +337,20 @@ export default function WorkspaceClient() {
       setNodes(prev => prev.map(n => n.id === draggingNode ? { ...n, x, y } : n))
     } else if (isPanning) {
       setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y })
+      // Track a lightly-smoothed instantaneous velocity for the release
+      // momentum below (§5/§6) — raw single-frame deltas are too noisy.
+      const now = performance.now()
+      const v = panVelocityRef.current
+      const dt = Math.max(1, now - v.lastT)
+      const ivx = ((e.clientX - v.lastX) / dt) * 16.67 // normalize to px/frame @60fps
+      const ivy = ((e.clientY - v.lastY) / dt) * 16.67
+      panVelocityRef.current = {
+        vx: v.vx * 0.7 + ivx * 0.3,
+        vy: v.vy * 0.7 + ivy * 0.3,
+        lastX: e.clientX,
+        lastY: e.clientY,
+        lastT: now,
+      }
     }
   }
 
@@ -298,6 +358,10 @@ export default function WorkspaceClient() {
     if (draggingNode) {
       const node = nodesRef.current.find(n => n.id === draggingNode)
       if (node) broadcastOp('move_node', { id: node.id, x: node.x, y: node.y })
+    }
+    if (isPanning && !reduceMotionRef.current) {
+      const { vx, vy } = panVelocityRef.current
+      if (Math.abs(vx) > 1.5 || Math.abs(vy) > 1.5) startMomentum(vx, vy)
     }
     setDraggingNode(null)
     setIsPanning(false)

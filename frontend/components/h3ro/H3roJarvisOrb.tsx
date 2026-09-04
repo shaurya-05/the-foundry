@@ -1,7 +1,16 @@
 'use client'
 
+import { AnimatePresence, motion } from 'framer-motion'
 import Glyph3 from '@/components/brand/Glyph3'
 import type { VoiceState } from '@/lib/voice'
+
+// apple-design §3/§11: state changes (processing/speaking/listening/hot)
+// previously mounted/unmounted whole SVG groups with no transition at all —
+// a hard visual cut every time voiceState changed. A short cross-fade
+// (not a spring — these are sensor-readout glyphs, not thrown objects)
+// is enough to make the handoff read as one continuous HUD instead of a
+// flicker between different orbs.
+const fadeTransition = { duration: 0.18, ease: 'easeOut' as const }
 
 type H3roJarvisOrbProps = {
   state: VoiceState
@@ -180,81 +189,106 @@ export default function H3roJarvisOrb({
         </g>
 
         {/* Processing spinner */}
-        {processing && (
-          <g className="h3ro-jarvis-spin spin-process">
-            <circle
-              cx="100" cy="100" r="38"
-              fill="none"
-              stroke="rgba(159,222,250,0.85)"
-              strokeWidth="2.2"
-              strokeDasharray="12 8 4 20"
-              strokeLinecap="round"
-            />
-          </g>
-        )}
+        <AnimatePresence>
+          {processing && (
+            <motion.g
+              key="processing"
+              className="h3ro-jarvis-spin spin-process"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={fadeTransition}
+            >
+              <circle
+                cx="100" cy="100" r="38"
+                fill="none"
+                stroke="rgba(159,222,250,0.85)"
+                strokeWidth="2.2"
+                strokeDasharray="12 8 4 20"
+                strokeLinecap="round"
+              />
+            </motion.g>
+          )}
+        </AnimatePresence>
 
         {/* Speaking waveform — denser bars */}
-        {speaking && (
-          <g className="h3ro-jarvis-wave">
-            {[0, 1, 2, 3, 4, 5, 6].map(i => (
-              <rect
-                key={i}
-                x={78 + i * 6.5}
-                y={92}
-                width="3.2"
-                height="16"
-                rx="1.2"
-                fill="rgba(159,222,250,0.9)"
-                style={{ animationDelay: `${i * 0.07}s` }}
-              />
-            ))}
-          </g>
-        )}
+        <AnimatePresence>
+          {speaking && (
+            <motion.g
+              key="speaking"
+              className="h3ro-jarvis-wave"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={fadeTransition}
+            >
+              {[0, 1, 2, 3, 4, 5, 6].map(i => (
+                <rect
+                  key={i}
+                  x={78 + i * 6.5}
+                  y={92}
+                  width="3.2"
+                  height="16"
+                  rx="1.2"
+                  fill="rgba(159,222,250,0.9)"
+                  style={{ animationDelay: `${i * 0.07}s` }}
+                />
+              ))}
+            </motion.g>
+          )}
+        </AnimatePresence>
 
         {/* Listening ping flashes */}
-        {listening && (
-          <circle
-            cx="100" cy="100" r="42"
-            fill="none"
-            stroke="rgba(159,222,250,0.8)"
-            strokeWidth="1.5"
-            className="h3ro-jarvis-ping"
-          />
-        )}
+        <AnimatePresence>
+          {listening && (
+            <motion.circle
+              key="listening"
+              cx="100" cy="100" r="42"
+              fill="none"
+              stroke="rgba(159,222,250,0.8)"
+              strokeWidth="1.5"
+              className="h3ro-jarvis-ping"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={fadeTransition}
+            />
+          )}
+        </AnimatePresence>
 
         {/* Hot mic — steady ambient ear arcs (distinct from active listening ping) */}
-        {hot && (
-          <g className="h3ro-jarvis-hot-mark">
-            <circle
-              cx="100" cy="100" r="40"
-              fill="none"
-              stroke="rgba(232,165,75,0.55)"
-              strokeWidth="1.4"
-              strokeDasharray="3 5"
-              className="h3ro-jarvis-hot-dash"
-            />
-            <path
-              d="M78 100 Q78 78 100 78 Q122 78 122 100"
-              fill="none"
-              stroke="rgba(232,165,75,0.9)"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-            <path
-              d="M70 100 Q70 68 100 68 Q130 68 130 100"
-              fill="none"
-              stroke="rgba(232,165,75,0.45)"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-            />
-            <circle cx="100" cy="108" r="3.2" fill="rgba(232,165,75,0.95)" />
-          </g>
-        )}
+        <AnimatePresence>
+          {hot && (
+            <motion.g
+              key="hot"
+              className="h3ro-jarvis-hot-mark"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={fadeTransition}
+            >
+              <circle
+                cx="100" cy="100" r="40"
+                fill="none"
+                stroke="rgba(232,165,75,0.55)"
+                strokeWidth="1.4"
+                strokeDasharray="3 5"
+                className="h3ro-jarvis-hot-dash"
+              />
+              <path
+                d="M78 100 Q78 78 100 78 Q122 78 122 100"
+                fill="none"
+                stroke="rgba(232,165,75,0.9)"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+              <path
+                d="M70 100 Q70 68 100 68 Q130 68 130 100"
+                fill="none"
+                stroke="rgba(232,165,75,0.45)"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+              />
+              <circle cx="100" cy="108" r="3.2" fill="rgba(232,165,75,0.95)" />
+            </motion.g>
+          )}
+        </AnimatePresence>
       </svg>
 
       {/* Center wordmark — hidden while speaking (waveform) or hot (ear glyph) */}
+      <AnimatePresence>
       {!speaking && !hot && (
-        <span
+        <motion.span
+          key="mark"
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={fadeTransition}
           className="h3ro-jarvis-mark"
           style={{
             position: 'absolute',
@@ -281,8 +315,9 @@ export default function H3roJarvisOrb({
             />
             <span>RO</span>
           </span>
-        </span>
+        </motion.span>
       )}
+      </AnimatePresence>
     </button>
   )
 }
