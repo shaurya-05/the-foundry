@@ -59,7 +59,14 @@ export default function SectionHeaderV2({
         number={number}
         keyword={eyebrow}
         color={eyebrowColor}
-        style={{ marginBottom: 16 }}
+        style={{
+          marginBottom: 16,
+          fontFamily: 'inherit',
+          fontSize: 13,
+          fontWeight: 600,
+          letterSpacing: 0,
+          textTransform: 'none',
+        }}
       />
       <h2
         style={{
