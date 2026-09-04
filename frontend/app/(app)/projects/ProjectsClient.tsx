@@ -228,7 +228,7 @@ export default function ProjectsClient() {
     <div className="page-enter" style={{ maxWidth: 1100 }}>
       <SectionHeader title="Projects" sublabel="Build tracker" accent="var(--color-ink)">
         <span className="badge" style={{ background: 'rgba(255,45,45,0.10)', color: 'var(--color-ink)', border: '1px solid rgba(255,45,45,0.20)' }}>
-          {projects.filter(p => p.status === 'active').length} ACTIVE
+          {projects.filter(p => p.status === 'active').length} active
         </span>
       </SectionHeader>
 
@@ -246,12 +246,12 @@ export default function ProjectsClient() {
           }}>
             <div style={{ padding: '24px 28px', borderBottom: '1px solid var(--border)' }}>
               <h3 style={{
-                fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 18,
-                letterSpacing: '0.04em', color: 'var(--text-primary)', marginBottom: 4,
+                fontFamily: 'system-ui, -apple-system, sans-serif', fontWeight: 600, fontSize: 18,
+                letterSpacing: '-0.01em', color: 'var(--text-primary)', marginBottom: 4,
               }}>
                 Configure Your Build
               </h3>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)' }}>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
                 &quot;{newTitle}&quot; — select what the AI should generate
               </p>
             </div>
@@ -261,12 +261,12 @@ export default function ProjectsClient() {
               <div style={{ marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <span style={{
-                    fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 11,
-                    letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-ink)',
+                    fontFamily: 'system-ui, -apple-system, sans-serif', fontWeight: 600, fontSize: 13,
+                    color: 'var(--color-ink)',
                   }}>Project Plan</span>
                   <button onClick={selectAllPlan} style={{
                     background: 'none', border: 'none', cursor: 'pointer',
-                    fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)',
+                    fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', fontFamily: 'system-ui, -apple-system, sans-serif',
                     textDecoration: 'underline',
                   }}>Select all</button>
                 </div>
@@ -288,7 +288,7 @@ export default function ProjectsClient() {
                       style={{ marginTop: 2, accentColor: 'var(--color-ink)' }} />
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-barlow)' }}>{item.label}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)' }}>{item.desc}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'system-ui, -apple-system, sans-serif' }}>{item.desc}</div>
                     </div>
                   </label>
                 ))}
@@ -298,12 +298,12 @@ export default function ProjectsClient() {
               <div style={{ marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <span style={{
-                    fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 11,
-                    letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-arc-cyan-deep)',
+                    fontFamily: 'system-ui, -apple-system, sans-serif', fontWeight: 600, fontSize: 13,
+                    color: 'var(--color-arc-cyan-deep)',
                   }}>Launch Brief</span>
                   <button onClick={selectAllBrief} style={{
                     background: 'none', border: 'none', cursor: 'pointer',
-                    fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)',
+                    fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', fontFamily: 'system-ui, -apple-system, sans-serif',
                     textDecoration: 'underline',
                   }}>Select all</button>
                 </div>
@@ -327,7 +327,7 @@ export default function ProjectsClient() {
                       style={{ marginTop: 2, accentColor: 'var(--color-arc-cyan-deep)' }} />
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-barlow)' }}>{item.label}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)' }}>{item.desc}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'system-ui, -apple-system, sans-serif' }}>{item.desc}</div>
                     </div>
                   </label>
                 ))}
@@ -341,18 +341,18 @@ export default function ProjectsClient() {
             }}>
               <button onClick={selectAll} style={{
                 background: 'none', border: 'none', cursor: 'pointer',
-                fontSize: 11, color: 'var(--color-ink)', fontFamily: 'var(--font-barlow-condensed)',
-                fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
+                fontSize: 12, color: 'var(--color-ink)', fontFamily: 'system-ui, -apple-system, sans-serif',
+                fontWeight: 600,
               }}>
-                SELECT ALL
+                Select all
               </button>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button onClick={() => setShowCreateModal(false)} className="btn btn-ghost btn-sm">
-                  CANCEL
+                  Cancel
                 </button>
                 <button onClick={create} className="btn btn-primary"
                   disabled={!Object.values(createSections).some(v => v)}>
-                  FORGE PROJECT
+                  Forge Project
                 </button>
               </div>
             </div>
@@ -374,8 +374,8 @@ export default function ProjectsClient() {
           }}>
             <div style={{ padding: '24px 28px', borderBottom: '1px solid var(--border)' }}>
               <h3 style={{
-                fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 18,
-                letterSpacing: '0.04em', color: 'var(--text-primary)', marginBottom: 8,
+                fontFamily: 'system-ui, -apple-system, sans-serif', fontWeight: 600, fontSize: 18,
+                letterSpacing: '-0.01em', color: 'var(--text-primary)', marginBottom: 8,
               }}>
                 Generate From Concept
               </h3>
@@ -395,12 +395,12 @@ export default function ProjectsClient() {
               <div style={{ marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <span style={{
-                    fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 11,
-                    letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-arc-cyan-deep)',
+                    fontFamily: 'system-ui, -apple-system, sans-serif', fontWeight: 600, fontSize: 13,
+                    color: 'var(--color-arc-cyan-deep)',
                   }}>Launch Brief</span>
                   <button onClick={() => setConceptSections(prev => ({ ...prev, pitch: true, problem: true, solution: true, target_market: true, mvp: true, go_to_market: true, key_metrics: true, funding: true }))} style={{
                     background: 'none', border: 'none', cursor: 'pointer',
-                    fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)',
+                    fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', fontFamily: 'system-ui, -apple-system, sans-serif',
                     textDecoration: 'underline',
                   }}>Select all</button>
                 </div>
@@ -424,7 +424,7 @@ export default function ProjectsClient() {
                       style={{ marginTop: 2, accentColor: 'var(--color-arc-cyan-deep)' }} />
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-barlow)' }}>{item.label}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)' }}>{item.desc}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'system-ui, -apple-system, sans-serif' }}>{item.desc}</div>
                     </div>
                   </label>
                 ))}
@@ -434,12 +434,12 @@ export default function ProjectsClient() {
               <div style={{ marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <span style={{
-                    fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 11,
-                    letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-ink)',
+                    fontFamily: 'system-ui, -apple-system, sans-serif', fontWeight: 600, fontSize: 13,
+                    color: 'var(--color-ink)',
                   }}>Project Plan</span>
                   <button onClick={() => setConceptSections(prev => ({ ...prev, overview: true, objectives: true, milestones: true, technical: true, success_criteria: true, tasks: true }))} style={{
                     background: 'none', border: 'none', cursor: 'pointer',
-                    fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)',
+                    fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', fontFamily: 'system-ui, -apple-system, sans-serif',
                     textDecoration: 'underline',
                   }}>Select all</button>
                 </div>
@@ -461,7 +461,7 @@ export default function ProjectsClient() {
                       style={{ marginTop: 2, accentColor: 'var(--color-ink)' }} />
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-barlow)' }}>{item.label}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-ibm-plex-mono)' }}>{item.desc}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'system-ui, -apple-system, sans-serif' }}>{item.desc}</div>
                     </div>
                   </label>
                 ))}
@@ -475,18 +475,18 @@ export default function ProjectsClient() {
             }}>
               <button onClick={() => setConceptSections(Object.fromEntries(Object.keys(conceptSections).map(k => [k, true])))} style={{
                 background: 'none', border: 'none', cursor: 'pointer',
-                fontSize: 11, color: 'var(--color-ink)', fontFamily: 'var(--font-barlow-condensed)',
-                fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
+                fontSize: 12, color: 'var(--color-ink)', fontFamily: 'system-ui, -apple-system, sans-serif',
+                fontWeight: 600,
               }}>
-                SELECT ALL
+                Select all
               </button>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button onClick={() => setShowConceptModal(false)} className="btn btn-ghost btn-sm">
-                  CANCEL
+                  Cancel
                 </button>
                 <button onClick={forgeFromConcept} className="btn btn-primary"
                   disabled={!concept.trim() || !Object.values(conceptSections).some(v => v)}>
-                  FORGE FROM CONCEPT
+                  Forge From Concept
                 </button>
               </div>
             </div>
@@ -506,15 +506,15 @@ export default function ProjectsClient() {
             style={{ flex: 1 }}
           />
           <button onClick={openCreateModal} disabled={creating || !newTitle.trim()} className="btn btn-primary">
-            {creating ? 'FORGING...' : '+ NEW PROJECT'}
+            {creating ? 'Forging...' : '+ New Project'}
           </button>
           <button
             onClick={openConceptModal}
             className="btn btn-ghost btn-sm"
-            style={{ color: 'var(--color-ink)', borderColor: 'rgba(255,45,45,0.22)', whiteSpace: 'nowrap', fontSize: 10 }}
+            style={{ color: 'var(--color-ink)', borderColor: 'rgba(255,45,45,0.22)', whiteSpace: 'nowrap', fontSize: 12 }}
             title="Generate a full project brief from a concept"
           >
-            GENERATE FROM CONCEPT
+            Generate From Concept
           </button>
         </div>
       </GlassCard>
@@ -574,11 +574,9 @@ export default function ProjectsClient() {
                     </div>
                     <h3
                       style={{
-                        fontFamily: 'var(--font-barlow-condensed)',
+                        fontFamily: 'var(--font-barlow), system-ui, sans-serif',
                         fontWeight: 700,
                         fontSize: 18,
-                        letterSpacing: '0.04em',
-                        textTransform: 'uppercase',
                         color: 'var(--text-primary)',
                         marginBottom: ptasks.length > 0 ? 10 : 0,
                       }}
@@ -629,7 +627,7 @@ export default function ProjectsClient() {
                       className="btn btn-ghost btn-sm"
                       style={{ fontSize: 10 }}
                     >
-                      {isExpanded ? 'COLLAPSE' : 'EXPAND'}
+                      {isExpanded ? 'Collapse' : 'Expand'}
                     </button>
                   </div>
                 </div>
@@ -739,9 +737,9 @@ function ProjectExpandedView({
     padding: '6px 14px', border: 'none', cursor: 'pointer',
     background: active ? 'rgba(232,35,31,0.08)' : 'transparent',
     color: active ? 'var(--color-ink)' : 'var(--text-muted)',
-    fontFamily: 'var(--font-barlow-condensed)', fontWeight: 600,
-    fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase',
-    borderBottom: active ? '2px solid #141413' : '2px solid transparent',
+    fontFamily: 'system-ui, -apple-system, sans-serif', fontWeight: 600,
+    fontSize: 13,
+    borderBottom: active ? '2px solid var(--color-ink)' : '2px solid transparent',
   })
 
   return (
@@ -777,7 +775,7 @@ function ProjectExpandedView({
                   color: 'var(--text-primary)', resize: 'vertical', outline: 'none',
                 }}
               />
-              <div style={{ fontSize: 10, color: 'var(--text-subtle)', marginTop: 4, fontFamily: 'var(--font-ibm-plex-mono)' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-subtle)', marginTop: 4, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
                 Cmd+S to save, or click outside
               </div>
             </div>
@@ -787,14 +785,14 @@ function ProjectExpandedView({
                 <Markdown content={currentPlan} streaming={isPlanning && streamingPlan} />
               </div>
               <button onClick={() => { setPlanDraft(currentPlan); setEditingPlan(true) }} className="btn btn-ghost btn-sm" style={{ marginTop: 8, fontSize: 9, color: 'var(--text-muted)' }}>
-                EDIT PLAN
+                Edit Plan
               </button>
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>No plan yet.</span>
               <button onClick={onForgePlan} disabled={isPlanning} className="btn btn-ghost btn-sm" style={{ color: 'var(--color-ink)', borderColor: 'rgba(255,45,45,0.22)' }}>
-                {isPlanning ? 'FORGING PLAN...' : 'FORGE PLAN'}
+                {isPlanning ? 'Forging Plan...' : 'Forge Plan'}
               </button>
             </div>
           )}
@@ -846,7 +844,7 @@ function ProjectExpandedView({
         <div style={{ display: 'flex', flexDirection: 'column', height: 350 }}>
           <div style={{ flex: 1, overflow: 'auto', marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
             {chatMessages.length === 0 && !chatStreaming && (
-              <span style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--font-ibm-plex-mono)', padding: 12 }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'system-ui, -apple-system, sans-serif', padding: 12 }}>
                 Ask COFOUND3R about this project — it has full context of the plan, tasks, and notes.
               </span>
             )}
@@ -873,7 +871,7 @@ function ProjectExpandedView({
               style={{ flex: 1 }}
             />
             <button onClick={sendChat} disabled={chatStreaming || !chatInput.trim()} className="btn btn-primary" style={{ fontSize: 10 }}>
-              {chatStreaming ? '...' : 'SEND'}
+              {chatStreaming ? '...' : 'Send'}
             </button>
           </div>
         </div>

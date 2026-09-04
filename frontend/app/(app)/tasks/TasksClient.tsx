@@ -7,11 +7,11 @@ import SectionHeader from '@/components/ui/SectionHeader'
 import EmptyState from '@/components/ui/EmptyState'
 
 const COLUMNS = [
-  { id: 'todo', label: 'TO DO', color: '#6B7280' },
-  { id: 'in_progress', label: 'IN PROGRESS', color: 'var(--color-n600)' },
-  { id: 'review', label: 'IN REVIEW', color: 'var(--color-arc-cyan-deep)' },
-  { id: 'blocked', label: 'BLOCKED', color: 'var(--color-ink)' },
-  { id: 'completed', label: 'COMPLETED', color: 'var(--color-n600)' },
+  { id: 'todo', label: 'To Do', color: '#6B7280' },
+  { id: 'in_progress', label: 'In Progress', color: 'var(--color-n600)' },
+  { id: 'review', label: 'In Review', color: 'var(--color-arc-cyan-deep)' },
+  { id: 'blocked', label: 'Blocked', color: 'var(--color-ink)' },
+  { id: 'completed', label: 'Completed', color: 'var(--color-n600)' },
 ]
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -102,7 +102,7 @@ export default function TasksClient() {
     <div className="page-enter" style={{ maxWidth: '100%' }}>
       <SectionHeader title="Tasks" sublabel="Task board" accent="var(--color-arc-cyan-deep)">
         <span className="badge" style={{ background: 'rgba(14,232,200,0.08)', color: 'var(--color-arc-cyan-deep)', border: '1px solid rgba(14,232,200,0.18)' }}>
-          {totalActive} ACTIVE
+          {totalActive} active
         </span>
       </SectionHeader>
 
@@ -123,10 +123,10 @@ export default function TasksClient() {
             onChange={e => setNewPriority(e.target.value)}
             style={{ width: 110, cursor: 'pointer' }}
           >
-            <option value="critical">CRITICAL</option>
-            <option value="high">HIGH</option>
-            <option value="medium">MEDIUM</option>
-            <option value="low">LOW</option>
+            <option value="critical">Critical</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
           </select>
           <select
             className="forge-input"
@@ -145,7 +145,7 @@ export default function TasksClient() {
             className="btn btn-primary"
             style={{ background: 'var(--color-arc-cyan-deep)', flexShrink: 0 }}
           >
-            + ADD
+            + Add
           </button>
         </div>
       </GlassCard>
@@ -190,11 +190,10 @@ export default function TasksClient() {
                 />
                 <span
                   style={{
-                    fontFamily: 'var(--font-ibm-plex-mono)',
-                    fontSize: 9,
+                    fontFamily: 'system-ui, -apple-system, sans-serif',
+                    fontSize: 12,
+                    fontWeight: 600,
                     color: col.color,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
                   }}
                 >
                   {col.label}
@@ -298,15 +297,15 @@ export default function TasksClient() {
             onClick={(e) => e?.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <div style={{ fontFamily: 'var(--font-barlow-condensed)', fontWeight: 700, fontSize: 16, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-primary)' }}>
-                EDIT TASK
+              <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontWeight: 600, fontSize: 16, letterSpacing: '-0.01em', color: 'var(--text-primary)' }}>
+                Edit Task
               </div>
               <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 20 }}>×</button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
-                <label style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Title</label>
+                <label style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Title</label>
                 <input
                   className="forge-input"
                   defaultValue={modal.title}
@@ -314,7 +313,7 @@ export default function TasksClient() {
                 />
               </div>
               <div>
-                <label style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Description</label>
+                <label style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Description</label>
                 <textarea
                   className="forge-input"
                   rows={3}
@@ -324,7 +323,7 @@ export default function TasksClient() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>
-                  <label style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Status</label>
+                  <label style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Status</label>
                   <select
                     className="forge-input"
                     defaultValue={modal.status}
@@ -335,19 +334,19 @@ export default function TasksClient() {
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Priority</label>
+                  <label style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Priority</label>
                   <select
                     className="forge-input"
                     defaultValue={modal.priority}
                     onChange={e => setEditFields(f => ({ ...f, priority: e.target.value }))}
                     style={{ cursor: 'pointer' }}
                   >
-                    {Object.keys(PRIORITY_COLORS).map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
+                    {Object.keys(PRIORITY_COLORS).map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
                   </select>
                 </div>
               </div>
               <div>
-                <label style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Project</label>
+                <label style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Project</label>
                 <select
                   className="forge-input"
                   defaultValue={modal.project_id || ''}
@@ -359,7 +358,7 @@ export default function TasksClient() {
                 </select>
               </div>
               <div>
-                <label style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Due Date</label>
+                <label style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Due Date</label>
                 <input
                   type="date"
                   className="forge-input"
@@ -370,14 +369,14 @@ export default function TasksClient() {
 
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                 <button onClick={saveModal} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', background: 'var(--color-arc-cyan-deep)' }}>
-                  SAVE CHANGES
+                  Save Changes
                 </button>
                 <button
                   onClick={() => deleteTask(modal.id)}
                   className="btn btn-ghost"
                   style={{ color: 'var(--color-ink)', borderColor: 'rgba(255,59,59,0.2)' }}
                 >
-                  DELETE
+                  Delete
                 </button>
               </div>
             </div>

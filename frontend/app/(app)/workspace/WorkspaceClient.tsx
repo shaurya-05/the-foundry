@@ -29,11 +29,11 @@ const NODE_COLORS: Record<NodeType, string> = {
 }
 
 const NODE_LABELS: Record<NodeType, string> = {
-  note: 'NOTE',
-  project: 'PROJECT',
-  idea: 'IDEA',
-  knowledge: 'KNOWLEDGE',
-  custom: 'CUSTOM',
+  note: 'Note',
+  project: 'Project',
+  idea: 'Idea',
+  knowledge: 'Knowledge',
+  custom: 'Custom',
 }
 
 const VISIBILITY_COLORS: Record<Visibility, string> = {
@@ -43,9 +43,9 @@ const VISIBILITY_COLORS: Record<Visibility, string> = {
 }
 
 const VISIBILITY_LABELS: Record<Visibility, string> = {
-  private: '⊘ PRIVATE',
-  team: '⬡ TEAM',
-  public: '◉ PUBLIC',
+  private: '⊘ Private',
+  team: '⬡ Team',
+  public: '◉ Public',
 }
 
 function getToken() {
@@ -340,15 +340,15 @@ export default function WorkspaceClient() {
       <div style={{ marginBottom: 12, flexShrink: 0 }}>
         <SectionHeader title="Workspace" sublabel="Canvas" accent="var(--color-n600)">
           {/* Presence indicator */}
-          <span style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, color: 'var(--color-n600)' }}>
-            ● {presence} ONLINE
+          <span style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 12, fontWeight: 500, color: 'var(--color-n600)' }}>
+            ● {presence} online
           </span>
-          <span style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-            {Math.round(zoom * 100)}% · {saved ? '✓ SAVED' : '● SAVING…'}
+          <span style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 12, fontWeight: 500, color: 'var(--text-muted)' }}>
+            {Math.round(zoom * 100)}% · {saved ? '✓ Saved' : '● Saving…'}
           </span>
           {selected && (
             <button onClick={deleteSelected} className="btn btn-ghost btn-sm" style={{ color: 'var(--color-ink)' }}>
-              DELETE NODE
+              Delete Node
             </button>
           )}
           {selected && selectedNode && (
@@ -361,7 +361,7 @@ export default function WorkspaceClient() {
             </button>
           )}
           <button onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }) }} className="btn btn-ghost btn-sm">
-            RESET VIEW
+            Reset View
           </button>
         </SectionHeader>
       </div>
@@ -376,7 +376,7 @@ export default function WorkspaceClient() {
           position: 'relative',
           overflow: 'hidden',
           borderRadius: 10,
-          border: '1px solid rgba(167,139,250,0.15)',
+          border: '1px solid var(--border)',
           cursor: isPanning ? 'grabbing' : 'grab',
           userSelect: 'none',
         }}
@@ -429,21 +429,19 @@ export default function WorkspaceClient() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                     <span
                       style={{
-                        fontFamily: 'var(--font-ibm-plex-mono)',
-                        fontSize: 8,
+                        fontFamily: 'system-ui, -apple-system, sans-serif',
+                        fontSize: 10,
+                        fontWeight: 600,
                         color,
-                        letterSpacing: '0.08em',
-                        textTransform: 'uppercase',
                       }}
                     >
                       {NODE_LABELS[node.type]}
                     </span>
                     <span
                       style={{
-                        fontFamily: 'var(--font-ibm-plex-mono)',
-                        fontSize: 7,
+                        fontFamily: 'system-ui, -apple-system, sans-serif',
+                        fontSize: 9,
                         color: visColor,
-                        letterSpacing: '0.06em',
                       }}
                     >
                       {VISIBILITY_LABELS[node.visibility ?? 'team']}
@@ -532,11 +530,10 @@ export default function WorkspaceClient() {
                     border: `1px solid ${NODE_COLORS[type]}30`,
                     borderRadius: 5,
                     cursor: 'pointer',
-                    fontFamily: 'var(--font-ibm-plex-mono)',
-                    fontSize: 9,
+                    fontFamily: 'system-ui, -apple-system, sans-serif',
+                    fontSize: 12,
+                    fontWeight: 600,
                     color: NODE_COLORS[type],
-                    letterSpacing: '0.06em',
-                    textTransform: 'uppercase',
                   }}
                 >
                   {NODE_LABELS[type]}
@@ -574,8 +571,8 @@ export default function WorkspaceClient() {
               pointerEvents: 'none',
             }}
           >
-            <span style={{ fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, color: 'rgba(255,255,255,0.15)', letterSpacing: '0.1em' }}>
-              DOUBLE-CLICK ANYWHERE TO ADD A NODE
+            <span style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.2)' }}>
+              Double-click anywhere to add a node
             </span>
           </div>
         )}
