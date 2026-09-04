@@ -63,6 +63,13 @@ ALLOWED_ORIGINS = [o.strip() for o in _origins_env.split(",") if o.strip()] or [
     "http://localhost:3000",
     "http://localhost:3001",
 ]
+# Vercel builds a preview deployment for every branch pushed (e.g.
+# the-foundry-git-<branch>-shaurya-05s-projects.vercel.app), so a static
+# ALLOWED_ORIGINS list would need a manual edit + backend restart per branch.
+# This regex covers this project's preview/production URLs generically.
+ALLOWED_ORIGIN_REGEX = os.getenv(
+    "ALLOWED_ORIGIN_REGEX", r"^https://the-foundry-[a-z0-9-]+\.vercel\.app$"
+)
 
 from app.routers import (
     knowledge, projects, tasks, agents,
@@ -189,6 +196,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=ALLOWED_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
