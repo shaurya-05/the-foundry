@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { motion, useReducedMotion } from 'framer-motion'
 import { api } from '@/lib/api'
 import EyebrowLabel from '@/components/brand/EyebrowLabel'
 
@@ -133,8 +134,29 @@ export default function ForgeCommand({ onClose }: ForgeCommandProps) {
     if (e.key === 'Escape') onClose()
   }
 
+  const reduceMotion = useReducedMotion()
+
+  // apple-design §4/§12: critically damped (no overshoot — this is a UI
+  // panel appearing, not a momentum-driven gesture) and materialized via
+  // blur+scale together, not a plain opacity fade. §14: reduced motion
+  // drops to a short cross-fade with no transform.
+  const panelTransition = reduceMotion
+    ? { duration: 0.15, ease: 'easeOut' as const }
+    : { type: 'spring' as const, bounce: 0, duration: 0.35 }
+  const panelInitial = reduceMotion
+    ? { opacity: 0 }
+    : { opacity: 0, scale: 0.96, filter: 'blur(8px)' }
+  const panelAnimate = reduceMotion
+    ? { opacity: 1 }
+    : { opacity: 1, scale: 1, filter: 'blur(0px)' }
+  const panelExit = panelInitial
+
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: reduceMotion ? 0.1 : 0.2, ease: 'easeOut' }}
       style={{
         position: 'fixed',
         inset: 0,
@@ -147,7 +169,11 @@ export default function ForgeCommand({ onClose }: ForgeCommandProps) {
       }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div
+      <motion.div
+        initial={panelInitial}
+        animate={panelAnimate}
+        exit={panelExit}
+        transition={panelTransition}
         style={{
           width: 560,
           maxWidth: '100%',
@@ -303,8 +329,8 @@ export default function ForgeCommand({ onClose }: ForgeCommandProps) {
             </span>
           ))}
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }
 

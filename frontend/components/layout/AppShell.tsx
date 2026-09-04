@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import dynamic from 'next/dynamic'
+import { AnimatePresence } from 'framer-motion'
 import Sidebar from './Sidebar'
 import Header from './Header'
 import { useAuth } from '@/lib/auth'
@@ -120,22 +121,33 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
 
-      {commandOpen && (
-        <ForgeCommand onClose={() => setCommandOpen(false)} />
-      )}
-      {signalsOpen && (
-        <ForgeSignals
-          onClose={() => setSignalsOpen(false)}
-          onUnreadChange={setNotifCount}
-          onWatchNoticeChange={setWatchNoticeCount}
-        />
-      )}
-      {copilotOpen && (
-        <ForgeCopilot
-          onClose={() => setCopilotOpen(false)}
-          commandCenter={false}
-        />
-      )}
+      {/* AnimatePresence intercepts unmount so each overlay's exit motion
+          (defined inside the component itself) actually plays instead of
+          the DOM node disappearing instantly. */}
+      <AnimatePresence>
+        {commandOpen && (
+          <ForgeCommand key="forge-command" onClose={() => setCommandOpen(false)} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {signalsOpen && (
+          <ForgeSignals
+            key="forge-signals"
+            onClose={() => setSignalsOpen(false)}
+            onUnreadChange={setNotifCount}
+            onWatchNoticeChange={setWatchNoticeCount}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {copilotOpen && (
+          <ForgeCopilot
+            key="forge-copilot"
+            onClose={() => setCopilotOpen(false)}
+            commandCenter={false}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

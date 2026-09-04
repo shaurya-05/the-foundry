@@ -1,54 +1,16 @@
 import type { Metadata } from 'next'
-import { Barlow_Condensed, Barlow, IBM_Plex_Mono, IBM_Plex_Serif, Archivo, Archivo_Black } from 'next/font/google'
 import '../styles/globals.css'
 import { ThemeProvider } from '@/lib/theme'
 // Phase 2 §3.6 — AuthProvider lives in (app)/layout.tsx, NOT root.
 // Marketing routes ((marketing)/) skip the auth hydration cycle entirely.
 
-// ─── Legacy fonts (Phase 6 will remove Barlow stack) ─────────────────────────
-const barlowCondensed = Barlow_Condensed({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-barlow-condensed',
-  display: 'swap',
-})
-
-const barlow = Barlow({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  variable: '--font-barlow',
-  display: 'swap',
-})
-
-const ibmPlexMono = IBM_Plex_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  variable: '--font-ibm-plex-mono',
-  display: 'swap',
-})
-
-// ─── H3ROS Design Language v1.2 type stack ───────────────────────────────────
-const archivo = Archivo({
-  subsets: ['latin'],
-  weight: ['400', '700'],
-  variable: '--font-archivo',
-  display: 'swap',
-})
-
-const archivoBlack = Archivo_Black({
-  subsets: ['latin'],
-  weight: ['400'], // Archivo Black is a single-weight family
-  variable: '--font-archivo-black',
-  display: 'swap',
-})
-
-const plexSerif = IBM_Plex_Serif({
-  subsets: ['latin'],
-  weight: ['500'],
-  style: ['normal', 'italic'],
-  variable: '--font-plex-serif',
-  display: 'swap',
-})
+// apple-design comparison branch: no next/font Google Fonts loading.
+// §15 — "default to the platform's system font before a custom face;
+// override only with a reason." No reason surfaced, so every one of the
+// --font-* variable names components already reference is defined as a
+// system-font stack directly in styles/globals.css's :root instead of
+// being injected by next/font — same variable names, so no component
+// needs to change its inline styles for this branch to take effect.
 
 export const metadata: Metadata = {
   title: 'The FOUND3RY — by h3ros',
@@ -57,11 +19,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="en"
-      className={`${barlowCondensed.variable} ${barlow.variable} ${ibmPlexMono.variable} ${archivo.variable} ${archivoBlack.variable} ${plexSerif.variable}`}
-      suppressHydrationWarning
-    >
+    <html lang="en" suppressHydrationWarning>
       <body>
         <ThemeProvider>{children}</ThemeProvider>
       </body>

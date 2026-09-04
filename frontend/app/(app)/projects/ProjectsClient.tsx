@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { api, Project, Task } from '@/lib/api'
 import { streamSSE, streamWS } from '@/lib/streaming'
 import GlassCard from '@/components/ui/GlassCard'
@@ -47,6 +48,17 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 export default function ProjectsClient() {
+  const reduceMotion = useReducedMotion()
+  // apple-design §4/§12/§14: shared modal-materialize spring for both
+  // dialogs below — critically damped (no bounce; these appear, they
+  // aren't thrown), blur+scale together rather than a plain opacity fade,
+  // dropping to a short cross-fade under reduced motion.
+  const modalPanelInitial = reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.96, filter: 'blur(8px)' }
+  const modalPanelAnimate = reduceMotion ? { opacity: 1 } : { opacity: 1, scale: 1, filter: 'blur(0px)' }
+  const modalPanelTransition = reduceMotion
+    ? { duration: 0.15, ease: 'easeOut' as const }
+    : { type: 'spring' as const, bounce: 0, duration: 0.35 }
+  const modalBackdropTransition = { duration: reduceMotion ? 0.1 : 0.2, ease: 'easeOut' as const }
   const [projects, setProjects] = useState<Project[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
@@ -233,13 +245,20 @@ export default function ProjectsClient() {
       </SectionHeader>
 
       {/* Create Modal */}
-      {showCreateModal && (
-        <div style={{
+      <AnimatePresence>
+        {showCreateModal && (
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          transition={modalBackdropTransition}
+          style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 999, backdropFilter: 'blur(4px)',
         }} onClick={() => setShowCreateModal(false)}>
-          <div onClick={e => e.stopPropagation()} className="liquid-glass-strong" style={{
+          <motion.div
+            initial={modalPanelInitial} animate={modalPanelAnimate} exit={modalPanelInitial}
+            transition={modalPanelTransition}
+            onClick={e => e.stopPropagation()} className="liquid-glass-strong" style={{
             borderRadius: 16,
             width: '100%', maxWidth: 560,
             maxHeight: '80vh', overflow: 'auto',
@@ -356,18 +375,26 @@ export default function ProjectsClient() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Concept Modal */}
-      {showConceptModal && (
-        <div style={{
+      <AnimatePresence>
+        {showConceptModal && (
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          transition={modalBackdropTransition}
+          style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 999, backdropFilter: 'blur(4px)',
         }} onClick={() => setShowConceptModal(false)}>
-          <div onClick={e => e.stopPropagation()} className="liquid-glass-strong" style={{
+          <motion.div
+            initial={modalPanelInitial} animate={modalPanelAnimate} exit={modalPanelInitial}
+            transition={modalPanelTransition}
+            onClick={e => e.stopPropagation()} className="liquid-glass-strong" style={{
             borderRadius: 16,
             width: '100%', maxWidth: 560,
             maxHeight: '80vh', overflow: 'auto',
@@ -490,9 +517,10 @@ export default function ProjectsClient() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Create Form */}
       <GlassCard accent="var(--color-ink)" accentTop accentGlow style={{ padding: '16px 20px', marginBottom: 20 }}>

@@ -169,7 +169,18 @@ html.dark {
 }
 
 :root {
-  --font-plex-mono: var(--font-ibm-plex-mono);
+  /* apple-design comparison branch: every --font-* name components
+     already reference via inline styles, redefined to system stacks
+     instead of the H3ROS Google Fonts (Barlow/Archivo/IBM Plex) that
+     next/font used to inject at html-element specificity. Same names,
+     so no component file needs to change. */
+  --font-barlow-condensed: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-barlow:           system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-archivo:          system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-archivo-black:    system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-ibm-plex-mono:    ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-plex-mono:        ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-plex-serif:       ui-serif, Georgia, serif;
 }
 html {
   color-scheme: light;
@@ -182,9 +193,11 @@ html[data-theme="dark"] {
 body {
   background: var(--bg);
   color: var(--text-primary);
-  font-family: var(--font-barlow), system-ui, sans-serif;
+  /* apple-design §15: default to the platform system font. */
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 14px;
   line-height: 1.5;
+  letter-spacing: 0; /* body text wants ~0 tracking, not the H3ROS uppercase +0.02em habit */
   /* No global overflow: hidden / height: 100vh.
      - Marketing routes need natural page scroll on mobile.
      - App routes (AppShell) set height/overflow on their own root
@@ -375,18 +388,22 @@ body {
   }
 }
 
-/* ─── Typography ───────────────────────────────────────────────────────────── */
+/* ─── Typography (apple-design §15: optical sizing, tracking, leading) ─────── */
+/* Tracking is size-specific, never one fixed value: large display text wants
+   negative tracking (letters read too far apart as they grow); body text
+   wants ~0 or slightly positive. Leading tracks size inversely — tight on
+   large headings, looser on body. Weight, not forced uppercase, carries
+   hierarchy. */
 h1, h2, h3 {
-  font-family: var(--font-barlow-condensed), sans-serif;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
   color: var(--text-primary);
+  text-transform: none;
 }
 
-h1 { font-size: 2.6rem; line-height: 1.0; letter-spacing: 0.03em; }
-h2 { font-size: 1.9rem; line-height: 1.05; }
-h3 { font-size: 1.3rem; line-height: 1.1; }
+h1 { font-size: 2.6rem; line-height: 1.02; letter-spacing: -0.02em; }
+h2 { font-size: 1.9rem; line-height: 1.08; letter-spacing: -0.015em; }
+h3 { font-size: 1.3rem; line-height: 1.15; letter-spacing: -0.01em; }
 
 /* ─── Legacy card tiers — same frost + lift as .bay-panel ──────────────────── */
 .gl0,
@@ -447,7 +464,7 @@ h3 { font-size: 1.3rem; line-height: 1.1; }
   gap: 4px;
   padding: 2px 7px;
   border-radius: 4px;
-  font-family: var(--font-ibm-plex-mono), monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.10em;
@@ -464,7 +481,7 @@ h3 { font-size: 1.3rem; line-height: 1.1; }
   gap: 6px;
   padding: 8px 16px;
   border-radius: 10px;
-  font-family: var(--font-archivo), system-ui, sans-serif;
+  font-family: system-ui, -apple-system, sans-serif;
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -587,7 +604,7 @@ h3 { font-size: 1.3rem; line-height: 1.1; }
   border-radius: 0;
   color: var(--color-ink);
   padding: 8px 0;
-  font-family: var(--font-archivo), system-ui, sans-serif;
+  font-family: system-ui, -apple-system, sans-serif;
   font-size: 15px;
   font-weight: 400;
   outline: none;
@@ -609,7 +626,7 @@ textarea.forge-input { resize: vertical; min-height: 80px; border: 1px solid var
   color: var(--color-ink);
   margin-top: 1.2em;
   margin-bottom: 0.4em;
-  font-family: var(--font-archivo-black), sans-serif;
+  font-family: system-ui, -apple-system, sans-serif;
   font-weight: 400;
   font-size: 1.1rem;
   letter-spacing: -0.01em;
@@ -620,7 +637,7 @@ textarea.forge-input { resize: vertical; min-height: 80px; border: 1px solid var
   color: var(--color-n600);
   margin-bottom: 0.75em;
   line-height: 1.65;
-  font-family: var(--font-plex-serif), serif;
+  font-family: ui-serif, Georgia, serif;
   font-weight: 500;
 }
 
@@ -628,12 +645,12 @@ textarea.forge-input { resize: vertical; min-height: 80px; border: 1px solid var
   color: var(--color-n600);
   padding-left: 1.5em;
   margin-bottom: 0.75em;
-  font-family: var(--font-plex-serif), serif;
+  font-family: ui-serif, Georgia, serif;
   font-weight: 500;
 }
 
 .forge-md li { margin-bottom: 0.3em; }
-.forge-md strong { color: var(--color-ink); font-weight: 700; font-family: var(--font-archivo), system-ui, sans-serif; }
+.forge-md strong { color: var(--color-ink); font-weight: 700; font-family: system-ui, -apple-system, sans-serif; }
 .forge-md em { font-style: italic; }
 
 .forge-md code {
@@ -641,7 +658,7 @@ textarea.forge-input { resize: vertical; min-height: 80px; border: 1px solid var
   border: 1px solid var(--color-arc-cyan);
   border-radius: 2px;
   padding: 1px 5px;
-  font-family: var(--font-plex-mono), monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-weight: 500;
   font-size: 12px;
   color: var(--color-ink);
@@ -695,7 +712,7 @@ textarea.forge-input { resize: vertical; min-height: 80px; border: 1px solid var
 
 /* ─── Number Display (hero stat numbers) ────────────────────────────────────── */
 .stat-number {
-  font-family: var(--font-barlow-condensed), sans-serif;
+  font-family: system-ui, -apple-system, sans-serif;
   font-weight: 700;
   line-height: 0.9;
   letter-spacing: -0.01em;
@@ -729,7 +746,7 @@ textarea.forge-input { resize: vertical; min-height: 80px; border: 1px solid var
   padding: 6px 16px;
   background: var(--bg-mid);
   border-top: 1px solid var(--border);
-  font-family: var(--font-ibm-plex-mono), monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 9px;
   color: var(--text-muted);
   letter-spacing: 0.08em;
@@ -737,7 +754,7 @@ textarea.forge-input { resize: vertical; min-height: 80px; border: 1px solid var
 
 /* ─── Readout (mono technical labels) ────────────────────────────────────────── */
 .readout {
-  font-family: var(--font-ibm-plex-mono), monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -745,7 +762,7 @@ textarea.forge-input { resize: vertical; min-height: 80px; border: 1px solid var
 }
 
 .readout-value {
-  font-family: var(--font-barlow-condensed), sans-serif;
+  font-family: system-ui, -apple-system, sans-serif;
   font-weight: 700;
   letter-spacing: 0.02em;
 }

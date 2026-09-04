@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { api, Task, Project } from '@/lib/api'
 import GlassCard from '@/components/ui/GlassCard'
 import SectionHeader from '@/components/ui/SectionHeader'
@@ -22,6 +23,13 @@ const PRIORITY_COLORS: Record<string, string> = {
 }
 
 export default function TasksClient() {
+  const reduceMotion = useReducedMotion()
+  const modalPanelInitial = reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.96, filter: 'blur(8px)' }
+  const modalPanelAnimate = reduceMotion ? { opacity: 1 } : { opacity: 1, scale: 1, filter: 'blur(0px)' }
+  const modalPanelTransition = reduceMotion
+    ? { duration: 0.15, ease: 'easeOut' as const }
+    : { type: 'spring' as const, bounce: 0, duration: 0.35 }
+  const modalBackdropTransition = { duration: reduceMotion ? 0.1 : 0.2, ease: 'easeOut' as const }
   const [tasks, setTasks] = useState<Task[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
@@ -278,8 +286,11 @@ export default function TasksClient() {
       </div>
 
       {/* Task Modal */}
-      {modal && (
-        <div
+      <AnimatePresence>
+        {modal && (
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          transition={modalBackdropTransition}
           style={{
             position: 'fixed',
             inset: 0,
@@ -292,6 +303,10 @@ export default function TasksClient() {
           }}
           onClick={e => { if (e.target === e.currentTarget) setModal(null) }}
         >
+          <motion.div
+            initial={modalPanelInitial} animate={modalPanelAnimate} exit={modalPanelInitial}
+            transition={modalPanelTransition}
+          >
           <GlassCard
             tier={2}
             style={{ width: 480, padding: '24px', maxHeight: '80vh', overflow: 'auto' }}
@@ -382,8 +397,10 @@ export default function TasksClient() {
               </div>
             </div>
           </GlassCard>
-        </div>
-      )}
+          </motion.div>
+        </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

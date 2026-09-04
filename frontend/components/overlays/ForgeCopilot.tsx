@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { motion, useReducedMotion } from 'framer-motion'
 import { streamWS, submitToolResult } from '@/lib/streaming'
 import Markdown from '@/components/ui/Markdown'
 import { api } from '@/lib/api'
@@ -298,9 +299,21 @@ export default function ForgeCopilot({ onClose, commandCenter = false }: ForgeCo
     : voiceState === 'speaking' ? 'Speaking…'
     : 'Tap to talk'
 
+  const reduceMotion = useReducedMotion()
+  // apple-design §7: this panel is anchored to the bottom-right corner —
+  // enter and exit follow the same path (in/out toward that corner), not
+  // enter-one-way exit-another. §4: critically damped, no bounce.
   return (
-    <div
-      className="liquid-glass-strong forge-glass-panel"
+    <motion.div
+      className="liquid-glass-strong"
+      initial={reduceMotion ? { opacity: 0 } : { opacity: 0, x: 16, scale: 0.98 }}
+      animate={reduceMotion ? { opacity: 1 } : { opacity: 1, x: 0, scale: 1 }}
+      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: 16, scale: 0.98 }}
+      transition={
+        reduceMotion
+          ? { duration: 0.15, ease: 'easeOut' }
+          : { type: 'spring', bounce: 0, duration: 0.4 }
+      }
       style={{
         position: 'fixed',
         top: commandCenter ? 62 : 12,
@@ -566,7 +579,7 @@ export default function ForgeCopilot({ onClose, commandCenter = false }: ForgeCo
         {tab === 'signals' && <SignalsTab />}
         {tab === 'ops' && <OpsTab onNavigate={(path) => { router.push(path); onClose() }} />}
       </div>
-    </div>
+    </motion.div>
   )
 }
 

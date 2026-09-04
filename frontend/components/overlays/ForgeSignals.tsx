@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { motion, useReducedMotion } from 'framer-motion'
 import { api, AppNotification, WatchNotice } from '@/lib/api'
 import EyebrowLabel from '@/components/brand/EyebrowLabel'
 
@@ -75,9 +76,22 @@ export default function ForgeSignals({ onClose, onUnreadChange, onWatchNoticeCha
   }
 
   const empty = !loading && notifications.length === 0 && watchNotices.length === 0
+  const reduceMotion = useReducedMotion()
 
+  // apple-design §7: enter and exit along the same path — this drawer is
+  // anchored to the right edge, so it slides from/to the right, not a
+  // generic fade. §4: critically damped (no bounce; not gesture-driven).
+  // §14: reduced motion drops the translate, keeps a short cross-fade.
   return (
-    <div
+    <motion.div
+      initial={reduceMotion ? { opacity: 0 } : { x: 360, opacity: 0.6 }}
+      animate={reduceMotion ? { opacity: 1 } : { x: 0, opacity: 1 }}
+      exit={reduceMotion ? { opacity: 0 } : { x: 360, opacity: 0.6 }}
+      transition={
+        reduceMotion
+          ? { duration: 0.15, ease: 'easeOut' }
+          : { type: 'spring', bounce: 0, duration: 0.35 }
+      }
       style={{
         position: 'fixed',
         top: 52,
@@ -362,6 +376,6 @@ export default function ForgeSignals({ onClose, onUnreadChange, onWatchNoticeCha
           </>
         )}
       </div>
-    </div>
+    </motion.div>
   )
 }

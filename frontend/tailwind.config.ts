@@ -40,14 +40,18 @@ const config: Config = {
         'text-subtle':    'var(--text-subtle)',
       },
       fontFamily: {
-        // ─── H3ROS type stack ───────────────────────────────────────────
-        'display-black': ['var(--font-archivo-black)', 'sans-serif'],
-        editorial:       ['var(--font-plex-serif)', 'serif'],
-        ui:              ['var(--font-archivo)', 'system-ui', 'sans-serif'],
-        // ─── Legacy aliases (kept; Phase 6 drops Barlow) ────────────────
-        display: ['var(--font-barlow-condensed)', 'sans-serif'],
-        body:    ['var(--font-barlow)', 'sans-serif'],
-        mono:    ['var(--font-ibm-plex-mono)', 'monospace'],
+        // ─── apple-design comparison branch: system font first (§15) ────
+        // "Default to the platform's system font before a custom face;
+        // override only with a reason." No reason surfaced here, so every
+        // alias below (including the old H3ROS-branded names, kept only
+        // so existing component code doesn't need a mass rename) resolves
+        // to the same system stack.
+        'display-black': ['system-ui', '-apple-system', 'sans-serif'],
+        editorial:       ['system-ui', '-apple-system', 'sans-serif'],
+        ui:              ['system-ui', '-apple-system', 'sans-serif'],
+        display: ['system-ui', '-apple-system', 'sans-serif'],
+        body:    ['system-ui', '-apple-system', 'sans-serif'],
+        mono:    ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       backdropBlur: {
         'gl0': '20px',
