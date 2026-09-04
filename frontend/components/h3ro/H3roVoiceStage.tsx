@@ -896,51 +896,48 @@ export default function H3roVoiceStage() {
       padding: '0 0 8px',
       gap: 10,
     }}>
-      {/* Shared top chrome */}
+      {/* Shared top chrome — apple-design §16.6: this used to carry six
+          competing controls in one row (four toggle chips, a Settings
+          button redundant with the sidebar, and a Clear button redundant
+          with the thread dropdown's own "New conversation" option). Cut
+          to icon-only toggles plus the one thing you actually pick
+          between: which conversation you're in. */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 12,
-        padding: '0 4px 4px',
+        gap: 10,
+        padding: '2px 4px 4px',
         flexShrink: 0,
       }}>
-        <div>
-          <div style={{
-            fontFamily: 'var(--font-archivo)', fontWeight: 700, fontSize: 15,
-            letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-ink)',
-          }}>
-            <H3roMark size={15} />
-          </div>
-          <div style={{
-            fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 9, color: 'var(--color-n400)',
-            letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 2,
-          }}>
-            Collaborating cofound3r · remembers prior chats · pronounced hero
-          </div>
-        </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <H3roMark size={16} />
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
           {speechOk && (
-            <button
+            <QuietToggle
+              active={alwaysListening}
+              activeColor="#C47A1A"
               onClick={() => setAlwaysListeningOn(!alwaysListening)}
-              style={chipStyle(alwaysListening, alwaysListening ? '#C47A1A' : undefined)}
-              title="Keep the mic open and respond only after “Hey H3RO” / “Hey hero”. Off by default."
+              title="Always listening — respond after “Hey H3RO”. Off by default."
             >
-              {alwaysListening ? '● Always' : '○ Always'}
-            </button>
+              <MicIcon />
+            </QuietToggle>
           )}
-          <button onClick={() => setConversationOn(v => !v)} style={chipStyle(conversationOn)} title="Keep listening after speaking (push-to-talk follow-up)">
-            {conversationOn ? '● Live' : '○ Live'}
-          </button>
-          <button onClick={() => setFilesOpen(v => !v)} style={chipStyle(hasAccess || filesOpen || needsAccessPrompt)}>
-            {folderConnected ? '● Full access' : grantedFiles.length ? `● ${grantedFiles.length} files` : '○ File access'}
-          </button>
-          <button
-            onClick={() => router.push('/settings')}
-            style={chipStyle(false)}
-            title="Adjust file access in Settings"
+          <QuietToggle
+            active={conversationOn}
+            onClick={() => setConversationOn(v => !v)}
+            title="Keep listening after speaking (push-to-talk follow-up)"
           >
-            Settings
-          </button>
+            <LiveIcon />
+          </QuietToggle>
+          <QuietToggle
+            active={hasAccess || filesOpen || needsAccessPrompt}
+            onClick={() => setFilesOpen(v => !v)}
+            title={folderConnected ? `Full access · ${folderName}` : grantedFiles.length ? `${grantedFiles.length} files selected` : 'File access'}
+          >
+            <FolderIcon />
+          </QuietToggle>
+          <QuietToggle active={false} onClick={clearSession} title="Clear this conversation">
+            <ClearIcon />
+          </QuietToggle>
           <select
             value={activeThread || ''}
             onChange={e => {
@@ -948,8 +945,9 @@ export default function H3roVoiceStage() {
               else clearSession()
             }}
             style={{
-              fontFamily: 'var(--font-ibm-plex-mono)', fontSize: 11, padding: '5px 8px',
-              borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--color-ink)',
+              fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 13, padding: '6px 10px',
+              borderRadius: 10, border: 'none', background: 'var(--color-n200)', color: 'var(--color-n600)',
+              cursor: 'pointer',
             }}
           >
             <option value="">New conversation</option>
@@ -957,7 +955,6 @@ export default function H3roVoiceStage() {
               <option key={t.id} value={t.id}>{t.title || 'Untitled'}</option>
             ))}
           </select>
-          <button onClick={clearSession} style={chipStyle(false)}>Clear</button>
         </div>
       </div>
 
@@ -1124,13 +1121,11 @@ export default function H3roVoiceStage() {
         <div
           className="liquid-glass-strong"
           style={{
-            borderRadius: 18,
+            borderRadius: 20,
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
             minHeight: 0,
-            background:
-              'radial-gradient(ellipse 80% 55% at 50% 40%, rgba(159,222,250,0.16) 0%, transparent 58%), var(--glass-bg, rgba(255,255,255,0.06))',
           }}
         >
           <div style={{
@@ -1144,7 +1139,7 @@ export default function H3roVoiceStage() {
           }}>
             <H3roJarvisOrb
               state={voiceState}
-              size={200}
+              size={260}
               // Must stay clickable during 'processing'/'speaking' so the
               // founder can interrupt — handleOrbActivate branches on
               // voiceState itself and no-ops for any other stray state.
@@ -1528,21 +1523,70 @@ function SourcePanel({ card }: { card: SourceCard }) {
   )
 }
 
-function chipStyle(active: boolean, accent?: string): CSSProperties {
-  return {
-    padding: '5px 10px',
-    border: active && accent ? `1px solid ${accent}` : '1px solid var(--border)',
-    borderRadius: 8,
-    background: active
-      ? (accent ? 'rgba(232,165,75,0.16)' : 'var(--color-arc-soft)')
-      : 'rgba(255,255,255,0.08)',
-    cursor: 'pointer',
-    fontFamily: 'var(--font-ibm-plex-mono)',
-    fontSize: 10,
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase',
-    color: active ? (accent || 'var(--color-arc-cyan)') : 'var(--color-n600)',
-  }
+function QuietToggle({
+  active,
+  activeColor,
+  onClick,
+  title,
+  children,
+}: {
+  active: boolean
+  activeColor?: string
+  onClick: () => void
+  title: string
+  children: React.ReactNode
+}) {
+  const color = active ? (activeColor || 'var(--color-arc-cyan)') : 'var(--color-n600)'
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-pressed={active}
+      style={{
+        width: 30, height: 30,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: active ? (activeColor ? 'rgba(196,122,26,0.14)' : 'var(--color-arc-soft)') : 'transparent',
+        border: 'none', borderRadius: 9, cursor: 'pointer', color,
+        transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
+      }}
+      onMouseEnter={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'var(--color-n200)' }}
+      onMouseLeave={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'transparent' }}
+    >
+      {children}
+    </button>
+  )
+}
+
+function MicIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <rect x="4.5" y="1" width="5" height="8" rx="2.5" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M2.5 6.5a4.5 4.5 0 0 0 9 0M7 11v2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  )
+}
+function LiveIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <circle cx="7" cy="7" r="2" fill="currentColor" />
+      <path d="M4.2 4.2a4 4 0 0 0 0 5.6M9.8 4.2a4 4 0 0 1 0 5.6" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+    </svg>
+  )
+}
+function FolderIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M1.5 3.5a1 1 0 0 1 1-1h2.6l1 1.2h4.4a1 1 0 0 1 1 1v5.3a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1V3.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+    </svg>
+  )
+}
+function ClearIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M2.5 3.5h9M5 3.5V2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M3.5 3.5v8a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1v-8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
 }
 
 const secondaryBtn: CSSProperties = {

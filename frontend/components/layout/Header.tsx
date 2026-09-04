@@ -2,8 +2,6 @@
 
 import { usePathname } from 'next/navigation'
 import { sectionLabels } from '@/styles/design-system'
-import { useEffect, useState } from 'react'
-import H3rosStamp from '@/components/brand/H3rosStamp'
 import H3roMark from '@/components/brand/H3roMark'
 import { useTheme } from '@/lib/theme'
 
@@ -15,42 +13,35 @@ interface HeaderProps {
   onMenuToggle?: () => void
 }
 
+/**
+ * Redesigned per apple-design §16.6 (simplicity, not minimalism) — the
+ * prior header carried a live clock, a double-labeled section readout, a
+ * repeated brand stamp, and a text-labeled command button all competing
+ * for attention at once. None of that is core to "talk to H3RO." Cut to:
+ * one calm section title, and icon-first actions for the things you
+ * actually do from here.
+ */
 export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0, onMenuToggle }: HeaderProps) {
   const pathname = usePathname()
   const section = pathname.split('/')[1] || 'dashboard'
   const sectionName = sectionLabels[section] || 'The FOUND3RY'
   const { theme, toggle } = useTheme()
 
-  const [time, setTime] = useState('')
-  const [date, setDate] = useState('')
-  useEffect(() => {
-    const tick = () => {
-      const now = new Date()
-      setTime(now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }))
-      setDate(now.toLocaleDateString('en-US', { month: 'short', day: '2-digit' }).toUpperCase())
-    }
-    tick()
-    const t = setInterval(tick, 1000)
-    return () => clearInterval(t)
-  }, [])
-
   return (
     <header
       className="foundry-header liquid-glass-chip"
       style={{
-        height: 50,
+        height: 52,
         margin: '8px 12px 0',
         display: 'flex',
         alignItems: 'center',
         gap: 8,
         flexShrink: 0,
         zIndex: 30,
-        borderRadius: 14,
-        /* ensure frost isn't killed by ancestor filters */
+        borderRadius: 16,
         isolation: 'auto',
       }}
     >
-      {/* Mobile hamburger */}
       {onMenuToggle && (
         <button
           onClick={onMenuToggle}
@@ -66,209 +57,87 @@ export default function Header({ onCommand, onSignals, onCopilot, notifCount = 0
         </button>
       )}
 
-      {/* Section indicator */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-        {/* Flat 2px Arc Cyan section bar (no gradient, no shadow) */}
-        <div style={{
-          width: 2,
-          height: 26,
-          background: 'var(--color-arc-cyan)',
-          flexShrink: 0,
-        }} />
-        <div>
-          <div
-            style={{
-              fontFamily: 'var(--font-archivo), system-ui, sans-serif',
-              fontWeight: 700,
-              fontSize: 14,
-              letterSpacing: '0.10em',
-              textTransform: 'uppercase',
-              color: 'var(--color-ink)',
-              lineHeight: 1.1,
-            }}
-          >
-            {section}
-          </div>
-          <div
-            style={{
-              fontFamily: 'var(--font-plex-mono), monospace',
-              fontWeight: 500,
-              fontSize: 9,
-              color: 'var(--color-n600)',
-              letterSpacing: '0.08em',
-              marginTop: 2,
-              textTransform: 'uppercase',
-            }}
-          >
-            {sectionName}
-          </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            fontWeight: 600,
+            fontSize: 16,
+            letterSpacing: '-0.01em',
+            color: 'var(--color-ink)',
+            lineHeight: 1.1,
+          }}
+        >
+          {sectionName}
         </div>
       </div>
 
-      {/* Right controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} className="foundry-header-right">
-        {/* Live clock */}
-        <div
-          className="foundry-header-clock"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '4px 10px',
-            background: 'var(--glass-bg)',
-            border: '1px solid var(--border)',
-            borderRadius: 10,
-          }}
-        >
-          <div
-            className="h3ros-pulse"
-            style={{
-              width: 5, height: 5,
-              background: 'var(--color-arc-cyan)',
-              flexShrink: 0,
-            }}
-          />
-          <span style={{
-            fontFamily: 'var(--font-plex-mono), monospace',
-            fontWeight: 500,
-            fontSize: 10.5,
-            color: 'var(--color-ink)',
-            letterSpacing: '0.08em',
-            fontVariantNumeric: 'tabular-nums',
-          }}>
-            {time}
-          </span>
-          <span style={{
-            fontFamily: 'var(--font-plex-mono), monospace',
-            fontWeight: 500,
-            fontSize: 9,
-            color: 'var(--color-n400)',
-            letterSpacing: '0.06em',
-          }}>
-            {date}
-          </span>
-        </div>
-
-        {/* Command palette */}
-        <GhostButton onClick={onCommand} title="Command palette (⌘K)">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} className="foundry-header-right">
+        <IconButton onClick={onCommand} title="Command (⌘K)" aria-label="Command palette">
           <CommandIcon />
-          <span className="foundry-header-label" style={{ fontFamily: 'var(--font-archivo), system-ui, sans-serif', fontWeight: 700 }}>COMMAND</span>
-          <span className="foundry-header-shortcut" style={{ fontFamily: 'var(--font-plex-mono), monospace', fontWeight: 500, fontSize: 9, opacity: 0.6, marginLeft: 4 }}>⌘K</span>
-        </GhostButton>
+        </IconButton>
 
-        {/* Theme toggle */}
-        <button
-          onClick={toggle}
-          title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
-          aria-label="Toggle theme"
-          style={{
-            width: 32,
-            height: 32,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'var(--glass-bg)',
-            border: '1px solid var(--border)',
-            borderRadius: 10,
-            cursor: 'pointer',
-            color: 'var(--color-ink)',
-            fontSize: 13,
-          }}
-        >
-          {theme === 'dark' ? '☀' : '☾'}
-        </button>
+        <IconButton onClick={toggle} title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'} aria-label="Toggle appearance">
+          {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+        </IconButton>
 
-        {/* Signals bell */}
-        <button
-          onClick={onSignals}
-          style={{
-            position: 'relative',
-            width: 32,
-            height: 32,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'var(--glass-bg)',
-            border: '1px solid var(--border)',
-            borderRadius: 10,
-            cursor: 'pointer',
-            color: 'var(--color-ink)',
-            transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
-          }}
-          title="Signals"
-          aria-label="Signals"
-        >
+        <IconButton onClick={onSignals} title="Notifications" aria-label="Notifications">
           <BellIcon />
           {notifCount > 0 && (
             <span
               style={{
-                position: 'absolute',
-                top: 5,
-                right: 5,
-                width: 7,
-                height: 7,
-                background: 'var(--color-signal)',
-                borderRadius: 2,
-                border: '1.5px solid var(--color-vellum)',
+                position: 'absolute', top: 7, right: 7,
+                width: 6, height: 6, background: 'var(--color-arc-cyan)',
+                borderRadius: '50%', border: '1.5px solid var(--color-off-white)',
               }}
             />
           )}
-        </button>
+        </IconButton>
 
-        {/* H3RO */}
-        <GhostButton onClick={onCopilot} title="H3RO (⌘J)">
-          <CopilotIcon />
+        <IconButton onClick={onCopilot} title="H3RO (⌘J)" aria-label="Open H3RO">
           <H3roMark size={13} className="foundry-header-label" />
-        </GhostButton>
-
-        {/* H3ROS parent stamp (Equity Layer 3) */}
-        <div className="foundry-header-stamp" style={{ marginLeft: 4 }}>
-          <H3rosStamp
-            size={14}
-            onClick={() => window.open('https://h3ros.com', '_blank', 'noopener,noreferrer')}
-          />
-        </div>
+        </IconButton>
       </div>
     </header>
   )
 }
 
-function GhostButton({
+function IconButton({
   children,
   onClick,
   title,
+  ...rest
 }: {
   children: React.ReactNode
   onClick: () => void
   title: string
-}) {
+} & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       onClick={onClick}
       title={title}
+      {...rest}
       style={{
+        position: 'relative',
+        width: 34,
+        height: 34,
         display: 'flex',
         alignItems: 'center',
-        gap: 6,
-        padding: '5px 10px',
-        background: 'var(--glass-bg)',
-        border: '1px solid var(--border)',
+        justifyContent: 'center',
+        background: 'transparent',
+        border: 'none',
         borderRadius: 10,
         cursor: 'pointer',
-        color: 'var(--color-ink)',
-        fontSize: 11,
-        letterSpacing: '0.07em',
+        color: 'var(--color-n600)',
         transition: 'background-color var(--duration-fast, 120ms) var(--ease-out, ease-out), color var(--duration-fast, 120ms) var(--ease-out, ease-out)',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = 'var(--color-arc-cyan)'
-        e.currentTarget.style.color = '#F4F7FA'
-        e.currentTarget.style.borderColor = 'var(--color-arc-cyan)'
+        e.currentTarget.style.backgroundColor = 'var(--color-n200)'
+        e.currentTarget.style.color = 'var(--color-ink)'
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = 'var(--glass-bg)'
-        e.currentTarget.style.color = 'var(--color-ink)'
-        e.currentTarget.style.borderColor = 'var(--border)'
+        e.currentTarget.style.backgroundColor = 'transparent'
+        e.currentTarget.style.color = 'var(--color-n600)'
       }}
     >
       {children}
@@ -278,27 +147,35 @@ function GhostButton({
 
 function CommandIcon() {
   return (
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-      <path d="M2 4H9M2 7H6.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-      <rect x="1" y="1" width="9" height="9" rx="2" stroke="currentColor" strokeWidth="1" opacity="0.4" />
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <rect x="1.5" y="1.5" width="12" height="12" rx="3" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M4.5 5.5H10.5M4.5 9.5H8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
   )
 }
 
 function BellIcon() {
   return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <path d="M6.5 1a3.5 3.5 0 0 1 3.5 3.5v2.5L11 9H2L3 7V4.5A3.5 3.5 0 0 1 6.5 1Z" stroke="currentColor" strokeWidth="1.1" />
-      <path d="M5 10.5a1.5 1.5 0 0 0 3 0" stroke="currentColor" strokeWidth="1.1" />
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <path d="M7.5 1.2a4 4 0 0 1 4 4v2.8L13 10.5H2l1.5-2.5V5.2a4 4 0 0 1 4-4Z" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M5.8 12a1.7 1.7 0 0 0 3.4 0" stroke="currentColor" strokeWidth="1.2" />
     </svg>
   )
 }
 
-function CopilotIcon() {
+function SunIcon() {
   return (
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-      <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.1" />
-      <path d="M3 5.5h5M5.5 3v5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <circle cx="7.5" cy="7.5" r="3" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M7.5 0.8v1.6M7.5 12.6v1.6M14.2 7.5h-1.6M2.4 7.5H0.8M12.3 2.7l-1.1 1.1M3.8 11.2l-1.1 1.1M12.3 12.3l-1.1-1.1M3.8 3.8L2.7 2.7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function MoonIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <path d="M13 9.3A6 6 0 1 1 5.7 2a5 5 0 0 0 7.3 7.3Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
     </svg>
   )
 }

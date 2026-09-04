@@ -2,24 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── Theme Tokens — slate bay + vibrant FOUND3RY blue ─────────────────────── */
+/* ─── Theme Tokens — "Stark tool, Jobs restraint" ───────────────────────────
+   Complete redesign, no continuity with the prior H3ROS slate-bay/dual-
+   accent system intended or preserved. Near-monochrome canvas, one
+   deliberate accent (a refined arc-reactor blue, not a neon HUD blue),
+   real Apple-gray neutrals instead of blue-tinted slate. Every component
+   still references these same variable names, so the whole app inherits
+   this without a per-file rewrite. */
 :root {
-  /* ═══ FOUND3RY command center — core tokens ════════════════════════════ */
-  --color-ink:           #14161A;
-  /* Bay floor darker than frost — depth only reads if floor sits behind glass */
-  --color-off-white:     #9EA5B0;
-  --color-vellum:        rgba(255, 255, 255, 0.48);
-  --color-signal:        #E84A0E;
-  --color-arc-cyan:      #4B9FFF;
-  --color-arc-cyan-deep: #2F7FE6;
-  --color-arc-soft:      rgba(75, 159, 255, 0.18);
+  --color-ink:           #1D1D1F;   /* near-black text — Apple's own text gray */
+  --color-off-white:     #F5F5F7;   /* the actual canvas background — clean, not slate */
+  --color-vellum:        rgba(255, 255, 255, 0.72);
+  --color-signal:        #FF3B30;   /* error/danger only — system red, never a brand accent */
+  --color-arc-cyan:      #0A84FF;   /* the one accent — refined arc-reactor blue */
+  --color-arc-cyan-deep: #0066CC;
+  --color-arc-soft:      rgba(10, 132, 255, 0.12);
 
-  --color-n900: #14161A;
-  --color-n600: #4A5160;
-  --color-n400: #6E7685;
-  --color-n300: #9AA1AD;
-  --color-n200: rgba(20, 22, 26, 0.12);
-  --color-n100: #9EA5B0;
+  --color-n900: #1D1D1F;
+  --color-n600: #6E6E73;
+  --color-n400: #86868B;
+  --color-n300: #C7C7CC;
+  --color-n200: rgba(29, 29, 31, 0.08);
+  --color-n100: #FBFBFD;
 
   /* Motion */
   --duration-fast: 120ms;
@@ -30,33 +34,34 @@
   --ease-glass:    cubic-bezier(0.22, 1, 0.36, 1);
 
   /*
-   * Liquid Glass (CSS approx of Apple Regular variant — conorluddy / WWDC25):
-   * multi-layer: translucent fill + specular rim + ambient shadow.
-   * Reserved for NAVIGATION chrome only — not content cards.
-   * Fill stays semi-clear so the darker bay grid remains identifiable.
+   * Materials (apple-design §12): translucency reserved for genuinely
+   * floating layers (nav chrome, sheets) — restrained blur/saturation,
+   * not the prior heavy multi-layer "everything glows" treatment. The
+   * canvas underneath is a clean near-white, so glass reads as a thin
+   * pane of light, not a thick colored slab.
    */
-  --glass-bg:            rgba(255, 255, 255, 0.34);
-  --glass-bg-strong:     rgba(255, 255, 255, 0.46);
-  --glass-fill-top:      rgba(255, 255, 255, 0.62);
-  --glass-fill-mid:      rgba(255, 255, 255, 0.22);
+  --glass-bg:            rgba(255, 255, 255, 0.55);
+  --glass-bg-strong:     rgba(255, 255, 255, 0.68);
+  --glass-fill-top:      rgba(255, 255, 255, 0.75);
+  --glass-fill-mid:      rgba(255, 255, 255, 0.45);
   --glass-border:        rgba(255, 255, 255, 0.90);
-  --glass-border-outer:  rgba(20, 22, 26, 0.12);
-  --glass-highlight:     rgba(255, 255, 255, 0.98);
-  --glass-rim-bottom:    rgba(20, 22, 26, 0.10);
+  --glass-border-outer:  rgba(29, 29, 31, 0.08);
+  --glass-highlight:     rgba(255, 255, 255, 0.95);
+  --glass-rim-bottom:    rgba(29, 29, 31, 0.06);
   --glass-shadow:
-    0 1px 2px rgba(20, 22, 26, 0.08),
-    0 8px 20px rgba(20, 22, 26, 0.14),
-    0 22px 48px rgba(20, 22, 26, 0.18);
+    0 1px 2px rgba(29, 29, 31, 0.04),
+    0 8px 20px rgba(29, 29, 31, 0.06),
+    0 22px 48px rgba(29, 29, 31, 0.08);
   --glass-inset:         inset 0 1px 0 var(--glass-highlight), inset 0 -0.5px 0 var(--glass-rim-bottom);
-  --glass-radius:        22px;
-  --glass-blur:          24px;
-  --glass-saturate:      1.45;
+  --glass-radius:        20px;
+  --glass-blur:          20px;
+  --glass-saturate:      1.15;
 
   /* Semantic surfaces */
   --bg:          var(--color-off-white);
   --bg-mid:      var(--glass-bg);
   --bg-surface:  var(--glass-bg-strong);
-  --bg-overlay:  rgba(158, 165, 176, 0.82);
+  --bg-overlay:  rgba(0, 0, 0, 0.4);
 
   /* Text */
   --text-primary:   var(--color-ink);
@@ -65,78 +70,79 @@
   --text-subtle:    var(--color-n400);
 
   /* Borders */
-  --border:        rgba(20, 22, 26, 0.10);
-  --border-strong: rgba(20, 22, 26, 0.16);
-  --border-accent: rgba(75, 159, 255, 0.40);
+  --border:        rgba(29, 29, 31, 0.08);
+  --border-strong: rgba(29, 29, 31, 0.14);
+  --border-accent: rgba(10, 132, 255, 0.35);
 
-  --shadow:      rgba(20, 22, 26, 0.14);
-  --shadow-deep: rgba(20, 22, 26, 0.22);
+  --shadow:      rgba(29, 29, 31, 0.08);
+  --shadow-deep: rgba(29, 29, 31, 0.14);
 
-  /* Frosted content panels — lighter + clearer than bay floor */
-  --panel-bg:    rgba(255, 255, 255, 0.40);
-  --panel-blur:  18px;
+  /* Frosted content panels — lighter + clearer than the canvas */
+  --panel-bg:    rgba(255, 255, 255, 0.65);
+  --panel-blur:  14px;
   --panel-shadow:
-    0 1px 2px rgba(20, 22, 26, 0.08),
-    0 10px 28px rgba(20, 22, 26, 0.14),
-    0 24px 56px rgba(20, 22, 26, 0.12);
+    0 1px 2px rgba(29, 29, 31, 0.04),
+    0 10px 28px rgba(29, 29, 31, 0.06),
+    0 24px 56px rgba(29, 29, 31, 0.05);
   --gl0-bg: var(--panel-bg);
   --gl1-bg: var(--panel-bg);
   --gl2-bg: var(--panel-bg);
   --gl3-bg: var(--glass-bg-strong);
 
-  --accent-red:    var(--color-arc-cyan-deep);
+  /* One accent (§16.6 restraint) — every legacy per-section color
+     collapses to it, none of them a second competing hue. */
+  --accent-red:    var(--color-signal);
   --accent-blue:   var(--color-arc-cyan);
-  --accent-orange: var(--color-signal);
+  --accent-orange: var(--color-arc-cyan-deep);
   --accent-green:  var(--color-arc-cyan-deep);
   --accent-purple: var(--color-arc-cyan-deep);
   --accent-teal:   var(--color-arc-cyan-deep);
   --accent-yellow: var(--color-arc-cyan-deep);
 
   /* Dots stay visible through frost */
-  --bay-dot:  rgba(40, 46, 58, 0.42);
-  --bay-wash: rgba(20, 22, 26, 0.12);
+  --bay-dot:  rgba(29, 29, 31, 0.10);
+  --bay-wash: rgba(29, 29, 31, 0.04);
 }
 
 /* ─── Dark slate bay ───────────────────────────────────────────────────────── */
 [data-theme="dark"],
 html.dark {
-  --color-ink:           #F0F2F5;
-  /* Near-black bay so lifted frost reads brighter / 3D */
-  --color-off-white:     #07090C;
+  --color-ink:           #F5F5F7;
+  --color-off-white:     #000000;   /* true black canvas — Stark-HUD-on-black */
   --color-vellum:        rgba(255, 255, 255, 0.07);
-  --color-signal:        #E84A0E;
-  --color-arc-cyan:      #5CADFF;
-  --color-arc-cyan-deep: #4B9FFF;
-  --color-arc-soft:      rgba(92, 173, 255, 0.20);
+  --color-signal:        #FF453A;
+  --color-arc-cyan:      #0A84FF;
+  --color-arc-cyan-deep: #409CFF;
+  --color-arc-soft:      rgba(10, 132, 255, 0.20);
 
-  --color-n900: #F0F2F5;
-  --color-n600: #A0A7B4;
-  --color-n400: #6B7382;
-  --color-n300: #3A404C;
+  --color-n900: #F5F5F7;
+  --color-n600: #98989D;
+  --color-n400: #636366;
+  --color-n300: #3A3A3C;
   --color-n200: rgba(255, 255, 255, 0.10);
-  --color-n100: #12151C;
+  --color-n100: #1C1C1E;
 
-  /* Frost stays translucent + slightly lifted vs bay */
-  --glass-bg:            rgba(255, 255, 255, 0.07);
-  --glass-bg-strong:     rgba(255, 255, 255, 0.11);
-  --glass-fill-top:      rgba(255, 255, 255, 0.18);
-  --glass-fill-mid:      rgba(255, 255, 255, 0.05);
-  --glass-border:        rgba(255, 255, 255, 0.28);
-  --glass-border-outer:  rgba(255, 255, 255, 0.16);
-  --glass-highlight:     rgba(255, 255, 255, 0.34);
+  /* Frost stays translucent + restrained, matching the light-mode calm */
+  --glass-bg:            rgba(255, 255, 255, 0.06);
+  --glass-bg-strong:     rgba(255, 255, 255, 0.10);
+  --glass-fill-top:      rgba(255, 255, 255, 0.14);
+  --glass-fill-mid:      rgba(255, 255, 255, 0.04);
+  --glass-border:        rgba(255, 255, 255, 0.20);
+  --glass-border-outer:  rgba(255, 255, 255, 0.12);
+  --glass-highlight:     rgba(255, 255, 255, 0.26);
   --glass-rim-bottom:    rgba(0, 0, 0, 0.40);
   --glass-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.50),
-    0 10px 28px rgba(0, 0, 0, 0.55),
-    0 28px 64px rgba(0, 0, 0, 0.60);
+    0 1px 2px rgba(0, 0, 0, 0.45),
+    0 10px 28px rgba(0, 0, 0, 0.45),
+    0 28px 64px rgba(0, 0, 0, 0.45);
   --glass-inset:         inset 0 1px 0 var(--glass-highlight), inset 0 -0.5px 0 var(--glass-rim-bottom);
-  --glass-blur:          26px;
-  --glass-saturate:      1.4;
+  --glass-blur:          20px;
+  --glass-saturate:      1.15;
 
   --bg:          var(--color-off-white);
   --bg-mid:      var(--glass-bg);
   --bg-surface:  var(--glass-bg-strong);
-  --bg-overlay:  rgba(7, 9, 12, 0.88);
+  --bg-overlay:  rgba(0, 0, 0, 0.7);
 
   --text-primary:   var(--color-ink);
   --text-secondary: var(--color-n600);
@@ -145,20 +151,19 @@ html.dark {
 
   --border:        rgba(255, 255, 255, 0.10);
   --border-strong: rgba(255, 255, 255, 0.16);
-  --border-accent: rgba(92, 173, 255, 0.45);
+  --border-accent: rgba(10, 132, 255, 0.45);
 
-  --shadow:      rgba(0, 0, 0, 0.50);
-  --shadow-deep: rgba(0, 0, 0, 0.70);
+  --shadow:      rgba(0, 0, 0, 0.45);
+  --shadow-deep: rgba(0, 0, 0, 0.65);
 
-  --panel-bg:    rgba(255, 255, 255, 0.08);
-  --panel-blur:  20px;
+  --panel-bg:    rgba(255, 255, 255, 0.07);
+  --panel-blur:  14px;
   --panel-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.50),
-    0 14px 40px rgba(0, 0, 0, 0.60),
-    0 36px 80px rgba(0, 0, 0, 0.40);
-  /* Brighter dots so they survive frost + blur */
-  --bay-dot:  rgba(210, 220, 235, 0.38);
-  --bay-wash: rgba(0, 0, 0, 0.55);
+    0 1px 2px rgba(0, 0, 0, 0.45),
+    0 14px 40px rgba(0, 0, 0, 0.45),
+    0 36px 80px rgba(0, 0, 0, 0.30);
+  --bay-dot:  rgba(245, 245, 247, 0.14);
+  --bay-wash: rgba(0, 0, 0, 0.4);
 }
 
 /* ─── Base ─────────────────────────────────────────────────────────────────── */
