@@ -1,4 +1,4 @@
-# Stage 0 ? Make CI Real
+# Stage 0 - Make CI Real
 
 Status: Stage 0 implementation verified; Checkpoint 0 awaits Shaurya Karra review.
 PR: https://github.com/shaurya-05/the-foundry/pull/3 (left open and unmerged).
@@ -30,19 +30,19 @@ Local npm ci and npm run lint completed. The unmodified recommended baseline pro
 
 Run: https://github.com/shaurya-05/the-foundry/actions/runs/35477658556
 Implementation commit: ef30c367e2e1343304b3080a9c233a0cdd59e425.
-Observed 2026-09-20 UTC (2026-09-19 America/New_York). The final documentation commit also triggers CI; consult the PR checks for its result.
+Observed 2026-09-20 UTC (2026-09-19 America/New_York). Documentation commit 9370ab3b66a63f4684f6f2c14ef05ae679ab101b also passed both required checks in run https://github.com/shaurya-05/the-foundry/actions/runs/35477875533 (backend 1m8s, frontend 1m5s). The PR checks track the latest documentation revision.
 
 Actual gh run watch output:
 
 ```text
-? backend in 1m9s (ID 105989581832)
-  ? Initialize containers
-  ? Run migrations and verify fresh schema
-  ? Check backend starts and health
-? frontend in 1m7s (ID 105989581914)
-  ? Run npm ci
-  ? Run npm run lint
-  ? Run npm run build
+✓ backend in 1m9s (ID 105989581832)
+  ✓ Initialize containers
+  ✓ Run migrations and verify fresh schema
+  ✓ Check backend starts and health
+✓ frontend in 1m7s (ID 105989581914)
+  ✓ Run npm ci
+  ✓ Run npm run lint
+  ✓ Run npm run build
 - docker in 0s (ID 105989731527)
 ```
 
@@ -79,8 +79,8 @@ INFO:     127.0.0.1:55000 - "POST /api/auth/login HTTP/1.1" 401 Unauthorized
 Actual frontend build output:
 
 ```text
-? Compiled successfully in 12.1s
-? Generating static pages (27/27)
+✓ Compiled successfully in 12.1s
+✓ Generating static pages (27/27)
 ```
 
 These are real services running in GitHub Actions, not production-host verification. Local validation was npm ci, npm run lint, and git diff --check; no local database pass is claimed.
@@ -92,7 +92,7 @@ gh run view 35477658556 --log
 gh run view 35477658556 --json conclusion,headSha,jobs,url
 ```
 
-## Branch protection ? verified after both CI jobs passed
+## Branch protection - verified after both CI jobs passed
 
 Before this change, GitHub returned HTTP 404 / Branch not protected and an empty rulesets list. After the successful run, main protection was enabled. A separate GET (not just the PUT response) returned:
 
