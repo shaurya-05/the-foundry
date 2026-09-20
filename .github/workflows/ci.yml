@@ -43,7 +43,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U foundry"
+          --health-cmd "pg_isready -U foundry -d foundry_db"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -56,6 +56,17 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      neo4j:
+        image: neo4j:5
+        env:
+          NEO4J_AUTH: neo4j/foundry_secret
+        ports:
+          - 7687:7687
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p foundry_secret 'RETURN 1;'"
+          --health-interval 15s
+          --health-timeout 10s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -64,23 +75,65 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r requirements.txt
-      - name: Run migrations
+      - name: Run migrations and verify fresh schema
+        env:
+          PGPASSWORD: foundry_secret
+          LC_ALL: C
         run: |
+          set -euo pipefail
           for f in migrations/*.sql; do
-            PGPASSWORD=foundry_secret psql -h localhost -U foundry -d foundry_db -f "$f"
+            echo "Applying $f"
+            psql -X -v ON_ERROR_STOP=1 -h localhost -U foundry -d foundry_db -f "$f"
           done
+          psql -X -v ON_ERROR_STOP=1 -h localhost -U foundry -d foundry_db <<'SQL'
+          SELECT column_name, data_type
+          FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'copilot_messages'
+            AND column_name IN ('thread_id', 'model_used')
+          ORDER BY column_name;
+          DO $$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'copilot_messages'
+                AND column_name = 'thread_id' AND data_type = 'uuid'
+            ) OR NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'copilot_messages'
+                AND column_name = 'model_used' AND data_type = 'text'
+            ) THEN
+              RAISE EXCEPTION 'Required copilot_messages columns are missing or incorrectly typed';
+            END IF;
+          END $$;
+          SQL
       - name: Check backend starts and health
         run: |
-          timeout 15 uvicorn app.main:app --host 0.0.0.0 --port 8000 &
-          sleep 5
-          curl -f http://localhost:8000/health || exit 1
-          # Test auth endpoints respond
-          curl -sf -X POST http://localhost:8000/api/auth/login \
+          set -euo pipefail
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in {1..30}; do
+            kill -0 "$server_pid"
+            if curl -fsS --max-time 5 http://localhost:8000/health -o /tmp/health.json; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          test "$ready" = true
+          cat /tmp/health.json
+          echo
+          echo "GET /health: HTTP 200"
+          # HTTP 401 is the expected success condition for invalid credentials.
+          status=$(curl -sS --max-time 10 -X POST http://localhost:8000/api/auth/login \
             -H 'Content-Type: application/json' \
             -d '{"email":"test@test.com","password":"test"}' \
-            -o /dev/null -w '%{http_code}' | grep -q '401'
-          echo "Auth endpoint responding correctly"
-          kill %1
+            -o /tmp/auth.json -w '%{http_code}')
+          cat /tmp/auth.json
+          echo
+          echo "POST /api/auth/login: HTTP $status"
+          test "$status" = 401
         env:
           DATABASE_URL: postgresql://foundry:foundry_secret@localhost:5432/foundry_db
           REDIS_URL: redis://localhost:6379
@@ -89,7 +142,7 @@ jobs:
           VOYAGE_API_KEY: test-placeholder
           NEO4J_URI: bolt://localhost:7687
           NEO4J_USER: neo4j
-          NEO4J_PASSWORD: test
+          NEO4J_PASSWORD: foundry_secret
           ENVIRONMENT: ci
 
   # ─── Docker Build Check ─────────────────────────────────────────────────────
