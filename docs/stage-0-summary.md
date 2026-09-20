@@ -149,6 +149,39 @@ gh api repos/shaurya-05/the-foundry/branches/main --jq '{name: .name, protected:
 - CI continues using the configured Neo4j major tag, neo4j:5, rather than inventing a patch version.
 - Team access design must make onboarding and role-appropriate access straightforward through the unified identity; no Stage 1 code or scaffolding is included here.
 
+## Resume checkpoint - 2026-09-20
+
+- Worktree: `C:\Users\shaur\FOUND3RY\the-foundry-stage-0`.
+- Branch: `stage-0/ci-protection`, tracking `origin/stage-0/ci-protection`.
+- Head on resume: `50338be89402ddd08fb52359e8fd6c8406cb4fe4`; worktree was clean. The earlier pause request was interrupted before a separate checkpoint file was written; this committed summary is the recovery record.
+- PR #3 remains OPEN, unmerged, with mergeStateStatus CLEAN. No submitted reviews or inline review comments were present when queried on resume; the only general comment was Vercel deployment status.
+- All approved Stage 0 implementation is complete and preserved. No implementation changes were needed on resume. The runtime telemetry/failover bug remains out of scope.
+- Latest existing CI run on resume: https://github.com/shaurya-05/the-foundry/actions/runs/35477993029, completed successfully at the head above. Actual required-check query output:
+
+```text
+backend  pass  1m31s  https://github.com/shaurya-05/the-foundry/actions/runs/35477993029/job/105990493511
+frontend pass  54s    https://github.com/shaurya-05/the-foundry/actions/runs/35477993029/job/105990493338
+```
+
+- No newer CI run was present on resume. The full-chain schema and running-service evidence from the implementation run remains recorded above. This documentation update triggers the normal PR workflow; its result will be checked before handoff and linked in the PR description.
+- A fresh GET of main protection confirmed strict frontend/backend checks bound to app 15368, PR requirements, administrator enforcement, and disabled force pushes/deletion. Protection was already enabled after the first real green run; it was not reconfigured on resume.
+- Both other checkouts retain their prior changes: `the-foundry` remains on `stark-jobs-redesign` with untracked voice benchmarks; `the-foundry-h3ros-baseline` remains on `codex/h3ros-baseline` with its uncommitted frontend/design edits and ESLint config.
+- Running processes: all tracked prior CI watchers/install/lint processes had exited. A read-only Win32_Process query found no node/python/gh/uvicorn process whose command line matched the Stage 0 worktree or prior CI run IDs. This is a task-specific check, not a claim that the host has no unrelated services.
+- Blockers: none for Stage 0 implementation or verification. The next gate is human review and explicit merge authorization; no merge is authorized by this resume request.
+
+Files changed by Stage 0 relative to its main base:
+
+- `.github/workflows/ci.yml`
+- `backend/migrations/000b_local_copilot_thread_id.sql` renamed to `backend/migrations/006_copilot_thread_id.sql`
+- `backend/migrations/000c_local_copilot_model_used.sql` renamed to `backend/migrations/006_copilot_model_used.sql`
+- `docker-compose.yml`
+- `frontend/.eslintrc.json`
+- `frontend/package.json`
+- `frontend/package-lock.json`
+- `docs/stage-0-summary.md` (the only file edited on resume)
+
+Exact next steps: finish verification of this documentation commit, leave PR #3 unmerged, and stop at Checkpoint 0. On a future resume, inspect worktree/PR/checks and any review feedback first. Address only authorized Stage 0 feedback. Merge only after explicit authorization. Do not start Stage 1 before Stage 0 lands and its topology, real access needs/roles, and host-availability decisions are resolved.
+
 ## Next gate
 
 Leave this PR unmerged for Shaurya Karra. Stage 1 cannot start before Stage 0 lands and the deployment topology, real access needs/roles, and host sleep/availability questions are resolved.
