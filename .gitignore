@@ -52,3 +52,7 @@ logs/
 .env*
 scripts/.ntfy_topic
 scripts/.uptime_state
+
+# ─── Vendored local benchmark binaries ─────────────────────────────────────────
+# Piper + espeak-ng ship hundreds of MB of dictionaries. Never in history.
+desktop/scripts/voice_benchmark/bin/
