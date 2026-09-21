@@ -1,0 +1,15 @@
+{
+  "root": true,
+  "extends": "next/core-web-vitals",
+  "overrides": [
+    {
+      "files": [
+        "app/(marketing)/privacy/page.tsx",
+        "app/(marketing)/terms/page.tsx"
+      ],
+      "rules": {
+        "react/no-unescaped-entities": "warn"
+      }
+    }
+  ]
+}
