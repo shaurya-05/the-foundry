@@ -195,3 +195,48 @@ the box itself, re-grants `owner` to an email by direct database write. This add
 no attack surface — anyone with shell on the box already has the database — but it
 converts step 5 from irreversible to reversible. A cutover you cannot undo on a
 machine you have to physically reach is not a cutover, it's a gamble.
+
+### Stage 1 evidence — verified against a live database, not a test suite
+
+A throwaway `ankane/pgvector` container, all 22 migrations applied cold under
+`ON_ERROR_STOP=1`, then the guarantees exercised by direct SQL:
+
+| # | Check | Result |
+|---|---|---|
+| V1 | Built-in roles / permissions / grants seeded | 3 / 10 / 21 |
+| V2 | `engineer` holds `deploy.execute`, not `access.manage` | 1 / 0 |
+| V3 | `observer` holds `trace.read`, not `memory.write` | 1 / 0 |
+| V4 | `audit.read` held only by owners | owner accounts only |
+| V5 | `UPDATE audit_log` | rejected by trigger |
+| V6 | `DELETE FROM audit_log` | rejected by trigger |
+| V7 | `DELETE` a built-in role | rejected by trigger |
+| V8 | Add `robotics_engineer` with **no migration** | 3 permissions, INSERTs only |
+| V9 | Audit row intact after both tamper attempts | 1 row, unmodified |
+
+V8 is the one that matters most. It is the brief's own design test, run rather
+than argued: a fourth scoped role was created and granted permissions with no
+schema change, no deploy, and no code edit.
+
+V4 also produced unplanned evidence — `builder@foundry.dev`, the account seeded by
+the early migrations, came out holding `audit.read`. That is the backfill working:
+an existing `workspace_members` owner was mapped into a default team with the
+`owner` role, on a database that had never seen any of this before.
+
+The append-only guarantee is a database trigger, not a convention in the service
+layer, for the same reason the memory provenance rule is structural: a rule that
+lives only in application code holds until someone writes a second application.
+
+### Flagged, not patched — SQLite has no identity model
+
+`app/db/postgres.py` dispatches to a SQLite backend when `DATABASE_BACKEND=sqlite`,
+which the desktop build uses. Migration 019 is Postgres-only — `BIGSERIAL`,
+partial indexes, `plpgsql` triggers, `gen_random_uuid()`. None of it exists in
+`backend/migrations/sqlite/schema.sql`, and that schema is not covered by CI at
+all (the glob doesn't recurse).
+
+So Stage 1 identity currently works on the live Postgres system and **does not
+exist on the desktop build**. That is not a bug introduced here, but it is a real
+boundary: the desktop build cannot enforce roles, and its `RequirePermission`
+checks would fail closed against missing tables. Recording it rather than quietly
+scoping it out — SQLite parity is required before the desktop build ships any of
+Stage 1, and it interacts with Phase B, which is where that build is headed.

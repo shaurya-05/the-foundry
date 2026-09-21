@@ -1,7 +1,8 @@
 import html as _html
 import os
 import secrets
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
+from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from app.db.postgres import get_pool
@@ -9,25 +10,112 @@ import structlog
 
 log = structlog.get_logger()
 router = APIRouter(tags=["admin"])
-_security = HTTPBasic()
+
+# auto_error=False so that a request carrying a Bearer token and no Basic
+# credentials reaches the JWT door instead of being rejected before it gets there.
+_security = HTTPBasic(auto_error=False)
+
+# Cutover step 3 of 5 (see docs/BUILD_LOG.md): both doors open at once. This flag
+# exists so step 5 — closing the legacy door — is a config change that can be
+# reverted in seconds on a self-hosted box, rather than a redeploy under pressure.
+# Step 5 deletes the legacy branch outright; the brief allows no dormant door.
+_LEGACY_BASIC_ENABLED = os.getenv("ADMIN_BASIC_ENABLED", "1") == "1"
 
 
-def _require_admin(credentials: HTTPBasicCredentials = Depends(_security)):
-    password = os.getenv("ADMIN_PASSWORD", "")
-    if not password:
-        raise HTTPException(status_code=503, detail="ADMIN_PASSWORD not configured")
-    ok = secrets.compare_digest(credentials.password.encode(), password.encode())
-    if not ok:
-        raise HTTPException(
-            status_code=401,
-            detail="Unauthorized",
-            headers={"WWW-Authenticate": 'Basic realm="FOUNDRY Admin"'},
+class AdminPrincipal:
+    """Who got through the admin gate, and via which door."""
+    __slots__ = ("user_id", "workspace_id", "email", "via")
+
+    def __init__(self, user_id: Optional[str], workspace_id: Optional[str],
+                 email: Optional[str], via: str):
+        self.user_id = user_id
+        self.workspace_id = workspace_id
+        self.email = email
+        self.via = via
+
+
+def _admin_gate(permission: str):
+    """Admin access requiring `permission`, via JWT — or, until cutover step 5,
+    via the legacy HTTP Basic password.
+
+    The JWT door is checked first and deliberately: once an operator's session
+    carries the permission, the Basic path stops being exercised, which is the
+    signal that step 5 is safe to run.
+    """
+
+    async def _check(
+        authorization: Optional[str] = Header(None),
+        credentials: Optional[HTTPBasicCredentials] = Depends(_security),
+    ) -> AdminPrincipal:
+        from app.services.access import has_permission, record_audit
+
+        # ─── Door 1: single sign-on, same identity as the rest of the system ──
+        if authorization and authorization.startswith("Bearer "):
+            from jose import JWTError
+            from app.auth import decode_token
+
+            try:
+                payload = decode_token(authorization.split(" ", 1)[1], expected_type="access")
+            except JWTError:
+                raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+            user_id = payload["sub"]
+            workspace_id = payload["workspace_id"]
+            email = payload.get("email")
+
+            if await has_permission(user_id, workspace_id, permission):
+                await record_audit(
+                    action=f"admin.access:{permission}",
+                    actor_id=user_id, actor_email=email, workspace_id=workspace_id,
+                    target_type="permission", target_id=permission, outcome="allowed",
+                )
+                return AdminPrincipal(user_id, workspace_id, email, via="jwt")
+
+            await record_audit(
+                action=f"admin.access:{permission}",
+                actor_id=user_id, actor_email=email, workspace_id=workspace_id,
+                target_type="permission", target_id=permission, outcome="denied",
+            )
+            raise HTTPException(
+                status_code=403, detail=f"Requires the '{permission}' permission"
+            )
+
+        # ─── Door 2: legacy shared password. Removed at cutover step 5. ───────
+        if not _LEGACY_BASIC_ENABLED:
+            raise HTTPException(
+                status_code=401,
+                detail="Admin requires an authenticated session",
+            )
+
+        password = os.getenv("ADMIN_PASSWORD", "")
+        if not password:
+            raise HTTPException(status_code=503, detail="ADMIN_PASSWORD not configured")
+        if credentials is None or not secrets.compare_digest(
+            credentials.password.encode(), password.encode()
+        ):
+            raise HTTPException(
+                status_code=401,
+                detail="Unauthorized",
+                headers={"WWW-Authenticate": 'Basic realm="FOUNDRY Admin"'},
+            )
+
+        await record_audit(
+            action=f"admin.access:{permission}",
+            actor_email=credentials.username or "legacy-basic",
+            target_type="permission", target_id=permission, outcome="allowed",
         )
-    return credentials
+        log.warning("admin_legacy_basic_used", permission=permission)
+        return AdminPrincipal(None, None, credentials.username, via="legacy_basic")
+
+    return _check
+
+
+_require_admin = _admin_gate("admin.read")
+_require_admin_write = _admin_gate("admin.write")
 
 
 @router.get("/admin", response_class=HTMLResponse)
-async def admin_dashboard(_: HTTPBasicCredentials = Depends(_require_admin)):
+async def admin_dashboard(_: AdminPrincipal = Depends(_require_admin)):
     pool = await get_pool()
     async with pool.acquire() as conn:
         total_signups = await conn.fetchval("SELECT COUNT(*) FROM workspaces")
@@ -288,7 +376,7 @@ async def admin_dashboard(_: HTTPBasicCredentials = Depends(_require_admin)):
 
 
 @router.post("/admin/digest/trigger")
-async def trigger_digest(_: HTTPBasicCredentials = Depends(_require_admin)):
+async def trigger_digest(_: AdminPrincipal = Depends(_require_admin_write)):
     """Manually trigger the weekly digest for all eligible workspaces."""
     from app.services.digest import run_weekly_digest
     result = await run_weekly_digest()
@@ -296,7 +384,7 @@ async def trigger_digest(_: HTTPBasicCredentials = Depends(_require_admin)):
     return {"ok": True, **result}
 
 @router.get("/stats/model-usage")
-async def model_usage_stats(_: HTTPBasicCredentials = Depends(_require_admin)):
+async def model_usage_stats(_: AdminPrincipal = Depends(_require_admin)):
     """Returns breakdown of AI model usage across all copilot messages."""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -367,7 +455,7 @@ async def _ollama_status(reg_rows: list) -> dict:
 
 
 @router.get("/api/admin/health")
-async def admin_health(_: HTTPBasicCredentials = Depends(_require_admin)):
+async def admin_health(_: AdminPrincipal = Depends(_require_admin)):
     """
     Deep health snapshot — providers + connectors + infra + fitness.
 
@@ -446,7 +534,7 @@ def _safe_json_loads(v):
 
 
 @router.post("/api/admin/registry/refresh")
-async def admin_registry_refresh(_: HTTPBasicCredentials = Depends(_require_admin)):
+async def admin_registry_refresh(_: AdminPrincipal = Depends(_require_admin_write)):
     """Force a reload of MODEL_REGISTRY from the DB (after editing rows)."""
     from app.services.model_provider import load_registry_from_db
     reg = await load_registry_from_db()
@@ -455,7 +543,7 @@ async def admin_registry_refresh(_: HTTPBasicCredentials = Depends(_require_admi
 
 @router.post("/api/admin/fitness/refresh")
 async def admin_fitness_refresh(
-    _: HTTPBasicCredentials = Depends(_require_admin),
+    _: AdminPrincipal = Depends(_require_admin_write),
     window_days: int = 7,
 ):
     """
@@ -468,7 +556,7 @@ async def admin_fitness_refresh(
 
 
 @router.get("/admin/model-stats")
-async def model_stats(_: HTTPBasicCredentials = Depends(_require_admin)):
+async def model_stats(_: AdminPrincipal = Depends(_require_admin)):
     """Detailed model usage breakdown with cost and efficiency metrics."""
     pool = await get_pool()
     async with pool.acquire() as conn:
