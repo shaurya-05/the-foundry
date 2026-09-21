@@ -299,3 +299,109 @@ FOUND3RY-Sleep" for both tasks, because the `Write-Output` ran regardless of
 whether the removal succeeded. Only the re-query afterwards showed both still
 present. A script's own printout is not evidence — that rule earned itself again
 here, in the smallest possible way.
+
+---
+
+## 2026-09-21 — SQLite parity, explicit migration ordering, coverage gate
+
+Treated as blocking for Stage 1 rather than a follow-up. A backend whose
+permission checks fail closed against missing tables is not degraded, it is
+broken: the desktop build would either authenticate nobody or enforce nothing,
+and both are worse than the shared admin password Stage 1 replaces.
+
+### Parity was achievable — no SQLite constraint forced a partial model
+
+The concern worth checking first was whether SQLite could express 019's
+guarantees at all, because a half-enforced identity model is worse than a
+declared gap. It can:
+
+| 019 depends on | SQLite | Result |
+|---|---|---|
+| `gen_random_uuid()` | registered by the adapter already | used unchanged |
+| `NOW()` | registered by the adapter already | `datetime('now')` |
+| partial unique indexes | supported since 3.8 | used unchanged |
+| `RAISE EXCEPTION` in triggers | `RAISE(ABORT, ...)` | same guarantee |
+| `BEFORE UPDATE OR DELETE` | one trigger per event | two triggers, same guarantee |
+| `BIGSERIAL` / `JSONB` / `UUID` | `INTEGER AUTOINCREMENT` / `TEXT` / `TEXT` | mechanical |
+| `ON CONFLICT DO NOTHING` | supported since 3.24 | used unchanged |
+| `ON DELETE CASCADE/RESTRICT` | supported, `PRAGMA foreign_keys=ON` already set | used unchanged |
+
+The append-only audit log and the undeletable built-in roles are therefore
+**structural on both backends**, not downgraded to application-layer convention
+on the desktop one. That was the thing most at risk of quietly becoming a
+convention, and it didn't have to.
+
+### Verified by driving the production code, not by checking tables exist
+
+`scripts/verify_sqlite_identity.py` creates a database from nothing through the
+real aiosqlite adapter — including its `$N` placeholder translation — then calls
+`app.services.access.has_permission()` and `user_permissions()`, the same
+functions `RequirePermission` calls in production.
+
+```
+[PASS] S1 cold build seeds roles/permissions/grants - 3/10/21
+[PASS] S2 engineer has deploy.execute, not access.manage
+[PASS] S3 observer has trace.read, not memory.write
+[PASS] S4 audit.read is owner-only - owner=10 perms, observer=4 perms
+[PASS] S5 UPDATE audit_log rejected - audit_log is append-only
+[PASS] S6 DELETE audit_log rejected - audit_log is append-only
+[PASS] S7 built-in role delete rejected
+[PASS] S8 fourth role added with no migration - 3 permissions
+[PASS] S9 audit row intact after tampering - 1 row
+```
+
+Nine checks, matching V1–V9 on Postgres one for one. The two backends now enforce
+the same model, proven the same way.
+
+### Ordering is now stated, not inferred
+
+`migrations/order.txt` is the apply order, with comments recording the actual
+dependency — `006_conversation_history.sql` creates `copilot_messages`, so the
+two files that `ALTER` it must follow. Runners read the manifest; nothing globs.
+
+This is the minimum that removes the accident. The deeper fix — a migration
+runner with recorded versions applied once — is deliberately not built here; the
+brief asked for intentional, documented ordering, not a restructured migration
+system.
+
+### The coverage gate, proven by making it fail
+
+`scripts/check_migrations.py` fails CI if any `*.sql` under `migrations/`
+(recursively) is neither in `order.txt` nor registered to another backend's
+verifier. Stage 0's lesson applied to itself — the gate was not trusted for
+passing, it was made to fail:
+
+| Case | Result |
+|---|---|
+| tree as-is | OK — 22 in chain, 1 other backend, 0 uncovered |
+| stray `999_stray_uncovered.sql` | **FAIL**, named the file |
+| `nested/deep.sql` in a subdirectory | **FAIL**, named the file |
+| tree restored | OK |
+
+The nested case is the one that matters: it is precisely the blind spot that hid
+`migrations/sqlite/schema.sql` from CI for months. Adding a migration without
+declaring where it belongs is now impossible to do quietly.
+
+Full chain re-verified in manifest order against a cold `ankane/pgvector`
+container: all 22 applied, 6/6 identity tables present.
+
+### What broke, and what it taught
+
+Two failures, both in the verification rather than the thing being verified, and
+both the same shape — **the tooling lied about where the error was**.
+
+`--print-order` emitted CRLF on Windows, so the shell loop read
+`000_local_extensions.sql\r` and reported `FAILED at 000_local_extensions.sql`.
+The message pointed at a migration that was completely fine. Fixed by forcing LF
+in the script rather than working around it in the caller, since CI on Linux
+would never have caught it and the next person on Windows would have lost the
+same twenty minutes.
+
+Then Git Bash rewrote `/mig` in the `docker exec` arguments to
+`C:/Program Files/Git/mig` — again surfacing as `FAILED at
+000_local_extensions.sql`. Identical symptom, unrelated cause, and only visible
+by running the failing command directly and reading the raw error.
+
+Worth recording because it is the same discipline as the rest of this log from a
+different angle: a failure message names where the process stopped, not why. The
+first error line is a lead, not a diagnosis.
