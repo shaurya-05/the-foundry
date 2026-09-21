@@ -240,3 +240,62 @@ boundary: the desktop build cannot enforce roles, and its `RequirePermission`
 checks would fail closed against missing tables. Recording it rather than quietly
 scoping it out — SQLite parity is required before the desktop build ships any of
 Stage 1, and it interacts with Phase B, which is where that build is headed.
+
+---
+
+## 2026-09-21 — Host operations status (report-only, per brief)
+
+### UPS: none
+
+No `Win32_Battery` device and no UPS service (APC/CyberPower/Eaton) on the host.
+A continuously-running box with live users and a local Postgres has no battery
+backup, so a power flicker is an unclean database shutdown. Reported, not fixed —
+the brief asks for status only.
+
+### Off-machine backup: configured correctly, not actually running daily
+
+`FOUND3RY_LocalPostgres_Backup` is scheduled daily at 03:00, writing `pg_dump`
+output to `C:\Users\shaur\OneDrive - h3ros\backups\found3ry` — genuinely
+off-machine via OneDrive sync, and the task settings are sensible
+(`StartWhenAvailable=True`, `WakeToRun=True`, 30-minute limit).
+
+The artifacts on disk tell a different story:
+
+```
+found3ry_local_prod_20260921T184711.sql   Sep 21 18:47
+found3ry_local_prod_20260920T113206.sql   Sep 20 11:32
+found3ry_local_prod_20260907T115133.sql   Sep  7 11:51
+found3ry_local_prod_20260904T094723.sql   Sep  4 09:47
+found3ry_local_prod_20260830T091233.sql   Aug 30 09:12
+found3ry_prod_20260727T154315.sql         Jul 27 15:43
+```
+
+**Six backups in 57 days against a daily schedule**, and not one of them at 03:00 —
+every timestamp is mid-morning or evening, which is the signature of manual runs,
+not the scheduler. `LastTaskResult` is 0, so the task reports success and the
+schedule reports a valid next run; the only thing that reveals the gap is looking
+at what actually landed on disk.
+
+`WakeToRun` cannot wake a machine that is fully powered off, only one asleep, which
+is the most likely explanation and ties directly to the sleep/wake tasks below.
+
+This is the same failure shape as the green-but-hollow CI: a mechanism reporting
+success while producing nothing. Worth stating plainly — the current real recovery
+point objective is about two weeks, not one day.
+
+### Scheduled sleep/wake tasks: removal blocked on elevation
+
+`FOUND3RY-Sleep` (`rundll32.exe powrprof.dll,SetSuspendState 0,1,0`) and
+`FOUND3RY-Wake` both exist with one-shot triggers dated 2026-07-27 that have
+already fired, so both are inert — `NextRun` is empty on each. They cannot sleep
+the host again as configured, but they are still registered.
+
+`Unregister-ScheduledTask` returned `Access is denied` (HRESULT 0x80070005) for
+both: they were registered by an elevated process and need an elevated shell to
+remove. Definitions are exported to `docs/ops/` first so removal is reversible.
+
+Worth recording how that failure was caught: the loop printed "removed
+FOUND3RY-Sleep" for both tasks, because the `Write-Output` ran regardless of
+whether the removal succeeded. Only the re-query afterwards showed both still
+present. A script's own printout is not evidence — that rule earned itself again
+here, in the smallest possible way.
