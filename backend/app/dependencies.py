@@ -54,6 +54,41 @@ def RequireRole(min_role: str):
     return _check
 
 
+def RequirePermission(permission: str):
+    """Factory: returns a dependency asserting the caller holds `permission`.
+
+    Stage 1 replacement for RequireRole. The difference is not cosmetic:
+    RequireRole asks "is this user senior enough", which has no answer once
+    roles are peers rather than rungs (ml_engineer is not above or below
+    engineer). RequirePermission asks "may this user do this specific thing",
+    which stays answerable however many roles exist.
+
+    Denials are audited. So are grants, by the endpoint itself where there is
+    before/after state worth recording — this dependency only sees the attempt.
+    """
+
+    async def _check(auth: AuthContext = Depends(require_auth)) -> AuthContext:
+        from app.services.access import has_permission, record_audit
+
+        allowed = await has_permission(auth.user_id, auth.workspace_id, permission)
+        if not allowed:
+            await record_audit(
+                action=f"permission.denied:{permission}",
+                actor_id=auth.user_id,
+                actor_email=auth.email,
+                workspace_id=auth.workspace_id,
+                target_type="permission",
+                target_id=permission,
+                outcome="denied",
+            )
+            raise HTTPException(
+                status_code=403, detail=f"Requires the '{permission}' permission"
+            )
+        return auth
+
+    return _check
+
+
 def RequireUsage(resource: str):
     """Factory: returns a dependency that checks usage limits before allowing the request."""
 

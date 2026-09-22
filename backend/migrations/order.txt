@@ -1,0 +1,50 @@
+# Migration order — the dependency graph, stated rather than inferred.
+#
+# This file exists because filenames were doing double duty as an ordering
+# mechanism, and the ordering they produced was alphabetical luck. `000b` and
+# `000c` referenced `copilot_messages` before it existed and no fresh database
+# could be built; renaming them to `006_*` fixed that particular symptom by
+# arranging for `conversation` to sort before `copilot`, which is true only
+# because `n` < `p`. A future `006_copilot_audit.sql` would silently reorder the
+# chain and nobody would notice until a cold rebuild failed.
+#
+# So the order is written down. Runners read this file; they do not glob.
+# `scripts/check_migrations.py` fails CI if any .sql file under migrations/ is
+# missing from here, so a new migration cannot be added without also declaring
+# where it belongs.
+#
+# Rules:
+#   - one filename per line, relative to backend/migrations/
+#   - blank lines and lines starting with # are ignored
+#   - order in this file IS the apply order
+#   - when a migration depends on another, say so in a comment above it
+
+000_local_extensions.sql
+001_initial.sql
+002_collab_visibility.sql
+003_auth.sql
+004_email_verification.sql
+005_subscriptions.sql
+
+# Creates copilot_messages. The two files below ALTER that table, so both must
+# follow this one. This is the dependency that 000b/000c originally violated.
+006_conversation_history.sql
+006_copilot_model_used.sql
+006_copilot_thread_id.sql
+
+007_project_chat.sql
+008_task_assignment.sql
+009_workspace_graph.sql
+010_onboarding.sql
+011_workspace_plan.sql
+012_onboarding_completed_at.sql
+013_weekly_digest.sql
+014_model_registry.sql
+015_agent_memory.sql
+016_watches.sql
+017_cloud_sync_foundation.sql
+018_cloud_sync_pull.sql
+
+# Stage 1 identity. References workspaces (001) and users (001), and backfills
+# from workspace_members (002).
+019_identity_access.sql

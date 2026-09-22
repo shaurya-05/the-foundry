@@ -636,3 +636,171 @@ CREATE TABLE IF NOT EXISTS cloud_sync_link (
     last_pulled_at TEXT
 );
 CREATE INDEX IF NOT EXISTS cloud_sync_link_cloud_ws_idx ON cloud_sync_link (cloud_workspace_id);
+
+-- ─── Stage 1: Identity & Access (parity with migrations/019_identity_access.sql)
+-- The desktop build gets the same identity model as the server, not a reduced
+-- one. A backend where permission checks fail closed against missing tables is
+-- not a degraded build, it is a broken one: it either authenticates nobody or
+-- enforces nothing, and both are worse than the shared admin password this
+-- replaces.
+--
+-- Translations from the Postgres original, and why each is safe:
+--   UUID          -> TEXT with DEFAULT (gen_random_uuid()); the adapter
+--                    registers that function (app/db/sqlite.py).
+--   TIMESTAMPTZ   -> TEXT via datetime('now'), matching every other table here.
+--   BOOLEAN       -> INTEGER 0/1, compared explicitly as = 1 in partial
+--                    indexes rather than relying on truthiness.
+--   BIGSERIAL     -> INTEGER PRIMARY KEY AUTOINCREMENT.
+--   JSONB         -> TEXT. The adapter strips ::jsonb casts already.
+--   plpgsql RAISE -> RAISE(ABORT, ...). SQLite needs one trigger per event,
+--                    so the single Postgres BEFORE UPDATE OR DELETE trigger
+--                    becomes two here. Same guarantee, two statements.
+-- Partial indexes and RAISE(ABORT) are both supported by SQLite, so the
+-- append-only and built-in-role guarantees stay structural on this backend
+-- rather than being downgraded to application-layer convention.
+
+CREATE TABLE IF NOT EXISTS teams (
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    is_default INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (workspace_id, name)
+);
+CREATE INDEX IF NOT EXISTS teams_workspace_idx ON teams (workspace_id);
+CREATE UNIQUE INDEX IF NOT EXISTS teams_one_default_per_workspace
+    ON teams (workspace_id) WHERE is_default = 1;
+
+CREATE TABLE IF NOT EXISTS permissions (
+    key TEXT PRIMARY KEY,
+    description TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+INSERT INTO permissions (key, description) VALUES
+    ('admin.read',     'View admin dashboard, health, and model statistics'),
+    ('admin.write',    'Trigger admin operations: digests, registry refresh'),
+    ('trace.read',     'Read execution traces and observability data'),
+    ('deploy.execute', 'Deploy and restart services'),
+    ('model.read',     'Read model registry, routing, and fitness data'),
+    ('model.write',    'Modify model registry entries and routing configuration'),
+    ('memory.read',    'Read agent memory and provenance'),
+    ('memory.write',   'Write or compact agent memory'),
+    ('access.manage',  'Create and modify teams, roles, and role assignments'),
+    ('audit.read',     'Read the audit log')
+ON CONFLICT (key) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS roles (
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
+    workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    is_builtin INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS roles_builtin_name_uniq
+    ON roles (name) WHERE workspace_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS roles_org_name_uniq
+    ON roles (workspace_id, name) WHERE workspace_id IS NOT NULL;
+
+INSERT INTO roles (workspace_id, name, description, is_builtin) VALUES
+    (NULL, 'owner',    'Full access including access control and audit log', 1),
+    (NULL, 'engineer', 'Full code, deploy, trace, dashboard and health access', 1),
+    (NULL, 'observer', 'Read-only across everything', 1)
+ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS role_permissions (
+    role_id TEXT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    permission_key TEXT NOT NULL REFERENCES permissions(key) ON DELETE CASCADE,
+    granted_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (role_id, permission_key)
+);
+
+INSERT INTO role_permissions (role_id, permission_key)
+SELECT r.id, p.key FROM roles r CROSS JOIN permissions p
+WHERE r.workspace_id IS NULL AND r.name = 'owner'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_key)
+SELECT r.id, p.key FROM roles r CROSS JOIN permissions p
+WHERE r.workspace_id IS NULL AND r.name = 'engineer'
+  AND p.key IN ('admin.read', 'admin.write', 'trace.read', 'deploy.execute',
+                'model.read', 'model.write', 'memory.read')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_key)
+SELECT r.id, p.key FROM roles r CROSS JOIN permissions p
+WHERE r.workspace_id IS NULL AND r.name = 'observer'
+  AND p.key IN ('admin.read', 'trace.read', 'model.read', 'memory.read')
+ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS team_members (
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
+    team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role_id TEXT NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
+    added_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (team_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS team_members_user_idx ON team_members (user_id);
+CREATE INDEX IF NOT EXISTS team_members_team_idx ON team_members (team_id);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_id TEXT REFERENCES workspaces(id) ON DELETE SET NULL,
+    actor_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    actor_email TEXT,
+    action TEXT NOT NULL,
+    target_type TEXT,
+    target_id TEXT,
+    before_state TEXT,
+    after_state TEXT,
+    outcome TEXT NOT NULL DEFAULT 'allowed',
+    trace_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS audit_log_workspace_idx ON audit_log (workspace_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS audit_log_actor_idx ON audit_log (actor_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS audit_log_action_idx ON audit_log (action, created_at DESC);
+
+CREATE TRIGGER IF NOT EXISTS audit_log_no_update
+BEFORE UPDATE ON audit_log
+BEGIN
+    SELECT RAISE(ABORT, 'audit_log is append-only: UPDATE is not permitted');
+END;
+
+CREATE TRIGGER IF NOT EXISTS audit_log_no_delete
+BEFORE DELETE ON audit_log
+BEGIN
+    SELECT RAISE(ABORT, 'audit_log is append-only: DELETE is not permitted');
+END;
+
+CREATE TRIGGER IF NOT EXISTS roles_no_delete_builtin
+BEFORE DELETE ON roles
+WHEN OLD.is_builtin = 1
+BEGIN
+    SELECT RAISE(ABORT, 'built-in role cannot be deleted');
+END;
+
+-- Backfill, same as the Postgres migration: every workspace gets a default team,
+-- every existing workspace_member gets a mapped role. This runs on every startup
+-- because schema.sql is re-applied each time; the ON CONFLICT clauses make that
+-- idempotent rather than duplicating rows.
+INSERT INTO teams (workspace_id, name, description, is_default)
+SELECT w.id, 'Default', 'Default team created by the Stage 1 identity migration', 1
+FROM workspaces w
+WHERE NOT EXISTS (SELECT 1 FROM teams t WHERE t.workspace_id = w.id AND t.is_default = 1)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO team_members (team_id, user_id, role_id)
+SELECT t.id, wm.user_id, r.id
+FROM workspace_members wm
+JOIN teams t ON t.workspace_id = wm.workspace_id AND t.is_default = 1
+JOIN roles r ON r.workspace_id IS NULL AND r.name = CASE
+        WHEN wm.role IN ('owner', 'admin') THEN 'owner'
+        WHEN wm.role = 'viewer' THEN 'observer'
+        ELSE 'engineer'
+    END
+WHERE wm.user_id IS NOT NULL
+ON CONFLICT DO NOTHING;

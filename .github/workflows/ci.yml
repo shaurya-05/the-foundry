@@ -75,16 +75,22 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r requirements.txt
+      - name: Check every migration file is covered by something
+        run: python scripts/check_migrations.py
+
       - name: Run migrations and verify fresh schema
         env:
           PGPASSWORD: foundry_secret
           LC_ALL: C
         run: |
           set -euo pipefail
-          for f in migrations/*.sql; do
-            echo "Applying $f"
-            psql -X -v ON_ERROR_STOP=1 -h localhost -U foundry -d foundry_db -f "$f"
-          done
+          # Order comes from migrations/order.txt, not from a glob. A glob sorts
+          # alphabetically, which is how 000b/000c ended up referencing a table
+          # before the migration that creates it.
+          while read -r f; do
+            echo "Applying migrations/$f"
+            psql -X -v ON_ERROR_STOP=1 -h localhost -U foundry -d foundry_db -f "migrations/$f"
+          done < <(python scripts/check_migrations.py --print-order)
           psql -X -v ON_ERROR_STOP=1 -h localhost -U foundry -d foundry_db <<'SQL'
           SELECT column_name, data_type
           FROM information_schema.columns
@@ -106,6 +112,13 @@ jobs:
             END IF;
           END $$;
           SQL
+      - name: Verify SQLite backend builds and enforces identity from cold
+        # The desktop build (DATABASE_BACKEND=sqlite) has its own schema, which
+        # no CI step touched before this one -- the Postgres glob does not
+        # recurse into migrations/sqlite/. This drives the real permission code
+        # against a database created from nothing.
+        run: python scripts/verify_sqlite_identity.py
+
       - name: Check backend starts and health
         run: |
           set -euo pipefail
