@@ -76,7 +76,7 @@ from app.routers import (
     copilot, context, notifications, command, launchpad,
     blueprint, workspace, auth, subscription, analytics,
     oauth, webhooks, agent, ventures, billing, admin,
-    watches, cloud_sync,
+    watches, cloud_sync, access,
 )
 
 @asynccontextmanager
@@ -297,6 +297,8 @@ app.include_router(billing.router, prefix="/api")
 app.include_router(admin.router)
 app.include_router(watches.router)
 app.include_router(cloud_sync.router)
+app.include_router(access.router)
+app.include_router(access.audit_router)
 
 
 # ─── Health check (deep) ─────────────────────────────────────────────────────

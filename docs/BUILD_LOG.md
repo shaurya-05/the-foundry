@@ -405,3 +405,114 @@ by running the failing command directly and reading the raw error.
 Worth recording because it is the same discipline as the rest of this log from a
 different angle: a failure message names where the process stopped, not why. The
 first error line is a lead, not a diagnosis.
+
+---
+
+## 2026-09-21 — The SQLite assumption was wrong, and that is the finding
+
+Recording this on its own rather than as a footnote to the parity work, because
+the default assumption was the expensive part.
+
+The assumption going in — stated plainly so it is on the record — was that
+SQLite could not hold 019's guarantees, and that the desktop build would
+therefore have to enforce identity in application code while Postgres enforced
+it in the database. That would have been a genuinely bad outcome: two backends
+with the same schema and *different* guarantees, where the weaker one is the one
+heading into Phase B's native migration.
+
+The assumption was not true. Checking it cost about twenty minutes:
+
+- partial unique indexes — supported since SQLite 3.8
+- `RAISE(ABORT, ...)` in triggers — the direct equivalent of `RAISE EXCEPTION`
+- `ON CONFLICT DO NOTHING` — supported since 3.24
+- `gen_random_uuid()` and `NOW()` — already registered by the adapter
+- `PRAGMA foreign_keys = ON` — already set
+
+The entire price of parity was that SQLite needs one trigger per event, so the
+single Postgres `BEFORE UPDATE OR DELETE` trigger becomes two. One extra
+statement, in exchange for the audit log staying append-only and built-in roles
+staying undeletable **structurally on both backends**.
+
+That is the whole reason to hold a stage rather than flag and continue. Had this
+been deferred, the cost would not have been the work — it would have been doing
+Stage 1 twice, the second time during Phase B, against a build that had already
+shipped with a weaker model. The lesson worth carrying: "this backend probably
+can't do X" is a claim to test, not a constraint to design around. Most of the
+cost of a wrong constraint is paid long after you accept it.
+
+---
+
+## 2026-09-21 — Flagged: load_dotenv(override=True) beats the real environment
+
+`backend/app/main.py:2` calls `load_dotenv(override=True)`. python-dotenv
+resolves `.env` relative to the calling module, not the working directory, so
+`backend/.env` wins over the process environment **no matter where the server is
+started from** — including under Docker, Railway, systemd, or any deployment that
+sets configuration through real environment variables.
+
+Found by trying to point a local server at a throwaway verification database.
+Every attempt connected to `localhost:5432/foundry_db` instead — the value in
+`.env` — and failed. The first two diagnoses were wrong: the error looked like a
+container networking problem, then like a shell-export problem. It was neither.
+
+Two consequences worth stating:
+
+1. **Operationally**, a `.env` file present on a deployment host silently
+   overrides platform-provided configuration. That is the opposite of what
+   `override=True` is usually reached for, and it is the kind of thing that
+   surfaces as an outage pointing at the wrong subsystem.
+2. **For verification**, it meant a script intended for a disposable database
+   would have seeded users into the developer's own. The seed never ran — the
+   server failed to start first — but the near-miss is the point: the safety
+   came from an unrelated failure, not from anything in the design.
+
+Not patched. `override=True` may well be deliberate for local development, and
+changing it touches how every deployment resolves its configuration — that is a
+decision, not a cleanup. Worked around for verification by re-asserting the
+environment after importing `app.main`, which modifies nothing in the repo.
+
+---
+
+## 2026-09-21 — Paused: Stage 1 remainder committed but NOT yet verified live
+
+Work stopped mid-verification at the operator's request. Recording the exact
+state so the next session does not have to reconstruct it.
+
+**Committed and CI-green:** migration 019, SQLite parity, `order.txt`, the
+migration coverage gate, `RequirePermission`, the dual-door admin gate, the
+break-glass script.
+
+**Committed but NOT verified against a running system:**
+`app/routers/access.py` (teams, roles, members, owner-gated audit read) and its
+registration in `main.py`, plus `scripts/verify_stage1_live.py`. These compile
+and CI passes, but CI does not exercise them — the live check is what was
+running when work stopped.
+
+**Treat them as unproven until `verify_stage1_live.py` has actually run.** The
+whole point of this log is that passing tests and compiling code are not
+evidence; that applies to the code written today as much as to anything
+inherited.
+
+**To resume:**
+
+1. Start a throwaway Postgres and Redis, apply migrations in `order.txt` order.
+2. Launch the backend with the environment re-asserted after `app.main` import
+   (see the dotenv entry above — this is not optional, it will otherwise connect
+   to the developer's own database).
+3. Run `python scripts/verify_stage1_live.py --base-url http://localhost:8099`.
+   It covers the Stage 1 done-when (engineer permitted/denied, observer
+   read/denied, all four attempts in the audit log) and cutover step 4, the JWT
+   door on `/api/admin/health`.
+4. Only after L9 passes does cutover step 5 run — removing HTTP Basic.
+
+**Cutover steps 4 and 5 have not been executed.** HTTP Basic is still live on
+`/api/admin/*` and `ADMIN_PASSWORD` is still required. Both doors remain open,
+which is the intended state between steps 3 and 5 — but it is not a resting
+place. A second auth mechanism left open becomes the real one.
+
+**No lockout window exists in the current state**, and this is worth being
+explicit about since it is the thing that would hurt on a self-hosted box: steps
+1–3 only ever *added* a door. The one moment where lockout becomes possible is
+step 5, and the break-glass (`scripts/grant_owner.py`, direct DB write, run on
+the box) is what makes that step reversible. Do not run step 5 without
+confirming that script works first.
