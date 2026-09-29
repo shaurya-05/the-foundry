@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends
 from app.db.postgres import get_pool
 from app.db.cache import cache_get, cache_set
-from app.dependencies import AuthContext, require_auth
+from app.services.identity import AuthContext, require_auth
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 

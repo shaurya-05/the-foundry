@@ -401,7 +401,7 @@ async def api_health():
 
 
 # ─── WebSocket auth helper ───────────────────────────────────────────────────
-from app.auth import decode_token
+from app.services.identity import decode_token
 from jose import JWTError
 
 

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from app.models.schemas import CommandParseRequest
 from app.db.postgres import get_pool
-from app.dependencies import AuthContext, require_auth
+from app.services.identity import AuthContext, require_auth
 import re
 
 router = APIRouter(prefix="/api/command", tags=["command"])

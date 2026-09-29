@@ -26,6 +26,8 @@ services:
     owns: users, orgs, teams, roles, permissions, sessions, API keys, audit log,
           and the org-level entitlement that billing expresses
     contract: identity-access.v1.yaml
+    facade: app/services/identity.py
+    moved: 2026-09-29   # Stage 4, service 2 of 4
     tables:
       - users
       - workspaces
@@ -48,6 +50,7 @@ services:
       - subscriptions
       - usage_tracking
     modules:
+      - app/services/identity.py   # the facade (Stage 4)
       - app/auth.py
       - app/dependencies.py
       - app/routers/auth.py
@@ -93,6 +96,7 @@ services:
       - command_history
       - copilot_messages
     modules:
+      - app/services/agent_runtime.py   # facade (purge/export only so far)
       - app/services/agent_loop.py
       - app/services/agent_tools.py
       - app/services/agent_reflection.py
@@ -123,6 +127,7 @@ services:
       - graph_tasks
       - edges
     modules:
+      - app/services/memory_knowledge.py   # facade (purge/export only so far)
       - app/services/memory_tool.py
       - app/services/agent_retrieval.py
       - app/services/document_retrieval.py
@@ -170,6 +175,7 @@ services:
       - webhook_events
       - revenue
     modules:
+      - app/services/workspace_domain.py   # facade (purge/export only so far)
       - app/routers/projects.py
       - app/routers/tasks.py
       - app/routers/ventures.py
@@ -244,3 +250,4 @@ infrastructure:
       - app/db/sqlite.py
       - app/db/redis.py
       - app/db/neo4j.py
+      - app/db/purge.py

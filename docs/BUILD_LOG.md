@@ -1170,3 +1170,134 @@ The workflow triggered only on PRs to `main`. Stage 4 moves one service per PR
 and those PRs stack on the Foundation branch, so every one of them would have
 arrived with no checks — the same hollow-green problem Stage 0 removed, reached
 by a different route. `phase-a/**` and `stage-4/**` now trigger it too.
+
+---
+
+## 2026-09-29 — V-03 resolved: deletion that actually deletes
+
+### What the rewrite found was worse than the register said
+
+The old account-deletion path enumerated seven tables belonging to four other
+services. Two things were wrong with it, and only one was in the register.
+
+It covered **seven tables out of roughly thirty**. `projects`, `ideas`,
+`knowledge_items`, `agent_memory`, `notifications`, `activity_events`,
+`blueprint_*`, `watches`, `docs`, `persons`, `events`, `graph_tasks`, `edges`,
+`pipeline_runs`, `ventures` — none of them were ever deleted.
+
+And **every delete sat inside a swallowing try/except**, commented "for tables
+that may not exist in all environments". So a delete that failed reported
+success: a GDPR path that could delete nothing at all and still return
+`{"deleted": true}`.
+
+After V-08 that comment is not hypothetical — `model_usage_log` genuinely did
+not exist on databases built from the migration chain.
+
+### The shape of the fix
+
+Each service declares which of its tables hold workspace data and how they are
+scoped; `app/db/purge.py` does the deleting. The spec is the service's
+knowledge, the mechanism is not — so Identity & Access orchestrates a deletion
+without knowing a single table name belonging to anyone else.
+
+Adding a table to any service no longer silently creates an incomplete deletion,
+because the service that owns the table owns its purge spec.
+
+Three facades were created early — `agent_runtime.py`, `memory_knowledge.py`,
+`workspace_domain.py` — holding only purge and export for now. None declares a
+`facade:` in `ownership.yaml` yet, so import enforcement stays off for services
+that have not been asked to move. Declaring them early would fail CI for code
+doing nothing wrong.
+
+**Nothing swallows.** A purge that cannot complete fails loudly. A partial
+deletion reported as complete is the worst of the three possible outcomes.
+
+### Verified by direct query, not by the endpoint's word
+
+18 seeded rows across three services. After the delete: every one gone,
+confirmed by counting rows in the database rather than reading the response.
+
+A colleague's row in a table the leaver also used survived. `user_purgeable`
+is what makes that pass: rows with no user column belong to the workspace, not
+to whoever left, and deleting them because one person departed would destroy a
+colleague's work.
+
+Identity soft-deleted, credentials cleared, membership removed.
+
+---
+
+## 2026-09-29 — Stage 4, service 2 of 4: Identity & Access moved
+
+Twenty modules rewritten to import `app/services/identity.py`. This was the most
+entangled of the six — 24 inbound imports — and almost all of them wanted the
+same four FastAPI dependencies, so most of the move was one import line each.
+
+The dependency callables are **re-exported by name, not wrapped**. FastAPI
+inspects their signatures to build the request graph, so a wrapper that changes
+a signature changes the behaviour of every endpoint using it. Same objects, one
+door.
+
+Unlike the Model Gateway facade these imports are eager, and safely so: this
+service sits at the bottom of the dependency graph and imports nothing from
+another service. That is what you would expect of the thing everything else
+authenticates against, and it is why there was no cycle to avoid this time.
+
+`audit_log` is deliberately absent from Identity's own purge spec. It is
+append-only by database trigger (IA-3), so including it would either raise or
+require weakening the guarantee to make a purge succeed. A record that access
+was granted or refused is a record of what the system did, not personal content.
+Changing that is a decision about the audit guarantee, not a line in a purge
+spec.
+
+Both moved services enforce at zero import violations. Pending imports across
+the four unmoved services fell from 42 to 21.
+
+### V-11: an invariant the brief calls absolute is enforced by nothing
+
+Seeding a test row surfaced it. `agent_memory` has **no `source` column**. It
+stores one JSONB array per `(workspace_id, user_id)` with `source` inside each
+element, and `015_agent_memory.sql` says so in its own comment: *"enforced by
+the loop once it exists, not by this table"*.
+
+Proven rather than argued — the live database accepted this without complaint:
+
+```sql
+INSERT INTO agent_memory (workspace_id, user_id, content)
+VALUES (..., '[{"text":"a memory with NO source at all"}]'::jsonb);
+```
+
+Provenance therefore holds exactly as long as every writer goes through
+`memory_tool.py`. Today one does. That is a convention, not a guarantee — and it
+is the only invariant described as absolute with nothing enforcing it. The audit
+log gets a trigger. Built-in roles get a trigger. Memory provenance gets a
+comment.
+
+It matters most for Stage 5, which is explicitly told compaction must not become
+a backdoor around provenance. With nothing structural, a compactor writing a
+merged entry without `source` simply succeeds and nothing notices.
+
+MK-1 now states what is true rather than what was intended. Not fixed here:
+`agent_memory` belongs to Memory & Knowledge, which moves third, and the
+enforcement interacts directly with Stage 5's compaction design.
+
+### V-10: webhook_events cannot be purged per workspace
+
+It records raw provider deliveries and carries no workspace or user column at
+all. Deliberately absent from the Workspace Domain purge spec rather than
+silently skipped. Payloads may contain personal data from the source system, so
+it needs a workspace column, a retention window, or a documented decision that
+it holds nothing personal.
+
+### Verified after the move
+
+| Check | Result |
+|---|---|
+| backend boots (20 rewritten modules) | health 200 |
+| Stage 1 live | pass |
+| tracing | pass |
+| Stage 2 done-when | pass |
+| V-03 purge | pass |
+| boundary scan | 29, baseline clean |
+| import scan | 0 enforced, 21 pending |
+
+Boundary violations: **37 → 29**, all eight of them `auth.py`'s.

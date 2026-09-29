@@ -21,9 +21,16 @@ owns_tables:
 invariants:
   - id: MK-1
     rule: >
-      NO code path writes memory without a declared `source`. This is
-      structural, not a convention, and it is absolute. Every write operation in
-      this contract requires `source`; there is no overload that omits it.
+      NO code path writes memory without a declared `source`. Every write
+      operation in this contract requires it; there is no overload that omits it.
+    enforcement: application_only
+    correction: >
+      Stage 3 described this as "structural, not a convention". That was wrong,
+      and Stage 4 proved it: agent_memory stores a JSONB array with `source`
+      inside each element, and the database accepts an element with no source at
+      all. 015_agent_memory.sql says so in its own comment -- "enforced by the
+      loop once it exists, not by this table". The rule stands; the claim that
+      the schema enforces it did not. See VIOLATIONS.md V-11.
   - id: MK-2
     rule: >
       Compaction must not become a backdoor around MK-1. A compacted entry

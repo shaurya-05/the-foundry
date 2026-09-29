@@ -7,7 +7,7 @@ for verification; still quiet — never speaks).
 """
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.dependencies import AuthContext, require_auth
+from app.services.identity import AuthContext, require_auth
 from app.services import watch_service
 
 router = APIRouter(prefix="/api/watches", tags=["watches"])

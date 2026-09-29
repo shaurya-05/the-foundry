@@ -16,7 +16,7 @@ import httpx
 import structlog
 
 from app.db.postgres import get_pool
-from app.dependencies import AuthContext
+from app.services.identity import AuthContext
 
 log = structlog.get_logger()
 

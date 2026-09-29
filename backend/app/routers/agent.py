@@ -19,10 +19,10 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.db.postgres import get_pool
-from app.dependencies import AuthContext, require_auth
+from app.services.identity import AuthContext, require_auth
 from app.services.agent_retrieval import build_context, build_system_prompt
 from app.services.model_gateway import stream_direct as stream_claude
-from app.services.usage import check_limit, increment_usage
+from app.services.identity import check_limit, increment_usage
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 

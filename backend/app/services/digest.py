@@ -17,7 +17,7 @@ import structlog
 
 from app.db.postgres import get_pool
 from app.services.model_gateway import complete_direct as complete_claude
-from app.services.email import _send as _send_email
+from app.services.identity import _send as _send_email
 
 log = structlog.get_logger()
 

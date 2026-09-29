@@ -37,7 +37,7 @@ def _admin_gate(permission: str):
         request: Request,
         authorization: Optional[str] = Header(None),
     ) -> AdminPrincipal:
-        from app.services.access import has_permission, record_audit
+        from app.services.identity import has_permission, record_audit
         from app.services import tracing
 
         if not authorization or not authorization.startswith("Bearer "):
@@ -47,7 +47,7 @@ def _admin_gate(permission: str):
             )
 
         from jose import JWTError
-        from app.auth import decode_token
+        from app.services.identity import decode_token
 
         try:
             payload = decode_token(authorization.split(" ", 1)[1], expected_type="access")

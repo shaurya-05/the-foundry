@@ -5,7 +5,7 @@ from app.db.postgres import get_pool
 from app.services.model_gateway import stream_direct as stream_claude, complete_direct as complete_claude
 from app.services.model_gateway import embed_text
 from app.services.graph import upsert_knowledge_node
-from app.dependencies import AuthContext, require_auth
+from app.services.identity import AuthContext, require_auth
 import json
 
 router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])

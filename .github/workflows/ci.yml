@@ -178,6 +178,11 @@ jobs:
           # backend->frontend->backend hop, read back through the dashboard's
           # own API as a Stage 1 role, asserted to be ONE connected trace.
           python scripts/verify_stage2_done.py --base-url http://localhost:8000
+          # V-03: cross-service deletion and export. Every assertion is a
+          # direct database count after the fact, never the endpoint's own
+          # report -- an endpoint reporting on its own deletion is exactly
+          # what failed before.
+          python scripts/verify_v03_purge.py --base-url http://localhost:8000
         env:
           DATABASE_URL: postgresql://foundry:foundry_secret@localhost:5432/foundry_db
           REDIS_URL: redis://localhost:6379
