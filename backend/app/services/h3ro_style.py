@@ -247,9 +247,9 @@ async def maybe_update_h3ro_style_from_message(user_id: str, user_message: str) 
         return None
 
     try:
-        from app.services.model_provider import MODEL_REGISTRY
+        from app.services.model_gateway import get_provider
 
-        provider = MODEL_REGISTRY.get("CLASSIFIER")
+        provider = get_provider("CLASSIFIER")
         if provider is None or not provider.is_configured():
             log.warning("h3ro_style_classifier_unavailable")
             return None

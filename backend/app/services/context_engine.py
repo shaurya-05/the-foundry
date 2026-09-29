@@ -1,7 +1,7 @@
 """Context engine: generates workspace insights and assembles Copilot context."""
 from app.db.postgres import get_pool
 from app.db.cache import cache_get, cache_set
-from app.services.claude import complete_claude
+from app.services.model_gateway import complete_direct as complete_claude
 from typing import Dict, Any, List, Optional
 
 INSIGHT_SYSTEM = """You are a system awareness engine for THE FOUNDRY. Analyze the workspace state and generate exactly 4 precise insights.

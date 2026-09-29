@@ -66,7 +66,7 @@ from app.services.agent_search_before_build import (
     search_before_build_payload,
     user_wants_fresh_build,
 )
-from app.services.model_provider import MODEL_REGISTRY
+from app.services.model_gateway import get_provider
 
 log = structlog.get_logger()
 # Small models occasionally write a tool call out as plain text instead of
@@ -195,7 +195,7 @@ async def run_agent_loop(
     the worst case, the iteration cap yields agent_stopped instead of
     hanging or crashing the request).
     """
-    provider = MODEL_REGISTRY.get(PLANNER_LABEL)
+    provider = get_provider(PLANNER_LABEL)
     if provider is None or not provider.is_configured():
         yield {"type": "agent_final", "answer": "No planner model is configured — I can't run an agent loop right now.", "iterations_used": 0}
         return

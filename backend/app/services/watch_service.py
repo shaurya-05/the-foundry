@@ -101,9 +101,9 @@ async def _is_meaningfully_new(topic: str, previous: str, current: str) -> bool:
         return False
 
     try:
-        from app.services.model_provider import MODEL_REGISTRY
+        from app.services.model_gateway import get_provider
 
-        provider = MODEL_REGISTRY["CLASSIFIER"]
+        provider = get_provider("CLASSIFIER")
         prompt = (
             "You decide if a watched topic has meaningfully NEW information a founder "
             "would want a quiet heads-up about.\n\n"

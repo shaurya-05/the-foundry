@@ -246,6 +246,30 @@ absent telemetry.
 
 ---
 
+## V-09 — `circuit_breaker` was assigned to the wrong service *(found by moving it)*
+
+**Severity: contract correction, resolved.**
+
+Stage 3 filed `app/services/circuit_breaker.py` under Model Gateway, on the
+reasonable-sounding basis that it wraps provider calls. Moving the service in
+Stage 4 showed that was wrong: `github_sync`, `google_drive` and `notion_sync`
+all use the same breaker for **their own connectors**, which have nothing to do
+with models. Leaving it where Stage 3 put it would have created three new
+enforced import violations the moment the facade went up — for code that was
+doing nothing wrong.
+
+Resolved by declaring a **shared `resilience` substrate**, the same pattern as
+observability: one named implementation, callable by everyone, owned by no
+single service. `breaker_status` on the Model Gateway contract now delegates to
+it rather than owning it.
+
+Worth recording as a Stage 3 miss rather than quietly re-filing it. The
+boundary looked right on paper and was wrong in the code, and the thing that
+revealed it was trying to enforce it. That is an argument for moving services
+one at a time: a boundary is a hypothesis until something tests it.
+
+---
+
 ## Not violations, deliberately excluded
 
 - **`app/db/*`** — the persistence adapter every service goes *through*. It names

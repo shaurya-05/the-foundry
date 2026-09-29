@@ -18,7 +18,7 @@ from typing import Optional
 import structlog
 
 from app.db.postgres import get_pool
-from app.services.embeddings import embed_text
+from app.services.model_gateway import embed_text
 
 log = structlog.get_logger()
 

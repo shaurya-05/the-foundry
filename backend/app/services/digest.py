@@ -16,7 +16,7 @@ from typing import Any
 import structlog
 
 from app.db.postgres import get_pool
-from app.services.claude import complete_claude
+from app.services.model_gateway import complete_direct as complete_claude
 from app.services.email import _send as _send_email
 
 log = structlog.get_logger()

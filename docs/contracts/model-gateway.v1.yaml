@@ -7,6 +7,8 @@ owns: >
   measured-fitness data that routing decisions are made from.
 
 surface: internal
+facade: app/services/model_gateway.py
+moved: 2026-09-29   # Stage 4, service 1 of 4
 # No HTTP surface today. Described as messages rather than function signatures
 # anyway: after Phase B this may well be a network call, and a contract written
 # as `async def route_query(...)` would have to be rewritten at exactly the
@@ -159,13 +161,40 @@ emits:
 known_gaps:
   - id: MG-GAP-1
     rule: MG-2
+    status: verified_already_correct
     detail: >
-      model_used telemetry reports the originally selected model after a
-      provider failover on at least one path. ai_router emits a correction
-      tuple on the streaming path; the non-streaming path has not been
-      verified. Carried into Stage 4 as a correctness fix, not a refactor.
+      Re-examined during the Stage 4 move. The streaming route path DOES emit a
+      ("model_used", <label>) correction when call_with_resilience falls back to
+      a different provider, and copilot.py handles both the bare string and the
+      tuple. No change was made, because none was needed -- recorded rather than
+      claiming a fix. The residual exposure is MG-GAP-2: callers using
+      stream_direct report no model at all, because they never asked a tier.
+  - id: MG-GAP-2
+    rule: MG-3
+    detail: >
+      Eight modules call stream_direct/complete_direct, which go straight to
+      Anthropic and bypass tier routing entirely -- naming a provider rather
+      than a tier. They now do so THROUGH the facade, so the bypass is countable
+      and enforced-adjacent rather than invisible. Converting them changes which
+      model answers, so it is its own change, not part of a move.
+  - id: MG-GAP-3
+    rule: MG-3
+    detail: >
+      agent_loop, h3ro_style and watch_service take a provider object out of the
+      registry via get_provider() and call it themselves, inheriting none of the
+      resilience wrapper route() would apply. Same reasoning: exposed through
+      the one door so it is countable, converted separately.
 
 changelog:
   - version: 1
     date: 2026-09-29
     note: Initial extraction. Describes existing behaviour; nothing moved.
+  - version: 1
+    date: 2026-09-29
+    note: >
+      Stage 4 move. Additive, no version bump: app/services/model_gateway.py is
+      now the facade and every other service imports only it, enforced by
+      scripts/check_service_imports.py. circuit_breaker moved OUT of this
+      service to the shared resilience substrate (V-09) -- breaker_status now
+      delegates. migration 021 creates model_usage_log, which this service has
+      been writing to since before any migration created it (V-08).

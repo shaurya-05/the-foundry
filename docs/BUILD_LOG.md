@@ -1025,3 +1025,148 @@ Two things were written ahead of their implementations on purpose:
 | contracts | migration creating an unowned table | FAIL, named the table |
 | contracts | contract file removed | FAIL, named the service |
 | both | tree restored | clean |
+
+---
+
+## 2026-09-29 — Sixth context ratified: Workspace Domain
+
+GRW decision on V-01, option 1. `projects`, `tasks`, `ideas`, `ventures`,
+`activity_events`, `notifications`, `blueprint_*`, `watches`, sync and billing
+now have a named owner and a contract.
+
+The violation count did not drop, and should not have: naming a boundary does
+not move code. What changed is that all 30 of those violations became
+*fixable*. `list_for_context` and `record_activity` are the two operations that
+matter — before them, four of `context_engine.py`'s reads had no alternative to
+point at.
+
+---
+
+## 2026-09-29 — Stage 4, service 1 of 4: Model Gateway moved
+
+### What moved, and what deliberately did not
+
+`app/services/model_gateway.py` is now the only door into the model layer.
+Eighteen modules were rewritten to import it instead of `ai_router`,
+`model_provider`, `claude` or `embeddings`.
+
+A facade rather than relocating files: the contract is what other services
+depend on, and moving `ai_router.py` into a package would churn every import for
+no change in coupling. One named surface in front of the verified routing logic
+changes the coupling without touching the logic — which is the difference
+between a staged refactor and a rewrite.
+
+Two things were deliberately left alone, both for the same reason:
+
+- **`stream_direct` / `complete_direct`** go straight to Anthropic, bypassing
+  tier routing. Eight modules call them. Routing them through `route()` would
+  change which model answers — a behaviour change smuggled inside a move, which
+  is the one thing a move must not contain. Exposed, marked deprecated, recorded
+  as MG-GAP-2.
+- **`get_provider()`** hands a provider object to `agent_loop`, `h3ro_style` and
+  `watch_service`, which call it themselves and inherit none of the resilience
+  wrapper `route()` would apply. MG-GAP-3, same reasoning.
+
+Neither is fixed. Both are now countable, because there is exactly one door.
+
+### Enforcement: imports, not just tables
+
+`check_service_boundaries.py` catches one service reading another's TABLES.
+Model Gateway owns almost no tables, and every way of violating its boundary is
+an import — twenty modules were reaching into its internals and the table
+checker saw none of it.
+
+`check_service_imports.py` closes that. **Enforcement is progressive**: a
+service is enforced only once it declares a `facade:` in `ownership.yaml`, i.e.
+once Stage 4 has actually moved it. Model Gateway is enforced with zero
+violations; the other five report 42 inbound imports and fail nothing. Turning
+it on for all six at once would produce either a wall of failures or a baseline
+so large it means nothing.
+
+Proved by probe: a `from app.services.model_provider import MODEL_REGISTRY`
+added to `context_engine.py` exits 1 and names the facade to use instead;
+removing it exits 0.
+
+### V-08 fixed, and it immediately exposed a second problem
+
+Migration 021 creates `model_usage_log` — the table `ai_router` has been
+inserting into since before any migration created it. Verified on a cold
+database: a row landed through the real code path, which is the first time that
+write has ever succeeded on a database built from the chain. `/admin/model-stats`
+now returns data instead of an empty list.
+
+The `except Exception: pass` around that write is gone. It never should have
+swallowed silently: telemetry must not fail the request that produced it, but it
+can say so. That silence is the entire reason a missing table went unnoticed.
+
+**Then the boundary checker immediately flagged `admin.py -> model_usage_log`.**
+That violation had always existed and had been *invisible*, because the checker
+only knows tables the migrations create — and this one did not exist. Fixing the
+bug made the violation appear. The query moved onto the contract as
+`usage_stats()`, where it belonged: an operator surface should not own model
+data.
+
+A bug hiding a boundary violation is a good argument for checking both, and for
+checking them against the same source of truth.
+
+### V-09: Stage 3 put the circuit breaker in the wrong service
+
+Stage 3 filed `circuit_breaker.py` under Model Gateway on the reasonable-sounding
+basis that it wraps provider calls. Enforcing the boundary showed that was
+wrong: `github_sync`, `google_drive` and `notion_sync` use the same breaker for
+their own connectors, which have nothing to do with models. Leaving it would
+have created three enforced violations for code doing nothing wrong.
+
+Now a shared `resilience` substrate, same pattern as observability.
+`breaker_status` delegates rather than owning.
+
+Worth recording as a Stage 3 miss rather than quietly re-filed. **A boundary is
+a hypothesis until something tests it**, and the thing that tested this one was
+trying to enforce it. That is the argument for moving one service at a time.
+
+### MG-GAP-1: re-examined, no change made
+
+The brief lists "fix `model_used` telemetry — after a provider failover it
+reports the original model". Re-read during the move: the streaming route path
+already emits a `("model_used", <label>)` correction when
+`call_with_resilience` falls back, and `copilot.py` handles both the bare string
+and the tuple. Marked `verified_already_correct` rather than claiming a fix that
+was not made. The residual exposure is MG-GAP-2 — `stream_direct` callers report
+no model at all, because they never asked for a tier.
+
+### What broke
+
+**A facade that imports its own service eagerly will not boot.** The first
+version imported `ai_router` and `embeddings` at module level. `ai_router`
+imports `document_retrieval`, which now imports the facade for embeddings — a
+cycle that exists *only because* the facade became the front door. The app
+failed at startup with a partially-initialised module.
+
+`python -m compileall` had passed on all eighteen migrated modules. Compiling is
+not importing; it proves syntax, not that the graph resolves. The thing that
+caught it was starting the server.
+
+Every import inside the facade is now lazy. A facade that drags in its whole
+service graph at import time re-creates the coupling it exists to remove.
+
+### Verified against the real running system
+
+After the move, on a cold database with all 24 migrations:
+
+| Check | Result |
+|---|---|
+| backend boots (18 rewritten modules resolve) | health 200 |
+| Stage 1 live — 15 checks | all pass |
+| tracing — 15 checks | all pass |
+| Stage 2 done-when — 15 checks | all pass |
+| `/admin/model-stats` through the contract | 200, real rows |
+| `model_usage_log` receives writes | 1 row, real path |
+| boundary scan | 37, baseline clean |
+| import scan | 0 enforced violations |
+
+### CI now runs on stacked PRs
+
+The workflow triggered only on PRs to `main`. Stage 4 moves one service per PR
+and those PRs stack on the Foundation branch, so every one of them would have
+arrived with no checks — the same hollow-green problem Stage 0 removed, reached
+by a different route. `phase-a/**` and `stage-4/**` now trigger it too.

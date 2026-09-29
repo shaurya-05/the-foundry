@@ -3,8 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from app.models.schemas import ProjectCreate, ProjectUpdate, Project
 from app.db.postgres import get_pool
-from app.services.claude import stream_claude, complete_claude
-from app.services.embeddings import embed_text
+from app.services.model_gateway import stream_direct as stream_claude, complete_direct as complete_claude
+from app.services.model_gateway import embed_text
 from app.services.graph import upsert_project_node
 from app.dependencies import AuthContext, require_auth
 

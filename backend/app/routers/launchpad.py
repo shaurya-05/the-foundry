@@ -2,7 +2,7 @@ import json
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from app.models.schemas import LaunchBriefRequest
-from app.services.claude import stream_claude
+from app.services.model_gateway import stream_direct as stream_claude
 from app.dependencies import AuthContext, require_auth, RequireUsage
 
 router = APIRouter(prefix="/api/launchpad", tags=["launchpad"])

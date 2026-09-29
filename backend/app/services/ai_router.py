@@ -114,8 +114,16 @@ def log_model_usage(
                         round(cost_usd, 6), round(latency_ms, 1),
                         int(round(efficiency, 0)), round(tps, 1),
                     )
-            except Exception:
-                pass
+            except Exception as e:
+                # Was `except Exception: pass`. That silence is why a table no
+                # migration created went unnoticed long enough for the
+                # model-stats page to be permanently empty (V-08). Telemetry
+                # must still never fail the request that produced it -- but it
+                # says so now.
+                log.warning(
+                    "model_usage_write_failed",
+                    model=model, query_type=query_type, error=str(e)[:200],
+                )
 
         asyncio.ensure_future(_write())
     except Exception:

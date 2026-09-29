@@ -265,7 +265,7 @@ async def handle_issue_comment(
     # Embed the body so the agent can retrieve it via semantic search.
     embedding = None
     try:
-        from app.services.embeddings import embed_text
+        from app.services.model_gateway import embed_text
         if body.strip():
             embedding = await embed_text(body)
     except Exception as e:

@@ -10,8 +10,8 @@ from fastapi.responses import StreamingResponse
 from app.auth import decode_token
 from jose import JWTError
 from app.models.schemas import CopilotMessage, IntentRequest, IntentResponse
-from app.services.claude import stream_claude
-from app.services.ai_router import route_query, get_council_perspectives, estimate_tokens
+from app.services.model_gateway import stream_direct as stream_claude
+from app.services.model_gateway import route as route_query, council as get_council_perspectives, estimate_tokens
 from app.services.context_engine import get_workspace_summary, build_copilot_system, build_project_copilot_system
 from app.services.usage import check_limit, increment_usage
 from app.services.agent_tools import resolve_pending_call, create_pending_call, await_frontend_response, ToolContext

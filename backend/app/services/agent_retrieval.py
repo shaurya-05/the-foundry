@@ -23,7 +23,7 @@ import json
 from typing import Optional
 
 from app.services import graph_repo
-from app.services.embeddings import embed_text
+from app.services.model_gateway import embed_text
 from app.db.cache import cache_get, cache_set
 
 

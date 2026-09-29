@@ -26,6 +26,7 @@ Usage:
 """
 from __future__ import annotations
 
+import ast
 import json
 import re
 import sys
@@ -42,6 +43,41 @@ BASELINE = REPO / "docs" / "contracts" / "boundary-baseline.json"
 SQL_REF = re.compile(
     r"\b(?:FROM|JOIN|INTO|UPDATE|DELETE\s+FROM|TABLE)\s+([a-z_][a-z0-9_]*)", re.I
 )
+
+
+def sql_strings(text: str) -> str:
+    """Only the string literals that are not docstrings.
+
+    Scanning raw file text matched English prose: a docstring reading "reads
+    from model_usage_log" looked exactly like `FROM model_usage_log` and
+    produced a violation for a module that had just had that query REMOVED.
+    Parsing means comments disappear for free and docstrings can be excluded
+    deliberately.
+
+    Falls back to raw text if the file does not parse, which is the safe
+    direction -- a false positive is noisy, a false negative is a boundary
+    violation nobody sees.
+    """
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return text
+
+    docstrings: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            body = getattr(node, "body", None)
+            if (body and isinstance(body[0], ast.Expr)
+                    and isinstance(body[0].value, ast.Constant)
+                    and isinstance(body[0].value.value, str)):
+                docstrings.add(id(body[0].value))
+
+    out = []
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Constant) and isinstance(node.value, str)
+                and id(node) not in docstrings):
+            out.append(node.value)
+    return chr(10).join(out)
 
 
 def known_tables() -> set[str]:
@@ -121,7 +157,7 @@ def scan() -> list[dict]:
         if service is None:
             service = module_service.get(rel)
 
-        text = path.read_text(encoding="utf-8", errors="ignore")
+        text = sql_strings(path.read_text(encoding="utf-8", errors="ignore"))
         touched = {m.group(1).lower() for m in SQL_REF.finditer(text)} & tables
         if not touched:
             continue
