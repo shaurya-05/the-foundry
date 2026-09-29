@@ -63,24 +63,35 @@ def RequirePermission(permission: str):
     engineer). RequirePermission asks "may this user do this specific thing",
     which stays answerable however many roles exist.
 
-    Denials are audited. So are grants, by the endpoint itself where there is
-    before/after state worth recording — this dependency only sees the attempt.
+    Every decision is audited, allowed and denied alike. The brief asks for
+    "every privileged action", and an audit log holding only refusals cannot
+    answer who actually did the thing — which is the question it exists for.
+
+    The volume this produces is a retention problem, not a reason to record
+    less. Stage 2 owns the retention policy; solving retention by not writing
+    the row leaves you with a log that is cheap and useless. Note that only the
+    admin and access surfaces use this dependency today, so the write rate is
+    bounded to privileged endpoints rather than every request in the system.
+
+    Endpoints additionally record their own audit entries where there is
+    before/after state worth keeping — this dependency only ever sees the
+    attempt, not what changed.
     """
 
     async def _check(auth: AuthContext = Depends(require_auth)) -> AuthContext:
         from app.services.access import has_permission, record_audit
 
         allowed = await has_permission(auth.user_id, auth.workspace_id, permission)
+        await record_audit(
+            action=f"permission.check:{permission}",
+            actor_id=auth.user_id,
+            actor_email=auth.email,
+            workspace_id=auth.workspace_id,
+            target_type="permission",
+            target_id=permission,
+            outcome="allowed" if allowed else "denied",
+        )
         if not allowed:
-            await record_audit(
-                action=f"permission.denied:{permission}",
-                actor_id=auth.user_id,
-                actor_email=auth.email,
-                workspace_id=auth.workspace_id,
-                target_type="permission",
-                target_id=permission,
-                outcome="denied",
-            )
             raise HTTPException(
                 status_code=403, detail=f"Requires the '{permission}' permission"
             )

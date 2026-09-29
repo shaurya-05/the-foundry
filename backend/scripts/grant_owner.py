@@ -52,7 +52,9 @@ async def list_members() -> None:
 async def grant_owner(email: str, workspace_id: str | None) -> int:
     pool = await get_pool()
     async with pool.acquire() as conn:
-        user = await conn.fetchrow("SELECT id, email FROM users WHERE email = $1", email)
+        user = await conn.fetchrow(
+            "SELECT id, email, workspace_id FROM users WHERE email = $1", email
+        )
         if not user:
             print(f"ERROR: no user with email {email}", file=sys.stderr)
             return 2
@@ -63,17 +65,36 @@ async def grant_owner(email: str, workspace_id: str | None) -> int:
                 workspace_id,
             )
         else:
+            # Resolve the workspace from the user row itself, then fall back to
+            # the legacy workspace_members table.
+            #
+            # The first version of this looked the workspace up through
+            # workspace_members only, and failed outright for a user who exists
+            # in the Stage 1 model but was never written to the legacy table.
+            # A break-glass script that works only for accounts predating the
+            # migration is precisely the one that is useless after a cutover.
             team = await conn.fetchrow(
                 """
                 SELECT t.id, t.workspace_id
                 FROM teams t
-                JOIN workspace_members wm ON wm.workspace_id = t.workspace_id
-                WHERE wm.user_id = $1 AND t.is_default
+                WHERE t.workspace_id = $1 AND t.is_default
                 ORDER BY t.created_at
                 LIMIT 1
                 """,
-                user["id"],
+                user["workspace_id"],
             )
+            if not team:
+                team = await conn.fetchrow(
+                    """
+                    SELECT t.id, t.workspace_id
+                    FROM teams t
+                    JOIN workspace_members wm ON wm.workspace_id = t.workspace_id
+                    WHERE wm.user_id = $1 AND t.is_default
+                    ORDER BY t.created_at
+                    LIMIT 1
+                    """,
+                    user["id"],
+                )
         if not team:
             print(
                 "ERROR: no default team found. Pass --workspace, or check that "

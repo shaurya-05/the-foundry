@@ -49,6 +49,14 @@ def check(label: str, ok: bool, detail: str = "") -> None:
 async def seed() -> None:
     pool = await get_pool()
     async with pool.acquire() as conn:
+        # Clear artifacts this script created on a previous run, so L12 tests
+        # role *creation* every time rather than passing once and returning 409
+        # forever after. Found by re-running against a database that had not
+        # been recreated -- the 409 was correct behaviour and the harness was
+        # what was wrong.
+        await conn.execute(
+            "DELETE FROM roles WHERE workspace_id = $1 AND name = 'ml_engineer'", WS
+        )
         await conn.execute(
             "INSERT INTO workspaces (id, name, owner_id) VALUES ($1, $2, $3) "
             "ON CONFLICT (id) DO NOTHING",
@@ -164,6 +172,19 @@ async def main() -> int:
         })
         check("L12 owner creates ml_engineer role over HTTP, no migration",
               r.status_code == 201, f"HTTP {r.status_code} {r.text[:120]}")
+
+        # ── cutover step 5: the legacy door must be shut ─────────────────────
+        r = await c.get("/api/admin/health")
+        check("L13 unauthenticated admin request refused", r.status_code == 401,
+              f"HTTP {r.status_code}")
+
+        # The Basic password is still set in this process's environment. If the
+        # legacy path were merely disabled rather than deleted, this would be
+        # the request that found it.
+        r = await c.get("/api/admin/health",
+                        auth=("admin", os.getenv("ADMIN_PASSWORD", "legacy-basic-still-open")))
+        check("L14 HTTP Basic no longer opens admin (step 5)",
+              r.status_code == 401, f"HTTP {r.status_code}")
 
     if _failures:
         print(f"\n{len(_failures)} check(s) FAILED: {', '.join(_failures)}")

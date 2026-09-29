@@ -516,3 +516,122 @@ explicit about since it is the thing that would hurt on a self-hosted box: steps
 step 5, and the break-glass (`scripts/grant_owner.py`, direct DB write, run on
 the box) is what makes that step reversible. Do not run step 5 without
 confirming that script works first.
+
+---
+
+## 2026-09-29 — Stage 1 closed: verified live, admin cutover complete
+
+Fifteen checks against a running server, real JWTs from the real
+`/api/auth/login`, every assertion an HTTP status rather than a function's
+return value. Run twice consecutively to prove repeatability.
+
+| # | Check | Result |
+|---|---|---|
+| L0 | three roles obtain real JWTs via the login endpoint | pass |
+| L1 | engineer's permitted action succeeds | 200 |
+| L2 | engineer's role modification denied | 403 |
+| L3 | observer's read succeeds | 200 |
+| L4 | observer's mutation denied | 403 |
+| L5 | engineer denied the audit log | 403 |
+| L6 | owner reads the audit log | 200 |
+| L7 | both denials present in the log | `access.manage`, `audit.read` |
+| L8 | allowed attempts present too | 17 allowed / 11 denied |
+| L9 | owner reaches `/api/admin/health` by JWT — **cutover step 4** | 200 |
+| L10 | observer reaches admin health (`admin.read` is a read) | 200 |
+| L11 | observer denied admin write | 403 |
+| L12 | owner creates `ml_engineer` over HTTP, no migration | 201 |
+| L13 | unauthenticated admin request refused | 401 |
+| L14 | HTTP Basic no longer opens admin — **cutover step 5** | 401 |
+
+### The verification found a real gap in the design
+
+L8 failed on the first run: 0 allowed, 3 denied. `RequirePermission` audited
+only refusals, on the reasoning that grants are recorded by the endpoint that
+has before/after state. That reasoning was wrong, and the brief's done-when said
+so plainly — "the audit log shows all four attempts", where two of the four are
+permitted actions.
+
+An audit log holding only refusals answers "who was stopped" and cannot answer
+"who did it", which is the question the log exists for. Now every decision is
+recorded, allowed and denied alike.
+
+The volume that produces is a retention problem, and retention is Stage 2's job.
+Recording less to keep a table small leaves a log that is cheap and useless.
+Worth noting the blast radius is currently bounded: only the admin and access
+surfaces use `RequirePermission`; the other twenty routers still use
+`RequireRole`, so this is not a row per request across the whole system.
+
+### The break-glass was broken, and it broke exactly where it would have mattered
+
+`scripts/grant_owner.py` failed on its first real exercise:
+`no default team found`. It resolved a user's workspace by joining
+`workspace_members` — the *legacy* membership table — so any account existing in
+the Stage 1 model but never written to the old table could not be found.
+
+This is the worst possible shape for that bug. The script exists to restore
+access after a cutover; it would have worked for accounts predating the
+migration and failed for everything created after it, discovered at the exact
+moment someone was locked out of a self-hosted box. Now resolves from
+`users.workspace_id` first, falling back to the legacy table.
+
+Verified by demoting a user to `observer`, running the script, and re-querying
+the database independently — `owner`, with the break-glass grant recorded in the
+audit log. Not by reading the script's own success message, which is the whole
+reason this was checked before step 5 rather than after.
+
+### Cutover steps 4 and 5
+
+Step 4 was L9: a real authenticated request through the JWT door returning 200.
+Only after observing that did step 5 run.
+
+Step 5 deleted the legacy branch outright — `HTTPBasic`, `HTTPBasicCredentials`,
+`secrets.compare_digest`, the `ADMIN_BASIC_ENABLED` flag, all of it. Not disabled
+behind configuration. `grep -rn HTTPBasic backend/app` returns nothing.
+
+L14 is the check that makes that claim mean something: it sends the old Basic
+credentials, with `ADMIN_PASSWORD` still set in the server's environment. If the
+path had merely been disabled rather than removed, that request would have found
+it. 401.
+
+The emergency path that remains is `grant_owner.py` — a direct database write,
+run on the box, restoring access without reopening a network door. That is the
+distinction the brief is drawing: a recovery mechanism requiring physical
+presence is not a second front door.
+
+### What broke, and what it taught
+
+**The harness was not idempotent.** L12 passed on a fresh database and returned
+409 on the second run, because `ml_engineer` already existed. The 409 was
+correct behaviour — the *test* was wrong. A check that only passes against
+virgin state is a check that stops testing anything the moment you re-run it,
+which is the same family as the migration chain that was never rebuilt from
+cold. `seed()` now clears its own artifacts.
+
+**`/health` returned 503 and the wait loop reported the server as down.** Neo4j
+was absent; the server was running fine. `curl -fsS` treats 503 as failure, so
+the loop never succeeded and the startup looked broken. Started Neo4j to remove
+the confound rather than lowering the bar to 2xx-or-503 — but the lesson is the
+loop was asserting "healthy" while the question being asked was "listening".
+
+### Flagged, not patched
+
+1. **The desktop build vendors a copy of the backend, and two build paths ship
+   it stale.** `desktop/resources/backend/` is an untracked build artifact,
+   refreshed by `prepare-resources.mjs`, which runs before `pack`, `dist` and
+   `dist:mac`. But `dist:noside` and `dist:mac:noside` skip it deliberately —
+   and the copy currently sitting there is dated 2026-07-27 and **still contains
+   the HTTP Basic admin gate this stage just removed**. A `:noside` build today
+   would ship the dormant door the brief prohibits. Not patched: those scripts
+   look like intentional shortcuts and changing them is a packaging decision.
+2. **`watch_loop_tick_failed` fires every 30s on the running system** —
+   `invalid input for query argument $1: '2026-09-29T20:31:01+00:00' (expected a
+   datetime.date or datetime.datetime instance, got 'str')`. A timestamp is
+   being passed to asyncpg as an ISO string where a `datetime` is required. The
+   watch loop is silently doing nothing on every tick. Outside Stage 1's scope,
+   found while watching real logs.
+3. **`aiosqlite` is missing from `backend/.venv312`.** The SQLite gate runs
+   under the system interpreter but not the repo's own virtualenv, so a
+   contributor running the documented command inside the venv gets
+   `ModuleNotFoundError` rather than a result. CI installs from
+   `requirements.txt` and passes, so this is venv drift rather than a missing
+   dependency.
