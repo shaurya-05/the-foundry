@@ -151,6 +151,10 @@ jobs:
           # backend->frontend->backend hop. Runs here rather than as its own
           # step because T13-T15 need the server that this step just started.
           python scripts/verify_tracing.py --base-url http://localhost:8000
+          # Stage 2 done-when: a real round trip across the
+          # backend->frontend->backend hop, read back through the dashboard's
+          # own API as a Stage 1 role, asserted to be ONE connected trace.
+          python scripts/verify_stage2_done.py --base-url http://localhost:8000
         env:
           DATABASE_URL: postgresql://foundry:foundry_secret@localhost:5432/foundry_db
           REDIS_URL: redis://localhost:6379

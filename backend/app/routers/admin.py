@@ -414,14 +414,32 @@ async def _ollama_status(reg_rows: list) -> dict:
         return {"configured": True, "reachable": False, "error": str(e)[:160]}
 
     labels = {}
+    total_vram = 0
     for r in ollama_labels:
         m = loaded.get(r["model_name"])
+        vram = m["size_vram"] if m else None
+        if vram:
+            total_vram += int(vram)
         labels[r["label"]] = {
             "model_name": r["model_name"],
             "warm": m is not None,
-            "size_vram_bytes": m["size_vram"] if m else None,
+            "size_vram_bytes": vram,
             "expires_at": m.get("expires_at") if m else None,
         }
+
+    # Stage 2 metric: real VRAM, sampled from what Ollama reports as actually
+    # resident -- not the sum of what the registry says models ought to cost.
+    # The system has already come within 98MB of exhausting 12GB once, and the
+    # thing that makes that visible in hindsight is a time series, not a gauge
+    # you have to be looking at when it happens.
+    from app.services.tracing import record_metric
+    for label, info in labels.items():
+        if info["size_vram_bytes"]:
+            await record_metric(
+                "vram.model_bytes", float(info["size_vram_bytes"]),
+                tier=label, model=info["model_name"],
+            )
+    await record_metric("vram.total_bytes", float(total_vram), loaded_models=len(loaded))
 
     return {
         "configured": True,

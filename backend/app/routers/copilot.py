@@ -212,7 +212,21 @@ async def _authenticate_ws(websocket: WebSocket) -> Optional[AuthContext]:
     except JWTError:
         await websocket.close(code=1008, reason="invalid or expired token")
         return None
-    return AuthContext(user_id=payload["sub"], workspace_id=payload["workspace_id"], email=payload["email"]), first
+    ctx = AuthContext(user_id=payload["sub"], workspace_id=payload["workspace_id"], email=payload["email"])
+
+    # Bind the trace here rather than in middleware: Starlette's http middleware
+    # does not run for WebSocket connections, so without this every WS request
+    # is untraced -- and the async round-trip protocol starts on a WebSocket.
+    # That would leave the first leg of the hop outside the trace entirely, which
+    # is the failure this stage exists to prevent.
+    from app.services import tracing
+    tracing.clear_context()
+    tracing.bind_context(
+        workspace_id=ctx.workspace_id,
+        actor_id=ctx.user_id,
+        service=tracing.SERVICE_AGENT_RUNTIME,
+    )
+    return ctx, first
 
 
 @router.websocket("/message")
@@ -466,13 +480,26 @@ async def test_file_tool_ws(websocket: WebSocket):
         return
 
     try:
-        call_id, future = create_pending_call(auth.workspace_id)
-        await websocket.send_json({'type': 'tool_request', 'call_id': call_id, 'tool': tool_name, 'args': args})
-        async for tick in await_frontend_response(call_id, future, tool_name):
-            if tick is None:
-                await websocket.send_json({'type': 'heartbeat'})
-            else:
-                await websocket.send_json({'type': 'tool_result', **tick})
+        from app.services import tracing as _tracing
+
+        async with _tracing.span(
+            f"tool.{tool_name}", service=_tracing.SERVICE_AGENT_RUNTIME,
+            tool=tool_name, kind="async_frontend", transport="websocket",
+        ) as _s:
+            call_id, future = create_pending_call(auth.workspace_id)
+            _s["attributes"]["call_id"] = call_id
+            await websocket.send_json({'type': 'tool_request', 'call_id': call_id, 'tool': tool_name, 'args': args})
+            _ok = False
+            async for tick in await_frontend_response(call_id, future, tool_name):
+                if tick is None:
+                    await websocket.send_json({'type': 'heartbeat'})
+                else:
+                    _ok = tick.get("status") == "ok"
+                    await websocket.send_json({'type': 'tool_result', **tick})
+            _s["attributes"]["success"] = _ok
+            if not _ok:
+                _s["status"] = "error"
+                _s["error"] = "frontend did not respond in time"
         await websocket.send_json({"type": "done"})
     except WebSocketDisconnect:
         return

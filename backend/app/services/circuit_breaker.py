@@ -75,6 +75,11 @@ async def record_success(connector: str) -> None:
     try:
         r = await get_redis()
         await r.delete(_fail_key(connector), _open_key(connector))
+        # Stage 2 metric: 1 = closed (healthy). Recorded on every success rather
+        # than only on transitions, so a breaker that has been quietly healthy
+        # for an hour is distinguishable from one nothing has called at all.
+        from app.services.tracing import record_metric
+        await record_metric("circuit_breaker.closed", 1.0, connector=connector)
     except Exception:
         pass
 
@@ -102,7 +107,17 @@ async def record_failure(connector: str, *, reason: Optional[str] = None) -> boo
                 reason=(reason or "unspecified")[:120],
                 cooldown_s=OPEN_COOLDOWN_S,
             )
+            from app.services.tracing import record_metric
+            await record_metric(
+                "circuit_breaker.closed", 0.0,
+                connector=connector, recent_failures=recent,
+                reason=(reason or "unspecified")[:120],
+            )
             return True
+        from app.services.tracing import record_metric
+        await record_metric(
+            "circuit_breaker.failure", 1.0, connector=connector, recent_failures=recent
+        )
         return False
     except Exception as e:
         log.warning("circuit_breaker_record_failed", connector=connector, error=str(e)[:120])

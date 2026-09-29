@@ -252,6 +252,36 @@ async def record_metric(
         log.warning("metric_write_failed", metric=metric, error=str(e))
 
 
+def record_metric_nowait(metric: str, value: float, **labels: Any) -> None:
+    """Fire-and-forget metric write from synchronous code.
+
+    Several of the places worth measuring are sync functions on a hot path --
+    `log_model_usage` is the obvious one. Blocking them on a database insert to
+    record how fast they were would be self-defeating, so the write is scheduled
+    on the running loop instead.
+
+    If there is no running loop (a unit test, a CLI script), the sample is
+    dropped rather than raising. Losing a metric is acceptable; breaking the
+    thing being measured is not.
+    """
+    try:
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    task = loop.create_task(record_metric(metric, value, **labels))
+    # Hold a reference so the task is not garbage-collected mid-flight, and
+    # drop it on completion. Without this, CPython can collect a pending task
+    # and the write silently never happens -- which looks exactly like the
+    # metric never firing.
+    _INFLIGHT.add(task)
+    task.add_done_callback(_INFLIGHT.discard)
+
+
+_INFLIGHT: set = set()
+
+
 # ─── Retention ───────────────────────────────────────────────────────────────
 async def sweep_retention(days: Optional[int] = None) -> dict[str, int]:
     """Delete spans and metric samples older than the retention window.

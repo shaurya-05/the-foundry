@@ -758,3 +758,122 @@ Final check, four different authenticated endpoints:
 `expose_headers`, without which the browser cannot *read* it off a response.
 Allowing the request header alone is half a round trip: the frontend would have
 been unable to learn the trace id it was meant to echo back.
+
+---
+
+## 2026-09-29 — Stage 2 closed: metrics, one dashboard, done-when met
+
+### The done-when, done literally
+
+> One real end-to-end request is traceable as a single trace across every hop,
+> viewed in the dashboard, logged in as a Stage 1 role.
+
+Fifteen checks, in that order, against the running system:
+
+| # | Check | Result |
+|---|---|---|
+| D1 | logged in as `engineer` through the real login endpoint | pass |
+| D2 | real `tool_request` received over the WebSocket | call_id issued |
+| D3 | answered via `POST /api/copilot/tool-result` — the hop | round trip closed |
+| D4/D5 | dashboard summary + trace list readable with that token | 200 |
+| D6 | the request produced a trace | pass |
+| D7 | one trace contains **both** legs | pass |
+| D8 | the trace is a **single connected tree** | `root_count=1` |
+| D9 | the reply is nested under the tool call it answered | pass |
+| D10 | dashboard summary counts include it | pass |
+| D11 | same session refused `audit.read` | 403 |
+| D12 | same session may run the retention sweep (`admin.write`) | 200 |
+| D13-D15 | metrics reach the dashboard, per tier and per criterion | pass |
+
+D8 is the one that would have caught a broken hop, and D11 is the one that makes
+D4 mean something: a dashboard that opens for a role proves the permission was
+granted, not that the gate exists. The same token being refused `audit.read`
+proves the gate is per-capability rather than blanket.
+
+**The WebSocket leg had no trace at all**, found while wiring this up. Starlette's
+HTTP middleware does not run for WebSocket connections, and the round-trip
+protocol *starts* on a WebSocket — so the first leg of the hop was outside the
+trace entirely, and the whole thing would have been a trace of the second half.
+Trace binding now happens in `_authenticate_ws`, which every WS endpoint already
+funnels through.
+
+### A check that was wrong about the design, not a finding
+
+D11 originally asserted that `engineer` is refused the retention sweep. It
+failed, and the check was wrong: `engineer` holds `admin.write` deliberately —
+the brief's role table gives it "full code, deploy, trace, dashboard, health
+access" — and the sweep only deletes what the retention policy already declares
+expired. The check now asserts the gate using `audit.read`, which `engineer`
+genuinely does not hold, and a second check records that the sweep being allowed
+is the intended behaviour rather than an oversight.
+
+Worth writing down because the instinct on a red check is to change the code.
+The check was the thing that was wrong.
+
+### Metrics — measured at the funnel, not the call sites
+
+Five instrumentation points, each chosen where every path already converges:
+
+- **Per-tier model latency and throughput** in `log_model_usage()`. Every
+  provider path already calls it, so instrumenting there cannot be bypassed by a
+  provider added later. Instrumenting call sites would mean finding them all
+  once, then finding them again forever.
+- **Reflection outcomes per criterion** in `reflect_on_answer()`. An aggregate
+  pass rate says the loop is struggling; `file_was_read` failing while
+  `summary_grounded` passes says it is answering about files it never opened.
+  Three different bugs hide behind one aggregate.
+- **Tool success/failure** around both execution paths in the agent loop. The
+  `async_frontend` span opens *before* `create_pending_call`, which is what
+  gives the frontend's reply a parent to attach to.
+- **VRAM** from what Ollama reports as actually resident, not the registry's
+  idea of what models ought to cost. The system has come within 98MB of
+  exhausting 12GB once; what makes that legible afterwards is a time series.
+- **Circuit-breaker state** on every success and failure, not only on
+  transitions — so a breaker quietly healthy for an hour is distinguishable from
+  one nothing has called.
+
+`record_metric_nowait()` exists because several of these are sync functions on a
+hot path. It schedules the write and keeps a reference to the task: without that
+reference CPython can collect a pending task mid-flight, and the write silently
+never happens — which looks exactly like the metric never firing.
+
+### One dashboard, same login
+
+`/observability` in the frontend app, gated by `trace.read` on the backend. It
+lives in the app rather than as server-rendered HTML for a concrete reason: the
+session is the app's session. A browser cannot attach an `Authorization` header
+to a plain navigation, so a server-rendered admin page either needs its own
+cookie mechanism — a second authentication path, which the conformance rules
+forbid — or it needs the page to live where the token already is.
+
+Verified by loading it in a real browser as `engineer`: the role badge reads
+`ENGINEER · 7 PERMISSIONS`, the trace list shows the real round trips, and
+opening one renders `tool.list_files` with `tool.result.received` nested beneath
+it. That nesting, on screen, is the hop.
+
+Deliberately almost no charts. Counts, ranks and a tree are what this data is;
+the single magnitude comparison that earns a visual is span duration within a
+trace, drawn as single-hue bars against the trace's own longest span. Status is
+never colour alone — an errored span carries the word "error" beside it. A trace
+that arrives with more than one root is labelled **disconnected** rather than
+drawn as though it were fine, because that is precisely what a lost hop looks
+like.
+
+### Retention
+
+`TRACE_RETENTION_DAYS`, default 7, swept by `sweep_retention()` and surfaced on
+the dashboard alongside the age of the oldest span — so the policy and its actual
+effect are visible in the same place. Gated on `admin.write`, not `trace.read`:
+deleting data is not a read, however routine.
+
+### Flagged, not patched
+
+1. **`/admin`'s server-rendered HTML page is no longer reachable from a
+   browser.** Removing HTTP Basic in Stage 1 was correct and this is its
+   consequence: browsers cannot send a Bearer token on a navigation. The page
+   still serves to an API client with a token, and the `/observability`
+   dashboard supersedes it for human use, but the old URL will appear broken to
+   anyone who bookmarked it. Moving its panels into the frontend is the real
+   fix and is a larger change than this stage should absorb.
+2. **`aiosqlite` is still missing from `backend/.venv312`**, so the SQLite gate
+   only runs under the system interpreter locally. CI is unaffected.

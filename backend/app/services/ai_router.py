@@ -87,6 +87,17 @@ def log_model_usage(
     }
     log.info("model_usage", **stats)
 
+    # Stage 2 metrics: per-tier latency and throughput. `query_type` is the
+    # tier, so these aggregate by tier without a second lookup. Recorded here
+    # rather than at the call sites because every provider path already funnels
+    # through this function -- instrumenting the call sites would mean finding
+    # all of them and then finding them again whenever one is added.
+    from app.services.tracing import record_metric_nowait
+
+    record_metric_nowait("model.latency_ms", latency_ms, model=model, tier=query_type)
+    record_metric_nowait("model.tokens_per_second", tps, model=model, tier=query_type)
+    record_metric_nowait("model.tokens_out", tokens_out, model=model, tier=query_type)
+
     try:
         from app.db.postgres import get_pool as _get_pool
 

@@ -376,6 +376,28 @@ def reflect_on_answer(
         checked.extend(["memory_hit_real", "memory_write_confirmed"])
         failures.extend(_check_memory(answer, tools_used, observations))
 
+    # Stage 2 metrics: reflection outcomes BY CRITERION, not just pass/fail.
+    # An aggregate reflection pass rate tells you the loop is struggling; a
+    # per-criterion rate tells you whether it is inventing sources, not reading
+    # files, or claiming memory hits that never happened -- which are three
+    # different bugs with three different fixes.
+    from app.services.tracing import record_metric_nowait
+
+    for criterion in checked:
+        failed = any(f.id == criterion for f in failures)
+        record_metric_nowait(
+            "reflection.criterion",
+            0.0 if failed else 1.0,
+            criterion=criterion,
+            outcome="failed" if failed else "passed",
+        )
+    record_metric_nowait(
+        "reflection.result",
+        1.0 if not failures else 0.0,
+        outcome="passed" if not failures else "failed",
+        task_types=",".join(task_types),
+    )
+
     return ReflectResult(
         passed=len(failures) == 0,
         task_types=task_types,

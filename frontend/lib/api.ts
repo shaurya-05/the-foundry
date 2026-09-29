@@ -57,6 +57,17 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
 
 // ─── Knowledge ───────────────────────────────────────────────────────────────
 export const api = {
+  access: {
+    me: () => req<AccessMe>('/api/access/me'),
+  },
+  observability: {
+    summary: (hours = 24) => req<ObsSummary>(`/api/observability/summary?hours=${hours}`),
+    traces: (limit = 50, onlyErrors = false) =>
+      req<{ traces: ObsTrace[] }>(`/api/observability/traces?limit=${limit}&only_errors=${onlyErrors}`),
+    trace: (id: string) => req<ObsTraceDetail>(`/api/observability/traces/${id}`),
+    metrics: (hours = 24) =>
+      req<{ window_hours: number; metrics: Record<string, ObsMetricRow[]> }>(`/api/observability/metrics?hours=${hours}`),
+  },
   knowledge: {
     list: () => req<KnowledgeItem[]>('/api/knowledge'),
     create: (data: KnowledgeCreate) => req<KnowledgeItem>('/api/knowledge', { method: 'POST', body: JSON.stringify(data) }),
@@ -348,3 +359,61 @@ export const PIPELINE_DEFS = [
     accent: '#A78BFA',
   },
 ]
+
+// ─── Observability (Stage 2) ─────────────────────────────────────────────────
+export interface AccessMe {
+  user_id: string
+  workspace_id: string
+  email: string
+  permissions: string[]
+  teams: { team_id: string; team_name: string; role_name: string }[]
+}
+
+export interface ObsTrace {
+  trace_id: string
+  started_at: string
+  span_count: number
+  error_count: number
+  duration_ms: number | null
+  root_name: string | null
+  root_service: string | null
+}
+
+export interface ObsSpan {
+  span_id: string
+  parent_span_id: string | null
+  service: string
+  name: string
+  started_at: string
+  duration_ms: number | null
+  status: string
+  error: string | null
+  attributes: Record<string, unknown>
+  children: ObsSpan[]
+}
+
+export interface ObsTraceDetail {
+  trace_id: string
+  span_count: number
+  root_count: number
+  disconnected: boolean
+  roots: ObsSpan[]
+}
+
+export interface ObsMetricRow {
+  labels: Record<string, string | number>
+  samples: number
+  avg: number | null
+  min: number | null
+  max: number | null
+}
+
+export interface ObsSummary {
+  window_hours: number
+  spans: number
+  traces: number
+  errors: number
+  slowest: { service: string; name: string; calls: number; avg_ms: number | null; max_ms: number | null }[]
+  circuit_breakers: { connector: string; state: string; recent_failures?: number; cooldown_remaining_s?: number }[]
+  retention: { policy_days: number; oldest_span: string | null; total_spans_all_workspaces: number }
+}

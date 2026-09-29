@@ -48,6 +48,7 @@ from typing import Any, AsyncIterator, Optional
 
 import structlog
 
+from app.services import tracing as _tracing
 from app.services.agent_tools import (
     TOOL_REGISTRY, ToolContext, await_frontend_response, create_pending_call,
     tool_definitions_for_planner,
@@ -439,18 +440,50 @@ async def run_agent_loop(
             elif spec.kind == "sync":
                 yield {"type": "agent_tool_call", "iteration": iteration, "tool": name, "args": args}
                 assert spec.execute is not None
-                result = await spec.execute(args, ctx)
+                async with _tracing.span(
+                    f"tool.{name}", service=_tracing.SERVICE_AGENT_RUNTIME,
+                    tool=name, kind="sync", iteration=iteration,
+                ) as _s:
+                    result = await spec.execute(args, ctx)
+                    _s["attributes"]["success"] = bool(result.success)
+                    if not result.success:
+                        _s["status"] = "error"
+                        _s["error"] = str(result.error)[:2000]
+                _tracing.record_metric_nowait(
+                    "tool.execution", 1.0 if result.success else 0.0,
+                    tool=name, kind="sync",
+                    outcome="success" if result.success else "failure",
+                )
                 observation = result.content if result.success else {"error": result.error}
                 yield {"type": "agent_observation", "iteration": iteration, "tool": name, "result": observation}
 
             else:  # async_frontend
-                call_id, future = create_pending_call(ctx.workspace_id)
-                yield {"type": "tool_request", "call_id": call_id, "tool": name, "args": args}
-                final_tick = None
-                async for tick in await_frontend_response(call_id, future, name, timeout_s=spec.frontend_timeout_s):
-                    if tick is not None:
-                        final_tick = tick
-                if final_tick and final_tick.get("status") == "ok":
+                # The span opens BEFORE create_pending_call so that the call's
+                # stashed trace context points at this span -- that is what makes
+                # the frontend's reply land as a child of the tool call rather
+                # than as a second root. See app/services/tracing.py.
+                async with _tracing.span(
+                    f"tool.{name}", service=_tracing.SERVICE_AGENT_RUNTIME,
+                    tool=name, kind="async_frontend", iteration=iteration,
+                ) as _s:
+                    call_id, future = create_pending_call(ctx.workspace_id)
+                    _s["attributes"]["call_id"] = call_id
+                    yield {"type": "tool_request", "call_id": call_id, "tool": name, "args": args}
+                    final_tick = None
+                    async for tick in await_frontend_response(call_id, future, name, timeout_s=spec.frontend_timeout_s):
+                        if tick is not None:
+                            final_tick = tick
+                    _ok = bool(final_tick and final_tick.get("status") == "ok")
+                    _s["attributes"]["success"] = _ok
+                    if not _ok:
+                        _s["status"] = "error"
+                        _s["error"] = "frontend did not respond in time"
+                _tracing.record_metric_nowait(
+                    "tool.execution", 1.0 if _ok else 0.0,
+                    tool=name, kind="async_frontend",
+                    outcome="success" if _ok else "timeout",
+                )
+                if _ok:
                     observation = final_tick["result"]
                 else:
                     observation = {"error": f"{name} did not respond in time"}
