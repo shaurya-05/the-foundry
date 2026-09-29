@@ -1,0 +1,226 @@
+contract: workspace_domain
+version: 1
+title: Workspace Domain
+status: stable
+ratified: >
+  2026-09-29, GRW. Stage 3 V-01, option 1.
+
+owns: >
+  The product entities a workspace is actually made of: projects, tasks, ideas,
+  ventures, the blueprint canvas, notifications, the activity stream, watches,
+  and the sync that keeps external sources current.
+
+why_this_exists: >
+  The five original contexts describe the substrate the assistant runs on. They
+  do not describe the application it runs inside. Both existed from the start;
+  only one had been named, and 30 of the 37 boundary violations found in Stage 3
+  ran through that gap.
+
+  The clearest symptom: context_engine.py has to read projects, tasks, ideas and
+  activity_events to build planner context, because that IS the workspace
+  content the assistant reasons about. Before this contract there was nothing
+  for it to call, so four of its violations were not fixable — you cannot depend
+  on an interface that does not exist. `list_for_context` below is the operation
+  that resolves them.
+
+surface: mixed   # HTTP for CRUD, internal for the retrieval-facing reads
+
+owns_tables:
+  - projects
+  - tasks
+  - ideas
+  - ventures
+  - activity_events
+  - notifications
+  - blueprint_canvas
+  - blueprint_ops
+  - watches
+  - cloud_sync_link
+  - sync_jobs
+  - webhook_events
+  - revenue
+
+invariants:
+  - id: WD-1
+    rule: >
+      Every entity is workspace-scoped. There is no cross-workspace read, and
+      workspace scoping is in the WHERE clause rather than applied afterwards.
+  - id: WD-2
+    rule: >
+      Activity is append-only. `activity_events` records what happened; it is
+      never edited to reflect what should have happened.
+  - id: WD-3
+    rule: >
+      This service does not call the Agent Runtime. The dependency runs one way:
+      the assistant reads the workspace, the workspace does not drive the
+      assistant. A workspace entity that triggers an agent run does so by
+      raising an event, not by invoking the loop.
+  - id: WD-4
+    rule: >
+      Retrieval-facing reads are explicitly bounded. `list_for_context` returns a
+      capped, summarised view, never the full entity set — the planner's context
+      window is the binding constraint, not the database's willingness to answer.
+
+operations:
+
+  list_for_context:
+    summary: >
+      Bounded, summarised workspace content for planner context. THE operation
+      that exists to end Memory & Knowledge's direct reads of projects, tasks,
+      ideas and activity_events.
+    request:
+      type: object
+      required: [workspace_id]
+      properties:
+        workspace_id: { type: string, format: uuid }
+        kinds:
+          type: array
+          items: { type: string, enum: [project, task, idea, venture, activity] }
+        limit_per_kind: { type: integer, default: 10, maximum: 50 }
+        since: { type: [string, "null"], format: date-time }
+    response:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              kind: { type: string }
+              title: { type: string }
+              status: { type: [string, "null"] }
+              summary: { type: string, description: Truncated. WD-4. }
+              updated_at: { type: string, format: date-time }
+        truncated:
+          type: boolean
+          description: True when the cap bit. The caller is told, not silently given a partial view.
+    errors: []
+
+  record_activity:
+    summary: >
+      Append one activity event. Other services call this instead of writing
+      activity_events, which is what several of them do today.
+    request:
+      type: object
+      required: [workspace_id, actor_id, kind, summary]
+      properties:
+        workspace_id: { type: string, format: uuid }
+        actor_id: { type: string, format: uuid }
+        kind: { type: string }
+        summary: { type: string }
+        entity_id: { type: [string, "null"], format: uuid }
+        entity_kind: { type: [string, "null"] }
+    response:
+      type: object
+      properties:
+        event_id: { type: string, format: uuid }
+    errors: []
+
+  get_entity:
+    summary: One workspace entity by id and kind.
+    request:
+      type: object
+      required: [workspace_id, kind, id]
+      properties:
+        workspace_id: { type: string, format: uuid }
+        kind: { type: string, enum: [project, task, idea, venture] }
+        id: { type: string, format: uuid }
+    response:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string }
+        title: { type: string }
+        status: { type: [string, "null"] }
+        body: { type: [string, "null"] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    errors:
+      - not_found
+
+  purge_workspace:
+    summary: >
+      Delete everything this service holds for a workspace. Part of the V-03
+      resolution — Identity & Access orchestrates deletion rather than
+      enumerating this service's tables.
+    status: declared_not_implemented
+    x-requires-permission: access.manage
+    request:
+      type: object
+      required: [workspace_id]
+      properties:
+        workspace_id: { type: string, format: uuid }
+        dry_run: { type: boolean, default: true }
+    response:
+      type: object
+      properties:
+        tables_cleared: { type: array, items: { type: string } }
+        rows_deleted: { type: integer }
+    errors:
+      - workspace_not_found
+
+  export_workspace:
+    summary: Everything this service holds for a workspace, for data export.
+    status: declared_not_implemented
+    x-requires-permission: access.manage
+    request:
+      type: object
+      required: [workspace_id]
+      properties:
+        workspace_id: { type: string, format: uuid }
+    response:
+      type: object
+      properties:
+        projects: { type: array, items: { type: object } }
+        tasks: { type: array, items: { type: object } }
+        ideas: { type: array, items: { type: object } }
+        ventures: { type: array, items: { type: object } }
+    errors:
+      - workspace_not_found
+
+http_surface:
+  - { method: GET,    path: "/api/projects",       requires: authenticated }
+  - { method: POST,   path: "/api/projects",       requires: authenticated }
+  - { method: PATCH,  path: "/api/projects/{id}",  requires: authenticated }
+  - { method: DELETE, path: "/api/projects/{id}",  requires: authenticated }
+  - { method: GET,    path: "/api/tasks",          requires: authenticated }
+  - { method: POST,   path: "/api/tasks",          requires: authenticated }
+  - { method: GET,    path: "/api/ventures",       requires: authenticated }
+  - { method: GET,    path: "/api/notifications",  requires: authenticated }
+  - { method: GET,    path: "/api/watches",        requires: authenticated }
+  - { method: GET,    path: "/api/blueprint",      requires: authenticated }
+
+depends_on:
+  identity_access:
+    operations: [authorize]
+    note: Workspace scoping on every operation (WD-1).
+  memory_knowledge:
+    operations: [retrieve]
+    note: >
+      Project/idea relatedness. One-way — Memory & Knowledge does not call back
+      into this service except through list_for_context.
+  observability:
+    operations: [span, record_metric]
+
+known_gaps:
+  - id: WD-GAP-1
+    detail: >
+      `admin.py` is currently listed as a module of this service and is not one.
+      It is an operator surface that aggregates across every service, which is
+      exactly why it holds three cross-boundary reads. Recategorising it needs
+      the Stage 2 dashboard pattern — read through contract endpoints, not
+      tables. See VIOLATIONS.md V-05.
+  - id: WD-GAP-2
+    detail: >
+      `h3ro_style.py` and `cloud_sync_runner.py` write to users and
+      workspace_members directly. Small and mechanical; resolved by calling
+      Identity & Access once Stage 4 moves it.
+
+changelog:
+  - version: 1
+    date: 2026-09-29
+    note: >
+      Ratified as the sixth context. Declares the boundary; no code moved in
+      Stage 3. `list_for_context` and `record_activity` are the two operations
+      that let the existing violations be retired in Stage 4.

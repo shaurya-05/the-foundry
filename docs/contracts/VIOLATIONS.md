@@ -49,9 +49,26 @@ sixth boundary that was never drawn.
 
 ---
 
-## V-01 — The workspace domain has no contract *(highest leverage, needs a decision)*
+## V-01 — The workspace domain has no contract — **RESOLVED**
 
-**Severity: blocking for Stage 4.**
+**Decision: option 1, a sixth context. Ratified 2026-09-29 by GRW.**
+
+`workspace_domain` is now a first-class service with its own contract
+([`workspace-domain.v1.yaml`](workspace-domain.v1.yaml)) and a named owner for
+all thirteen tables. `list_for_context` and `record_activity` are the two
+operations that let the existing violations actually be retired in Stage 4 —
+before this, four of `context_engine.py`'s reads were unfixable because there
+was no interface to call instead.
+
+The violation count does not drop on ratification, and should not: naming the
+boundary does not move the code. What changed is that every one of these 30 is
+now *fixable*, and Stage 4 has somewhere to point them.
+
+The original analysis follows, retained because the reasoning is the record.
+
+---
+
+**Original finding — severity: was blocking for Stage 4.**
 
 Thirteen tables and twenty-one modules — `projects`, `tasks`, `ideas`,
 `ventures`, `activity_events`, `notifications`, `blueprint_canvas`,
@@ -86,6 +103,8 @@ interface that does not exist.
 actually falls rather than being relabelled. Filed here rather than decided,
 because naming a sixth bounded context is a ratification call, not an
 implementation detail.
+
+*Accepted 2026-09-29.*
 
 ---
 

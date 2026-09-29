@@ -138,6 +138,54 @@ services:
     tables: []
     modules: []
 
+  workspace_domain:
+    title: Workspace Domain
+    owns: >
+      The product entities a workspace is actually made of — projects, tasks,
+      ideas, ventures, the blueprint canvas, notifications, activity, watches and
+      the sync that keeps them current.
+    contract: workspace-domain.v1.yaml
+    ratified: >
+      2026-09-29, GRW. Stage 3 V-01 option 1. The five original contexts describe
+      the substrate the assistant runs on; this one describes the application it
+      runs inside. Both existed; only one had been named, and 30 of 37 boundary
+      violations ran through the gap.
+    tables:
+      - projects
+      - tasks
+      - ideas
+      - ventures
+      - activity_events
+      - notifications
+      - blueprint_canvas
+      - blueprint_ops
+      - watches
+      - cloud_sync_link
+      - sync_jobs
+      - webhook_events
+      - revenue
+    modules:
+      - app/routers/projects.py
+      - app/routers/tasks.py
+      - app/routers/ventures.py
+      - app/routers/blueprint.py
+      - app/routers/notifications.py
+      - app/routers/analytics.py
+      - app/routers/watches.py
+      - app/routers/cloud_sync.py
+      - app/routers/webhooks.py
+      - app/routers/admin.py
+      - app/services/watch_service.py
+      - app/services/cloud_sync_runner.py
+      - app/services/github_sync.py
+      - app/services/github_webhook.py
+      - app/services/github_client.py
+      - app/services/google_drive.py
+      - app/services/digest.py
+      - app/services/notifications.py
+      - app/services/h3ro_style.py
+      - app/workers/pipeline_worker.py
+
 # ─── Shared substrate ────────────────────────────────────────────────────────
 # Observability is not one of the five contexts and cannot be: every service
 # emits into it. Rather than pretend one service owns it, it is declared shared
@@ -190,50 +238,3 @@ infrastructure:
       - app/db/sqlite.py
       - app/db/redis.py
       - app/db/neo4j.py
-
-# ─── Not covered by any of the five ──────────────────────────────────────────
-# These tables and modules are real, in production, and belong to none of the
-# five named contexts. They are listed rather than shoehorned. This is the
-# single biggest finding of Stage 3 — see VIOLATIONS.md V-01.
-unassigned:
-  workspace_domain:
-    note: >
-      Product entities the workspace is actually made of. The five-service model
-      describes the substrate the assistant runs on, not the application it runs
-      inside. Needs a decision: sixth context, or split across the five.
-    tables:
-      - projects
-      - tasks
-      - ideas
-      - ventures
-      - activity_events
-      - notifications
-      - blueprint_canvas
-      - blueprint_ops
-      - watches
-      - cloud_sync_link
-      - sync_jobs
-      - webhook_events
-      - revenue
-    modules:
-      - app/routers/projects.py
-      - app/routers/tasks.py
-      - app/routers/ventures.py
-      - app/routers/blueprint.py
-      - app/routers/notifications.py
-      - app/routers/analytics.py
-      - app/routers/watches.py
-      - app/routers/cloud_sync.py
-      - app/routers/webhooks.py
-      - app/routers/admin.py
-      - app/routers/blueprint.py
-      - app/services/watch_service.py
-      - app/services/cloud_sync_runner.py
-      - app/services/github_sync.py
-      - app/services/github_webhook.py
-      - app/services/github_client.py
-      - app/services/google_drive.py
-      - app/services/digest.py
-      - app/services/notifications.py
-      - app/services/h3ro_style.py
-      - app/workers/pipeline_worker.py

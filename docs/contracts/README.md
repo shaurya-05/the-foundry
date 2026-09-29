@@ -1,6 +1,6 @@
 # Service Contracts — Stage 3
 
-Five services, five contracts, plus one shared substrate. These are **interfaces
+Six services, six contracts, plus one shared substrate. These are **interfaces
 only**. No implementation moved in Stage 3; every contract here was written
 against code that is still exactly where it was.
 
@@ -11,6 +11,7 @@ against code that is still exactly where it was.
 | [`agent-runtime.v1.yaml`](agent-runtime.v1.yaml) | Agent Runtime | HTTP + WebSocket + internal |
 | [`memory-knowledge.v1.yaml`](memory-knowledge.v1.yaml) | Memory & Knowledge | HTTP + internal |
 | [`perception-actuation.v1.yaml`](perception-actuation.v1.yaml) | Perception & Actuation | internal — **unimplemented by design** |
+| [`workspace-domain.v1.yaml`](workspace-domain.v1.yaml) | Workspace Domain | HTTP + internal |
 | [`observability.v1.yaml`](observability.v1.yaml) | shared substrate | internal write, HTTP read |
 
 Machine-readable ownership lives in [`ownership.yaml`](ownership.yaml). The gap
@@ -71,11 +72,10 @@ work, it is additive. If you have to check who calls it first, it is breaking.
 
 ## Deliberate omissions
 
-- **No contract is defined for the workspace domain** (projects, tasks, ideas,
-  ventures, blueprint, notifications, sync). Those are real, in production, and
-  belong to none of the five named contexts. They are recorded in
-  `ownership.yaml` under `unassigned` and raised as **V-01** in the register
-  rather than being quietly filed under whichever service looked closest.
+- **The workspace domain became the sixth context** (ratified 2026-09-29, GRW —
+  V-01 option 1). The five original contexts describe the substrate the
+  assistant runs on; this one describes the application it runs inside. Both
+  existed; only one had been named.
 - **Perception & Actuation has no implementation.** The contract exists anyway,
   because Phase A's vision work and Phase C's robotics work need a defined place
   to land rather than being bolted onto Agent Runtime after the fact.
