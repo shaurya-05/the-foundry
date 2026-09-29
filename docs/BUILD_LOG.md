@@ -635,3 +635,126 @@ loop was asserting "healthy" while the question being asked was "listening".
    `ModuleNotFoundError` rather than a result. CI installs from
    `requirements.txt` and passes, so this is venv drift rather than a missing
    dependency.
+
+---
+
+## 2026-09-29 — Stage 2: tracing that survives the frontend round trip
+
+### The hop, and why it needed nothing from the frontend
+
+The async round-trip protocol crosses backend→frontend→backend. The second leg
+arrives at `/api/copilot/tool-result` as a brand new HTTP request with empty
+contextvars, so any trace relying on ambient context is already gone by the time
+the handler runs. This was flagged up front as the place tracing would break if
+it broke anywhere, and that was correct.
+
+The obvious fix is to put `trace_id` in the `tool_request` payload and have the
+frontend echo it back. That works, and it was rejected: it requires a frontend
+change, it can be dropped by a client that does not implement it, and a
+malicious or buggy client can send someone else's trace id.
+
+The better key was already there. **`call_id` round-trips by necessity** — the
+protocol cannot function without it — and the backend already holds a registry
+mapping `call_id` to the waiting future. So the trace context is stashed against
+the `call_id` server-side when the pending call is created, and recovered from it
+when the result arrives. The frontend carries nothing, cannot lose it, and cannot
+forge it.
+
+Trace context is attached in `create_pending_call()` and detached in
+`cancel_pending_call()` — the same paths that create and clean up the future it
+shadows. A timed-out call therefore cannot leak a context entry, which is checked
+directly (T11) rather than assumed.
+
+This does inherit the pending-call registry's existing single-worker assumption:
+both are module-level dicts. No new assumption is introduced, and the two fail
+together rather than one degrading silently. A trace that vanishes while the
+request still succeeds is a week-long bug; a request that fails outright is an
+afternoon.
+
+### Verified by reading spans out of the database, not out of memory
+
+| # | Check | Result |
+|---|---|---|
+| T1 | log context carries trace_id, org_id, actor_id, service | pass |
+| T2 | context genuinely cleared before the second leg | pass |
+| T3 | trace recovered from call_id after the hop | ids match |
+| T4 | all three spans persisted under one trace_id | 3 spans |
+| T5 | post-hop span is in the SAME trace as pre-hop spans | pass |
+| T6 | post-hop span hangs off the waiting span, not a second root | parent matches |
+| T7 | span tree intact (`tool.request` under `agent.loop`) | pass |
+| T8 | spans carry org and actor | pass |
+| T9 | detached call context cannot be rejoined | pass |
+| T10/T11 | timeout path attaches and then detaches — no leak | pass |
+| T12 | retention sweep drops aged spans, keeps recent | 1 deleted, 2 kept |
+| T13 | responses carry `X-Trace-Id` | pass |
+| T14 | inbound `X-Trace-Id` continues the trace | pass |
+| T15 | malformed `X-Trace-Id` starts a clean trace | pass |
+
+T6 is the one that distinguishes a real trace from a coincidence. Two spans can
+share a `trace_id` and still be two disconnected roots, which renders as two
+unrelated requests in any viewer. Asserting the post-hop span's `parent_span_id`
+is the span that was *waiting* proves the tree actually joins.
+
+T15 exists because an inbound header is attacker-controlled. Only a well-formed
+UUID is honoured; anything else starts a fresh trace rather than poisoning the
+store with junk ids.
+
+### Retention, defined up front rather than deferred
+
+`TRACE_RETENTION_DAYS` (default 7), with `sweep_retention()` and a
+`spans(started_at)` index existing specifically to make the sweep cheap. The
+brief called this out as exactly what silently fills a disk, on a single machine
+with a span per model call and tool execution.
+
+The sweep is deliberately written portably — cutoff computed in Python and passed
+as a parameter, counts taken before the delete — because `NOW() - interval` and
+`WITH ... DELETE ... RETURNING` are both Postgres-only and the desktop build runs
+this same code against SQLite. Migration 020 has a SQLite parity block for the
+same reason Stage 1 did.
+
+### What broke: binding contextvars in middleware looked like it worked
+
+Structured JSON logging went in, `bind_contextvars` was called in the trace
+middleware, and the request lines came out with **none of the four fields on
+them**. No error, no warning — just absent fields in output that otherwise looked
+correct.
+
+The cause is that Starlette runs `call_next` in a child task. Contextvars set
+inside a middleware do not propagate *outward* to middleware that wrapped it, and
+the request-logging middleware was registered after the trace middleware, making
+it the outer one. It was logging from outside the context it was meant to
+describe.
+
+Two changes: the trace middleware is now registered last so it is the outermost
+layer, and the request-completion line moved into it. Identity is read from
+`request.state`, which `require_auth` sets explicitly, because `require_auth`
+runs in the child task and its `bind_contextvars` call genuinely cannot reach
+back out.
+
+Then the same bug appeared once more in a different disguise: `/api/admin/health`
+still logged only `trace_id` and `service`. The admin gate decodes its own JWT
+rather than going through `require_auth`, so nothing was setting identity on that
+path — the one path where knowing *who* reached a privileged endpoint matters
+most. Now bound there too.
+
+Worth recording because of how it presented. Every individual piece was correct:
+the renderer emitted JSON, the middleware bound the values, the processor chain
+included `merge_contextvars`. The system was wrong at the seam between them, and
+the only thing that caught it was reading actual log output instead of confirming
+the code looked right.
+
+Final check, four different authenticated endpoints:
+
+```
+/api/access/teams  status=200  all four: True
+/api/admin/health  status=200  all four: True
+/api/access/roles  status=200  all four: True
+/api/audit         status=200  all four: True
+```
+
+### Also fixed in passing: CORS could never have carried a trace
+
+`X-Trace-Id` was added to `allow_headers` so the frontend may send it — and to
+`expose_headers`, without which the browser cannot *read* it off a response.
+Allowing the request header alone is half a round trip: the frontend would have
+been unable to learn the trace id it was meant to echo back.

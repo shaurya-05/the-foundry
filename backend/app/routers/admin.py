@@ -1,7 +1,7 @@
 import html as _html
 import os
 from typing import Optional
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from app.db.postgres import get_pool
 import structlog
@@ -34,9 +34,11 @@ def _admin_gate(permission: str):
     rest of the system. One identity, one login, including the admin surfaces."""
 
     async def _check(
+        request: Request,
         authorization: Optional[str] = Header(None),
     ) -> AdminPrincipal:
         from app.services.access import has_permission, record_audit
+        from app.services import tracing
 
         if not authorization or not authorization.startswith("Bearer "):
             raise HTTPException(
@@ -55,6 +57,19 @@ def _admin_gate(permission: str):
         user_id = payload["sub"]
         workspace_id = payload["workspace_id"]
         email = payload.get("email")
+
+        # This gate decodes its own JWT rather than going through
+        # require_auth, so it has to bind the trace context itself. Without
+        # this, admin request lines carried trace_id and service but no org_id
+        # or actor_id -- the two fields you actually want when reading an audit
+        # trail of privileged access.
+        tracing.bind_context(
+            trace_id=tracing.current_trace_id(),
+            workspace_id=workspace_id,
+            actor_id=user_id,
+        )
+        request.state.org_id = workspace_id
+        request.state.actor_id = user_id
 
         allowed = await has_permission(user_id, workspace_id, permission)
         await record_audit(

@@ -409,7 +409,27 @@ async def submit_tool_result(req: dict, auth: AuthContext = Depends(require_auth
     call_id = req.get("call_id")
     if not call_id:
         raise HTTPException(status_code=400, detail="call_id required")
-    accepted = resolve_pending_call(call_id, auth.workspace_id, req)
+
+    # Rejoin the originating trace BEFORE anything else, so this leg's logs and
+    # spans land in the trace that is still waiting on it rather than in a fresh
+    # one that looks unrelated. This is the backend->frontend->backend hop: the
+    # request arrives with empty contextvars, and the context is recovered from
+    # the server-side registry keyed by call_id, not from anything the client
+    # sent. See app/services/tracing.py.
+    from app.services import tracing
+
+    rejoined = tracing.rejoin_from_call(call_id, service=tracing.SERVICE_AGENT_RUNTIME)
+
+    async with tracing.span(
+        "tool.result.received",
+        service=tracing.SERVICE_AGENT_RUNTIME,
+        call_id=call_id,
+        trace_rejoined=bool(rejoined),
+    ) as s:
+        accepted = resolve_pending_call(call_id, auth.workspace_id, req)
+        s["attributes"]["accepted"] = accepted
+        tracing.detach_call_context(call_id)
+
     if not accepted:
         # Not an error the frontend needs to retry on -- most commonly
         # means the loop already timed out waiting and moved on.

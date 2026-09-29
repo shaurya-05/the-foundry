@@ -1,5 +1,5 @@
 """Shared FastAPI dependencies for auth and context extraction."""
-from fastapi import Header, HTTPException, Depends
+from fastapi import Depends, Header, HTTPException, Request
 from typing import Optional
 from app.auth import decode_token
 from jose import JWTError
@@ -17,17 +17,34 @@ class AuthContext:
         self.email = email
 
 
-async def require_auth(authorization: Optional[str] = Header(None)) -> AuthContext:
+async def require_auth(
+    request: Request, authorization: Optional[str] = Header(None)
+) -> AuthContext:
     """Dependency: extract and validate JWT from Authorization header."""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or malformed Authorization header")
     try:
         payload = decode_token(authorization.split(" ", 1)[1], expected_type="access")
-        return AuthContext(
+        ctx = AuthContext(
             user_id=payload["sub"],
             workspace_id=payload["workspace_id"],
             email=payload["email"],
         )
+        # Enrich the trace context now that we know who is asking. The
+        # middleware bound trace_id before auth ran, so every line from here on
+        # carries org_id and actor_id as well.
+        from app.services import tracing
+        tracing.bind_context(
+            trace_id=tracing.current_trace_id(),
+            workspace_id=ctx.workspace_id,
+            actor_id=ctx.user_id,
+        )
+        # Also stash on request.state. Starlette runs the route in a child task,
+        # so contextvars bound here never reach the outer trace middleware that
+        # writes the request-completion line -- it reads these instead.
+        request.state.org_id = ctx.workspace_id
+        request.state.actor_id = ctx.user_id
+        return ctx
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 

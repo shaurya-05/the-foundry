@@ -48,3 +48,8 @@
 # Stage 1 identity. References workspaces (001) and users (001), and backfills
 # from workspace_members (002).
 019_identity_access.sql
+
+# Stage 2 observability. Independent of 019 -- spans reference workspace_id and
+# actor_id by value, not by foreign key, so a retention sweep that deletes a
+# workspace's spans can never cascade into identity data.
+020_observability.sql

@@ -804,3 +804,49 @@ JOIN roles r ON r.workspace_id IS NULL AND r.name = CASE
     END
 WHERE wm.user_id IS NOT NULL
 ON CONFLICT DO NOTHING;
+
+-- ─── Stage 2: Observability (parity with migrations/020_observability.sql) ───
+-- Same reasoning as the Stage 1 parity block: the desktop build runs the same
+-- tracing code, and a backend where every span write fails against a missing
+-- table produces a system that looks healthy and is unobservable.
+--
+-- Translations: UUID -> TEXT, JSONB -> TEXT, DOUBLE PRECISION -> REAL,
+-- BIGSERIAL -> INTEGER PRIMARY KEY AUTOINCREMENT, TIMESTAMPTZ -> TEXT.
+-- No triggers or partial indexes needed here, so the translation is mechanical.
+--
+-- Deliberately no foreign keys to workspaces/users, matching the Postgres
+-- migration: spans reference workspace_id and actor_id by value so that a
+-- retention sweep can never cascade into identity data.
+
+CREATE TABLE IF NOT EXISTS spans (
+    span_id TEXT PRIMARY KEY,
+    trace_id TEXT NOT NULL,
+    parent_span_id TEXT,
+    service TEXT NOT NULL,
+    name TEXT NOT NULL,
+    workspace_id TEXT,
+    actor_id TEXT,
+    started_at TEXT NOT NULL DEFAULT (datetime('now')),
+    ended_at TEXT,
+    duration_ms REAL,
+    status TEXT NOT NULL DEFAULT 'ok',
+    error TEXT,
+    attributes TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS spans_trace_idx ON spans (trace_id, started_at);
+CREATE INDEX IF NOT EXISTS spans_created_at_idx ON spans (started_at);
+CREATE INDEX IF NOT EXISTS spans_workspace_idx ON spans (workspace_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS spans_name_idx ON spans (service, name, started_at DESC);
+
+CREATE TABLE IF NOT EXISTS metric_samples (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    metric TEXT NOT NULL,
+    value REAL NOT NULL,
+    labels TEXT NOT NULL DEFAULT '{}',
+    trace_id TEXT,
+    recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS metric_samples_metric_idx ON metric_samples (metric, recorded_at DESC);
+CREATE INDEX IF NOT EXISTS metric_samples_recorded_idx ON metric_samples (recorded_at);
