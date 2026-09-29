@@ -147,6 +147,10 @@ jobs:
           echo
           echo "POST /api/auth/login: HTTP $status"
           test "$status" = 401
+          # Stage 2: tracing, including survival across the
+          # backend->frontend->backend hop. Runs here rather than as its own
+          # step because T13-T15 need the server that this step just started.
+          python scripts/verify_tracing.py --base-url http://localhost:8000
         env:
           DATABASE_URL: postgresql://foundry:foundry_secret@localhost:5432/foundry_db
           REDIS_URL: redis://localhost:6379
