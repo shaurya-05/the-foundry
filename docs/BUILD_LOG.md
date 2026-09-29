@@ -877,3 +877,151 @@ deleting data is not a read, however routine.
    fix and is a larger change than this stage should absorb.
 2. **`aiosqlite` is still missing from `backend/.venv312`**, so the SQLite gate
    only runs under the system interpreter locally. CI is unaffected.
+
+---
+
+## 2026-09-29 — Stage 3: contracts extracted, boundaries measured
+
+Interfaces only. Nothing moved. Six contract artifacts, a machine-readable
+ownership map, a generated violations register, and two gates in CI.
+
+### The register is generated, not written
+
+`backend/scripts/check_service_boundaries.py` reads `docs/contracts/ownership.yaml`,
+scans every module for SQL table references, and reports each place a module
+touches a table its service does not own. A hand-written register is stale the
+first time somebody adds a query; this one is a command.
+
+Detection is deliberately lexical — this codebase writes raw SQL as string
+literals, so it scans for `FROM|JOIN|INTO|UPDATE|DELETE FROM <name>` and keeps
+hits matching a table the migrations actually create. It will miss a table name
+built by concatenation and does not understand an ORM. A checker that is obvious
+about what it looks at is easier to trust than one claiming completeness it
+cannot have.
+
+**37 violations.** Frozen in `boundary-baseline.json`; CI fails on anything new.
+Proved before being trusted — one cross-boundary query added to `memory_tool.py`:
+
+```
+FAILED: 1 NEW boundary violation(s):
+  app/services/memory_tool.py -> workspace_members
+      memory_knowledge reads/writes a table owned by identity_access
+```
+
+Removing it returned the scan to clean. Same discipline as the Stage 0 migration
+gate: a gate you cannot deliberately trip is a gate you have not tested.
+
+Two of the first scan's findings were my own classifier's fault, not the code's —
+`tracing.py` and `observability.py` looked unmapped because the shared
+substrate's named paths were not being treated as a service, and `app/db/*`
+looked like a violator when it is the layer everything goes *through*. Fixed the
+classifier rather than baselining false positives. Baselining a false positive is
+how a register stops meaning anything.
+
+### The number that matters
+
+**30 of 37 violations involve a domain the five-service model does not name.**
+
+Only 7 are between two of the five actual services. The five-way split is in
+better shape than the raw count suggests; what is missing is a sixth boundary
+that was never drawn. `projects`, `tasks`, `ideas`, `ventures`,
+`activity_events`, `notifications`, `blueprint_*`, `watches`, sync and billing —
+thirteen tables, twenty-one modules, all in production, all owned by nobody.
+
+This is not an oversight in the code. The five contexts describe **the substrate
+the assistant runs on**; they do not describe **the application it runs inside**.
+Both exist, one was named.
+
+The consequence is mechanical rather than philosophical. `context_engine.py`
+reads `projects`, `tasks`, `ideas` and `activity_events` because that *is* the
+workspace content the assistant reasons about. It cannot stop, because there is
+no contract to call instead. Four of its violations are unfixable until this is
+decided — you cannot depend on an interface that does not exist.
+
+Recorded as **V-01**, with three options and a recommendation (a sixth context),
+and deliberately not decided here. Naming a bounded context is a ratification
+call.
+
+### What the register changed about Stage 4
+
+The brief's order — Model Gateway, then Identity & Access, Memory & Knowledge,
+Agent Runtime — survives contact with the measurement, and sharpens:
+
+- **Model Gateway has zero violations in either direction.** Genuinely
+  self-contained, and now confirmed by measurement rather than assumed. Right
+  thing to move first.
+- **Identity & Access is the most entangled of the five** (12 involving it), and
+  V-03 should be resolved *before* the move rather than during it.
+- **Memory & Knowledge cannot be cleanly moved until V-01 is decided.** Eight of
+  its violations point at the unnamed domain. Moving it first would mean either
+  dragging workspace tables along or inventing the sixth boundary under time
+  pressure.
+- **Agent Runtime last remains right** — one outward violation.
+
+### V-03: deletion reaches into every service
+
+`auth.py` alone accounts for 8 violations, reading or deleting `agent_runs`,
+`copilot_messages`, `forge_outputs`, `command_history`, `knowledge_items`,
+`projects`, `tasks`, `ideas`. The cause is legitimate — account deletion and data
+export genuinely span every service. The mechanism is not: Identity & Access
+enumerates four other services' tables, which means **adding any new table
+anywhere silently creates an incomplete deletion**.
+
+`purge_workspace` and `export_workspace` are now declared on the Agent Runtime
+and Memory & Knowledge contracts as `declared_not_implemented`. Identity & Access
+orchestrates; it stops knowing what tables exist elsewhere.
+
+### V-08: the validator found a live bug on its first run
+
+`check_contracts.py` cross-checks ownership against the migration chain both
+ways. It immediately found that **no Postgres migration creates
+`model_usage_log`** — `014_model_registry.sql` mentions it in a comment only —
+while `ai_router.py` inserts into it inside a `try/except` that swallows the
+failure and `admin.py` selects from it for the model-stats page.
+
+On any database built from the migration chain, which is now every CI run and
+every new developer, **every model usage write fails silently and the model-stats
+page is empty.** It has been working only on databases where someone created the
+table by hand at some point.
+
+Same family as `000b`/`000c`, which Stage 0 existed to eliminate. It survived
+because the swallowing `except` meant nothing ever complained. The missing table
+is a one-line fix; the more valuable change is removing the `except: pass`,
+because that pattern is what turned a missing table into long-running invisible
+telemetry loss.
+
+Also found: `knowledge` exists on SQLite and not on Postgres — a real divergence
+between backends.
+
+Neither fixed. Stage 3 moves nothing, and adding a migration is a move. Both are
+recorded under `unmigrated` in `ownership.yaml`, reported as `[KNOWN]`, and the
+gate fails on anything new.
+
+### Contracts as artifacts, not as code
+
+Four of the six have no HTTP surface. They are still written as explicit
+request/response schemas rather than Python `Protocol` classes, because a
+protocol is a type hint for the current implementation and moves when the
+implementation moves. A schema is a statement about the message, which is what
+has to survive Phase B. Nothing in any contract assumes an in-process call.
+
+Two things were written ahead of their implementations on purpose:
+
+- **Perception & Actuation** is entirely `declared_not_implemented`. Phase A's
+  camera work and Phase C's robotics work now have a defined place to land, with
+  PA-1 (capabilities enter as registered tools, never a parallel path around the
+  loop) and PA-5 (actuation is separately permissioned from perception) fixed
+  before the first line of code rather than discovered after it.
+- **`compact_memory`** is declared on Memory & Knowledge specifically so Stage 5
+  cannot implement compaction as a shortcut around the provenance rule. Its
+  response field `provenance_preserved` is documented as verifiable only by
+  direct query, never by the operation's own return value.
+
+### Both gates proved by making them fail
+
+| Gate | Probe | Result |
+|---|---|---|
+| boundaries | cross-boundary query in `memory_tool.py` | FAIL, named the module and the owner |
+| contracts | migration creating an unowned table | FAIL, named the table |
+| contracts | contract file removed | FAIL, named the service |
+| both | tree restored | clean |

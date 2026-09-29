@@ -78,6 +78,16 @@ jobs:
       - name: Check every migration file is covered by something
         run: python scripts/check_migrations.py
 
+      - name: Validate service contracts (Stage 3)
+        # Contracts exist, parse, are structurally complete, and every table is
+        # assigned to exactly one owner in both directions.
+        run: python scripts/check_contracts.py
+
+      - name: Check service boundaries (Stage 3)
+        # Fails on boundary violations NOT in docs/contracts/boundary-baseline.json.
+        # Stage 3 moves nothing, so today's 37 are frozen; new ones cannot land.
+        run: python scripts/check_service_boundaries.py
+
       - name: Run migrations and verify fresh schema
         env:
           PGPASSWORD: foundry_secret

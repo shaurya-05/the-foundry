@@ -1,0 +1,171 @@
+contract: model_gateway
+version: 1
+title: Model Gateway
+status: stable
+owns: >
+  The model registry, tier routing, provider adapters, circuit breakers, and the
+  measured-fitness data that routing decisions are made from.
+
+surface: internal
+# No HTTP surface today. Described as messages rather than function signatures
+# anyway: after Phase B this may well be a network call, and a contract written
+# as `async def route_query(...)` would have to be rewritten at exactly the
+# moment nobody has spare attention.
+
+owns_tables:
+  - model_registry
+  - model_usage_log
+
+invariants:
+  - id: MG-1
+    rule: >
+      A tier is selected by measured fitness, never by assumption. Nothing may
+      hardcode a model id for a tier outside the registry.
+  - id: MG-2
+    rule: >
+      Every completion reports the model that ACTUALLY answered. After a
+      provider failover the reported model is the one that produced the tokens,
+      not the one that was asked first.
+  - id: MG-3
+    rule: >
+      Callers name a TIER, never a model. A caller that names a model has
+      pinned a routing decision it does not own.
+  - id: MG-4
+    rule: >
+      A tripped circuit breaker is a property of the gateway, not of the
+      caller. Callers do not implement their own retry or fallback.
+
+operations:
+
+  route_query:
+    summary: Route a prompt to the appropriate tier and stream the answer.
+    request:
+      type: object
+      required: [tier, messages]
+      properties:
+        tier:
+          type: string
+          enum: [CLASSIFIER, FACTUAL, RESEARCH, DOCUMENT, VISION]
+          description: >
+            VISION is declared here before it exists. Phase A's vision work adds
+            a tier row and a provider adapter; it does not add a new contract.
+        messages:
+          type: array
+          items:
+            type: object
+            required: [role, content]
+            properties:
+              role: { type: string, enum: [system, user, assistant] }
+              content: { type: string }
+        max_tokens: { type: integer, minimum: 1 }
+        model_override:
+          type: string
+          description: >
+            Dev-time escape hatch only. Present because it exists today; it
+            violates MG-3 by construction and must not be used by any service.
+    response:
+      type: object
+      description: A stream. Text deltas, then a final usage record.
+      properties:
+        deltas:
+          type: array
+          items: { type: string }
+        model_used:
+          type: string
+          description: >
+            The model that produced the tokens. MG-2. Emitted again as a
+            correction if a failover occurred mid-stream.
+        tier: { type: string }
+        tokens_in: { type: integer }
+        tokens_out: { type: integer }
+        latency_ms: { type: number }
+    errors:
+      - tier_not_configured      # no provider for this tier
+      - all_providers_failed     # every fallback in the chain failed
+      - breaker_open             # tier refused before a call was attempted
+
+  classify_query:
+    summary: Classify a query into a tier without answering it.
+    request:
+      type: object
+      required: [query]
+      properties:
+        query: { type: string }
+    response:
+      type: object
+      properties:
+        tier: { type: string }
+    errors:
+      - all_providers_failed
+
+  registry_health:
+    summary: Per-tier health, warmth and VRAM residency.
+    request:
+      type: object
+      properties: {}
+    response:
+      type: object
+      additionalProperties:
+        type: object
+        properties:
+          healthy: { type: boolean }
+          provider: { type: string }
+          model_name: { type: string }
+          warm: { type: boolean }
+          size_vram_bytes: { type: [integer, "null"] }
+          expires_at: { type: [string, "null"], format: date-time }
+    errors: []
+
+  refresh_measured_fitness:
+    summary: Recompute rolling fitness from recent usage and write it back.
+    request:
+      type: object
+      properties:
+        window_days: { type: integer, default: 7, minimum: 1 }
+    response:
+      type: object
+      properties:
+        models_updated: { type: integer }
+    errors:
+      - registry_unavailable
+
+  breaker_status:
+    summary: Circuit-breaker state for every connector.
+    request:
+      type: object
+      properties: {}
+    response:
+      type: array
+      items:
+        type: object
+        properties:
+          connector: { type: string }
+          state: { type: string, enum: [closed, open, unknown] }
+          recent_failures: { type: integer }
+          cooldown_remaining_s: { type: integer }
+    errors: []
+
+emits:
+  # Via the observability contract, never by writing spans or metrics directly.
+  metrics:
+    - model.latency_ms        # labels: model, tier
+    - model.tokens_per_second # labels: model, tier
+    - model.tokens_out        # labels: model, tier
+    - vram.model_bytes        # labels: tier, model
+    - vram.total_bytes
+    - circuit_breaker.closed  # labels: connector
+    - circuit_breaker.failure # labels: connector
+
+known_gaps:
+  - id: MG-GAP-1
+    rule: MG-2
+    detail: >
+      model_used telemetry reports the originally selected model after a
+      provider failover on at least one path. ai_router emits a correction
+      tuple on the streaming path; the non-streaming path has not been
+      verified. Carried into Stage 4 as a correctness fix, not a refactor.
+
+changelog:
+  - version: 1
+    date: 2026-09-29
+    note: Initial extraction. Describes existing behaviour; nothing moved.

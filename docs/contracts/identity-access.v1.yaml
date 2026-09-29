@@ -1,0 +1,414 @@
+openapi: 3.1.0
+info:
+  title: Identity & Access
+  version: "1"
+  x-contract: identity_access
+  x-status: stable
+  description: |
+    Users, orgs, teams, roles, permissions, sessions and the audit log.
+
+    One identity, one session, covering the running system, its traces, its data
+    and its admin surfaces. There is no second login anywhere in this system and
+    no second authentication mechanism is permitted outside this contract.
+
+    **Roles and permissions are data, not code.** Adding `ml_engineer` or
+    `robotics_engineer` is INSERTs against `roles` and `role_permissions` — no
+    migration, no deploy, no change to this contract. That is why no endpoint
+    here enumerates role names in a schema.
+
+    x-invariants:
+      IA-1: A permission check names a capability, never a role rank. Roles are
+            peers, not rungs; ranking them is meaningless once scoped roles exist.
+      IA-2: Every privileged decision is audited, allowed and denied alike. An
+            audit log of refusals cannot answer who did the thing.
+      IA-3: The audit log is append-only, enforced by database trigger on both
+            backends. No endpoint updates or deletes an audit row, and none will.
+      IA-4: Built-in roles cannot be deleted. Enforced by trigger, not convention.
+      IA-5: Permission state is read per request and not cached in process
+            memory. Caching it would introduce a single-worker assumption.
+
+servers:
+  - url: /
+    description: Topology-agnostic. Same contract whether co-located or remote.
+
+security:
+  - bearerAuth: []
+
+paths:
+
+  /api/auth/login:
+    post:
+      summary: Exchange credentials for an access token.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200":
+          description: Authenticated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TokenPair" }
+        "401":
+          description: >
+            Invalid credentials. This is the expected answer to bad credentials
+            and is asserted as a pass condition in CI — a 200 or a 500 here both
+            mean the route is not actually wired to the auth path.
+
+  /api/auth/refresh:
+    post:
+      summary: Exchange a refresh token for a new access token.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TokenPair" }
+        "401": { description: Expired or invalid refresh token. }
+
+  /api/auth/me:
+    get:
+      summary: The authenticated principal.
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Principal" }
+        "401": { description: Missing or invalid token. }
+
+  /api/access/me:
+    get:
+      summary: What the calling session may actually do.
+      description: >
+        Requires no permission: any authenticated caller may ask what it holds.
+        A UI that guesses which controls to render is a UI that renders controls
+        the backend will refuse, which teaches people to ignore errors.
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id: { type: string, format: uuid }
+                  workspace_id: { type: string, format: uuid }
+                  email: { type: string }
+                  permissions:
+                    type: array
+                    items: { type: string }
+                  teams:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        team_id: { type: string, format: uuid }
+                        team_name: { type: string }
+                        role_name: { type: string }
+
+  /api/access/teams:
+    get:
+      summary: Teams in this org.
+      x-requires-permission: admin.read
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  teams:
+                    type: array
+                    items: { $ref: "#/components/schemas/Team" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      summary: Create a team.
+      x-requires-permission: access.manage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 120 }
+                description: { type: string }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Team" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { description: A team with that name already exists in this org. }
+
+  /api/access/roles:
+    get:
+      summary: Built-in and org-defined roles, each with its grants.
+      x-requires-permission: admin.read
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  roles:
+                    type: array
+                    items: { $ref: "#/components/schemas/Role" }
+    post:
+      summary: Define an org-scoped role.
+      description: >
+        This is the extensibility path. Creating `ml_engineer` or
+        `robotics_engineer` is this call plus its grants — no migration.
+      x-requires-permission: access.manage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 64 }
+                description: { type: string }
+                permissions:
+                  type: array
+                  items: { type: string }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Role" }
+        "400": { description: One or more permission keys are unknown. }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { description: A role with that name already exists. }
+
+  /api/access/roles/{role_id}/permissions:
+    put:
+      summary: Replace a role's grants.
+      x-requires-permission: access.manage
+      parameters:
+        - { name: role_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [permissions]
+              properties:
+                permissions:
+                  type: array
+                  items: { type: string }
+      responses:
+        "200": { description: Grants replaced; before/after recorded in the audit log. }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { description: No such role in this org. }
+        "409":
+          description: >
+            Built-in role. Built-ins are shared across every org, so letting one
+            org edit them would silently change another org's access model.
+
+  /api/access/permissions:
+    get:
+      summary: Every permission key the system defines.
+      x-requires-permission: admin.read
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  permissions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key: { type: string }
+                        description: { type: string }
+
+  /api/access/members:
+    get:
+      summary: Members of this org with their team and role.
+      x-requires-permission: admin.read
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  members:
+                    type: array
+                    items: { $ref: "#/components/schemas/Member" }
+
+  /api/access/members/{user_id}/role:
+    put:
+      summary: Assign a role to a member on a team.
+      description: >
+        The mutation that changes who can do what. `engineer` is refused this by
+        design and that refusal is asserted in CI.
+      x-requires-permission: access.manage
+      parameters:
+        - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [team_id, role_id]
+              properties:
+                team_id: { type: string, format: uuid }
+                role_id: { type: string, format: uuid }
+      responses:
+        "200": { description: Assigned; before/after recorded in the audit log. }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { description: Team or role not available in this org. }
+
+  /api/audit:
+    get:
+      summary: Read the audit log.
+      description: >
+        Read-only by construction. There is no write, update or delete operation
+        in this contract and there will not be one — the table rejects both at
+        the database level (IA-3).
+      x-requires-permission: audit.read
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, default: 100, maximum: 1000 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
+        - { name: action, in: query, schema: { type: string }, description: prefix match }
+        - { name: outcome, in: query, schema: { type: string, enum: [allowed, denied] } }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total: { type: integer }
+                  entries:
+                    type: array
+                    items: { $ref: "#/components/schemas/AuditEntry" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        The only authentication mechanism in the system. HTTP Basic was removed
+        from /api/admin/* in Stage 1 cutover step 5 and no parallel door remains.
+        Emergency recovery is backend/scripts/grant_owner.py — a direct database
+        write run on the host, which is not a network door.
+
+  responses:
+    Forbidden:
+      description: >
+        The session is valid but lacks the required permission. Recorded in the
+        audit log with outcome=denied (IA-2).
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              detail: { type: string }
+
+  schemas:
+    TokenPair:
+      type: object
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        token_type: { type: string, enum: [bearer] }
+
+    Principal:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        workspace_id: { type: string, format: uuid }
+        display_name: { type: [string, "null"] }
+
+    Team:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: [string, "null"] }
+        is_default: { type: boolean }
+        member_count: { type: integer }
+
+    Role:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: [string, "null"] }
+        is_builtin: { type: boolean }
+        permissions:
+          type: array
+          items: { type: string }
+
+    Member:
+      type: object
+      properties:
+        user_id: { type: string, format: uuid }
+        email: { type: string }
+        team_id: { type: string, format: uuid }
+        team_name: { type: string }
+        role_id: { type: string, format: uuid }
+        role_name: { type: string }
+
+    AuditEntry:
+      type: object
+      properties:
+        id: { type: integer }
+        actor_id: { type: [string, "null"], format: uuid }
+        actor_email: { type: [string, "null"] }
+        action: { type: string }
+        target_type: { type: [string, "null"] }
+        target_id: { type: [string, "null"] }
+        before_state: { type: [object, "null"] }
+        after_state: { type: [object, "null"] }
+        outcome: { type: string, enum: [allowed, denied] }
+        trace_id: { type: [string, "null"], format: uuid }
+        created_at: { type: string, format: date-time }
+
+x-known-gaps:
+  - id: IA-GAP-1
+    detail: >
+      Billing (plans, subscriptions, usage_tracking) is filed under this service
+      because an entitlement is a property of an org. It is not one of the five
+      contexts and has no contract of its own. See VIOLATIONS.md V-01.
+  - id: IA-GAP-2
+    detail: >
+      RequireRole, the pre-Stage-1 linear hierarchy, is still used by ~20 routers
+      and still reads workspace_members directly. It coexists with
+      RequirePermission rather than having been replaced. Violates IA-1 in
+      spirit; scheduled for Stage 4 rather than being changed under a
+      contracts-only stage.
+
+x-changelog:
+  - version: 1
+    date: 2026-09-29
+    note: Initial extraction. Describes shipped Stage 1 behaviour; nothing moved.

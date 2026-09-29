@@ -1,0 +1,199 @@
+contract: perception_actuation
+version: 1
+title: Perception & Actuation
+status: declared_not_implemented
+owns: >
+  Audio in (speech to text), audio out (speech synthesis), camera capture,
+  vision-language inference, and — in Phase C — robotics adapters.
+
+surface: internal
+
+owns_tables: []
+modules: []
+
+purpose: >
+  Nothing behind this contract exists yet. It is written now because Phase A's
+  camera and voice work and Phase C's robotics work both need a defined place to
+  land. The alternative is that vision arrives as "a few functions in the agent
+  loop" and actuation arrives later as a second parallel path, and the boundary
+  gets discovered instead of designed. A boundary is cheap now and expensive in
+  Stage 4.
+
+invariants:
+  - id: PA-1
+    rule: >
+      Perception capabilities enter the agent loop as registered ToolSpecs in
+      the existing TOOL_REGISTRY — never as a parallel path around the loop.
+      A camera the planner cannot see is a camera the planner cannot reason about.
+  - id: PA-2
+    rule: >
+      Model selection for vision goes through the Model Gateway by TIER, exactly
+      like text. The VLM is a registry row, not a hardcoded model id, and it is
+      chosen on measured fitness rather than assumption.
+  - id: PA-3
+    rule: >
+      This service declares its VRAM residency requirements and honours
+      on-demand load/unload. Three text tiers plus a VLM plus STT plus TTS do
+      not fit in 12GB simultaneously; that is arithmetic, not a tuning question.
+  - id: PA-4
+    rule: >
+      Audio and image capture are bounded, explicit acts with a defined
+      retention. Continuous capture retained indefinitely is not a feature of
+      this contract.
+  - id: PA-5
+    rule: >
+      Actuation operations are separated from perception operations and are
+      individually authorised. Reading the world and changing it are not the
+      same permission, and a service that conflates them cannot be safely
+      granted to a robotics specialist.
+
+operations:
+
+  transcribe:
+    summary: Speech to text.
+    status: declared_not_implemented
+    request:
+      type: object
+      required: [audio, workspace_id]
+      properties:
+        workspace_id: { type: string, format: uuid }
+        audio:
+          type: string
+          contentEncoding: base64
+          description: PCM or WAV. Bounded by max_duration_s.
+        max_duration_s: { type: number, default: 30 }
+        bias_terms:
+          type: array
+          items: { type: string }
+          description: >
+            Proper-noun bias list. FOUND3RY, H3RO, COFOUND3R and similar. Part
+            of the contract rather than an implementation detail because it is
+            the difference between a usable transcript and a wrong one.
+    response:
+      type: object
+      properties:
+        text: { type: string }
+        confidence: { type: [number, "null"] }
+        duration_ms: { type: number }
+        model: { type: string }
+    errors:
+      - audio_too_long
+      - audio_unintelligible
+      - model_not_loaded
+
+  synthesize:
+    summary: Text to speech.
+    status: declared_not_implemented
+    request:
+      type: object
+      required: [text, workspace_id]
+      properties:
+        workspace_id: { type: string, format: uuid }
+        text: { type: string }
+        voice: { type: string }
+    response:
+      type: object
+      properties:
+        audio: { type: string, contentEncoding: base64 }
+        duration_ms: { type: number }
+        engine: { type: string }
+    errors:
+      - engine_unavailable
+    note: >
+      The pronunciation lexicon is an engine-agnostic preprocessing step that
+      runs BEFORE synthesis, so it applies whichever engine wins. It belongs to
+      this operation, not to a particular engine adapter.
+
+  capture_frame:
+    summary: Capture a single frame from a camera.
+    status: declared_not_implemented
+    request:
+      type: object
+      required: [workspace_id]
+      properties:
+        workspace_id: { type: string, format: uuid }
+        device_id: { type: [string, "null"] }
+    response:
+      type: object
+      properties:
+        image: { type: string, contentEncoding: base64 }
+        width: { type: integer }
+        height: { type: integer }
+        captured_at: { type: string, format: date-time }
+    errors:
+      - no_camera
+      - permission_denied
+
+  describe_scene:
+    summary: Vision-language inference over a captured frame.
+    status: declared_not_implemented
+    request:
+      type: object
+      required: [image, prompt, workspace_id]
+      properties:
+        workspace_id: { type: string, format: uuid }
+        image: { type: string, contentEncoding: base64 }
+        prompt: { type: string }
+    response:
+      type: object
+      properties:
+        text: { type: string }
+        model: { type: string, description: "Resolved via Model Gateway, tier VISION. PA-2." }
+        latency_ms: { type: number }
+    errors:
+      - tier_unavailable
+      - vram_exhausted
+
+  actuate:
+    summary: >
+      Effect a change in the physical world. Phase C. Declared now so that it is
+      a separately authorised operation from the first line of code rather than
+      an argument added to a perception call later.
+    status: declared_not_implemented
+    x-requires-permission: actuation.execute
+    request:
+      type: object
+      required: [workspace_id, device_id, command]
+      properties:
+        workspace_id: { type: string, format: uuid }
+        device_id: { type: string }
+        command: { type: object }
+        dry_run: { type: boolean, default: true }
+    response:
+      type: object
+      properties:
+        accepted: { type: boolean }
+        device_state: { type: object }
+    errors:
+      - device_unavailable
+      - command_rejected
+      - not_authorised
+
+resource_declaration:
+  # PA-3. Stated in the contract because it is a constraint other services must
+  # plan around, not an internal detail.
+  vram:
+    vision_model: { load: on_demand, unload_after_idle_s: 120 }
+    stt: { device: cpu, rationale: "does not compete for VRAM there" }
+    tts: { device: cpu, rationale: "does not compete for VRAM there" }
+
+depends_on:
+  model_gateway:
+    operations: [route_query, registry_health]
+    note: Vision tier resolution and VRAM state (PA-2, PA-3).
+  agent_runtime:
+    operations: [register_tool]
+    note: Capabilities enter the loop as tools (PA-1).
+  identity_access:
+    operations: [authorize]
+    note: Actuation is separately permissioned (PA-5).
+  observability:
+    operations: [span, record_metric]
+
+changelog:
+  - version: 1
+    date: 2026-09-29
+    note: >
+      Declared ahead of implementation, as the Foundation brief requires. Every
+      operation is status=declared_not_implemented. Adding the implementation
+      does not require a version bump; changing these shapes does.

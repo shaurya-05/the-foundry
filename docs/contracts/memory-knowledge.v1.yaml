@@ -1,0 +1,268 @@
+contract: memory_knowledge
+version: 1
+title: Memory & Knowledge
+status: stable
+owns: >
+  Agent memory with provenance, knowledge items, the workspace graph, retrieval,
+  and — from Stage 5 — summarization and compaction.
+
+surface: mixed   # HTTP for knowledge CRUD, internal for memory and retrieval
+
+owns_tables:
+  - agent_memory
+  - knowledge_items
+  - knowledge
+  - docs
+  - persons
+  - events
+  - graph_tasks
+  - edges
+
+invariants:
+  - id: MK-1
+    rule: >
+      NO code path writes memory without a declared `source`. This is
+      structural, not a convention, and it is absolute. Every write operation in
+      this contract requires `source`; there is no overload that omits it.
+  - id: MK-2
+    rule: >
+      Compaction must not become a backdoor around MK-1. A compacted entry
+      carries provenance describing what it was derived from. Compaction may
+      merge entries; it may never produce one whose source is unknown.
+  - id: MK-3
+    rule: >
+      Memory is append-only at the storage layer. Compaction writes a new entry
+      and marks predecessors superseded; it does not mutate history in place.
+  - id: MK-4
+    rule: >
+      Retrieval returns what was actually found. An empty result is an empty
+      result — never a plausible-looking answer assembled to avoid returning
+      nothing. The agent loop's `memory_hit_real` reflection criterion exists
+      because this was violated before it was enforced.
+  - id: MK-5
+    rule: >
+      What enters planner context on read is bounded and declared. Unbounded
+      memory is a behavioural problem before it is a storage problem.
+
+operations:
+
+  write_memory:
+    summary: Append one memory entry.
+    request:
+      type: object
+      required: [workspace_id, actor_id, text, source]
+      properties:
+        workspace_id: { type: string, format: uuid }
+        actor_id: { type: string, format: uuid }
+        text: { type: string }
+        source:
+          type: string
+          enum: [user_stated, agent_inferred, conversation_digest]
+          description: >
+            Required. MK-1. `conversation_digest` is a system-generated summary
+            and is listed explicitly rather than allowed to masquerade as
+            user_stated.
+        confirmed:
+          type: boolean
+          description: >
+            Whether the user confirmed an agent_inferred entry. Inferred
+            memories that were never confirmed are retrievable but marked.
+    response:
+      type: object
+      properties:
+        entry_id: { type: string, format: uuid }
+    errors:
+      - source_missing          # MK-1 refuses the write
+      - source_not_recognised
+
+  read_memory:
+    summary: Retrieve memory entries for a workspace.
+    request:
+      type: object
+      required: [workspace_id]
+      properties:
+        workspace_id: { type: string, format: uuid }
+        query: { type: [string, "null"] }
+        limit: { type: integer, default: 20, maximum: 200 }
+        include_superseded: { type: boolean, default: false }
+    response:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            type: object
+            properties:
+              entry_id: { type: string, format: uuid }
+              text: { type: string }
+              source: { type: string }
+              confirmed: { type: boolean }
+              superseded_by: { type: [string, "null"], format: uuid }
+              created_at: { type: string, format: date-time }
+        truncated:
+          type: boolean
+          description: >
+            True when the result was bounded by the planner-context budget
+            rather than by the caller's limit. MK-5 — the caller is told, rather
+            than silently receiving a partial view.
+    errors: []
+
+  compact_memory:
+    summary: >
+      Reduce memory volume without losing provenance. Stage 5 implements this;
+      the contract is declared now so it cannot be implemented as a shortcut.
+    status: declared_not_implemented
+    request:
+      type: object
+      required: [workspace_id, strategy]
+      properties:
+        workspace_id: { type: string, format: uuid }
+        strategy: { type: string, enum: [merge_similar, summarize_window] }
+        dry_run: { type: boolean, default: true }
+    response:
+      type: object
+      properties:
+        entries_considered: { type: integer }
+        entries_written: { type: integer }
+        entries_superseded: { type: integer }
+        provenance_preserved:
+          type: boolean
+          description: >
+            Must be true. Verified by direct query against the store, never by
+            this operation's own return value — a compactor reporting on its own
+            correctness is the exact failure MK-2 guards against.
+    errors:
+      - provenance_would_be_lost   # refuse rather than proceed
+
+  retrieve:
+    summary: Search knowledge and the workspace graph for a query.
+    request:
+      type: object
+      required: [workspace_id, query]
+      properties:
+        workspace_id: { type: string, format: uuid }
+        query: { type: string }
+        limit: { type: integer, default: 10 }
+    response:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              kind: { type: string, enum: [knowledge_item, doc, person, event, edge] }
+              title: { type: string }
+              snippet: { type: string }
+              score: { type: number }
+        found: { type: integer, description: "0 is a valid answer. MK-4." }
+    errors:
+      - embedding_provider_unavailable
+
+  build_planner_context:
+    summary: The bounded context blob handed to the planner for a goal.
+    request:
+      type: object
+      required: [workspace_id, goal]
+      properties:
+        workspace_id: { type: string, format: uuid }
+        goal: { type: string }
+        token_budget: { type: integer, default: 1800 }
+    response:
+      type: object
+      properties:
+        context: { type: string }
+        tokens_estimated: { type: integer }
+        sources_included: { type: array, items: { type: string } }
+        dropped_for_budget:
+          type: integer
+          description: MK-5 — the caller is told how much did not fit.
+    errors: []
+
+  purge_workspace:
+    summary: >
+      Delete everything this service holds for a workspace. V-03: Identity &
+      Access orchestrates deletion rather than knowing which tables exist here.
+      A deletion path that enumerates another service's tables is one that
+      silently becomes incomplete the next time a table is added.
+    status: declared_not_implemented
+    x-requires-permission: access.manage
+    request:
+      type: object
+      required: [workspace_id]
+      properties:
+        workspace_id: { type: string, format: uuid }
+        dry_run: { type: boolean, default: true }
+    response:
+      type: object
+      properties:
+        tables_cleared: { type: array, items: { type: string } }
+        rows_deleted: { type: integer }
+    errors:
+      - workspace_not_found
+
+  export_workspace:
+    summary: Everything this service holds for a workspace, for data export.
+    status: declared_not_implemented
+    x-requires-permission: access.manage
+    request:
+      type: object
+      required: [workspace_id]
+      properties:
+        workspace_id: { type: string, format: uuid }
+    response:
+      type: object
+      properties:
+        memory_entries: { type: array, items: { type: object } }
+        knowledge_items: { type: array, items: { type: object } }
+        graph: { type: object }
+    errors:
+      - workspace_not_found
+
+http_surface:
+  # Knowledge CRUD is already HTTP. Listed so the contract covers it rather than
+  # leaving a second, undocumented way in.
+  - { method: GET,    path: "/api/knowledge",              requires: memory.read }
+  - { method: POST,   path: "/api/knowledge",              requires: memory.write }
+  - { method: DELETE, path: "/api/knowledge/{id}",         requires: memory.write }
+  - { method: GET,    path: "/api/knowledge/search",       requires: memory.read }
+  - { method: POST,   path: "/api/context/insights/stream", requires: memory.read }
+
+depends_on:
+  model_gateway:
+    operations: [route_query]
+    note: Summarization and embedding go through the gateway by tier.
+  identity_access:
+    operations: [authorize]
+  observability:
+    operations: [span, record_metric]
+
+known_gaps:
+  - id: MK-GAP-1
+    rule: MK-5
+    detail: >
+      agent_memory is unbounded and append-only with no compaction. The storage
+      cost is minor; the planner-context cost is not. Stage 5 owns this.
+  - id: MK-GAP-2
+    detail: >
+      context_engine.py reads projects, tasks, ideas and activity_events
+      directly — four tables owned by the unassigned workspace domain. This is
+      the single largest cluster of boundary violations in the codebase and it
+      exists because retrieval genuinely needs workspace content. It cannot be
+      resolved until V-01 is decided: you cannot depend on a contract that does
+      not exist yet.
+  - id: MK-GAP-3
+    detail: >
+      graph_repo.py reads oauth_connections (Identity & Access) to resolve
+      connector credentials for graph sync. A credentials-broker operation on
+      the Identity contract would remove this; not added in Stage 3 because
+      adding an operation nobody calls yet is speculative.
+
+changelog:
+  - version: 1
+    date: 2026-09-29
+    note: >
+      Initial extraction. compact_memory is declared but not implemented —
+      declared now specifically so Stage 5 cannot implement it as a shortcut
+      around MK-1.
