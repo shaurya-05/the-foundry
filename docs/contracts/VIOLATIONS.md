@@ -360,6 +360,137 @@ rather than what was intended.
 
 ---
 
+## V-11 — **RESOLVED** (Stage 4, migration 022)
+
+Memory provenance is now enforced by the database on both backends.
+
+- **Postgres**: an `IMMUTABLE` function over `jsonb_array_elements` inside a
+  CHECK constraint. A CHECK cannot contain a subquery, so the test lives in the
+  function; scanning a parameter is not a table subquery, so this is legal.
+- **SQLite**: a `BEFORE INSERT` / `BEFORE UPDATE` trigger pair using `json_each`
+  and `RAISE(ABORT)`, since SQLite has the same CHECK restriction.
+
+Added `NOT VALID` on Postgres, deliberately. `NOT VALID` **still enforces on
+every INSERT and UPDATE** — what it skips is the retroactive scan of existing
+rows, so the migration cannot fail on a live database holding provenance-free
+entries written during the years when nothing stopped them. A migration that
+refuses to apply to production is not a safety feature, it is an outage. On a
+fresh database there are no rows, so it is fully valid from the first moment.
+Running `VALIDATE CONSTRAINT` once legacy rows are clean closes it.
+
+Verified by trying to break it, on both backends:
+
+| Case | Expected | Result |
+|---|---|---|
+| entry with no source at all | refused | refused |
+| unrecognised source | refused | refused |
+| `user_stated` | accepted | accepted |
+| **one valid entry + one with no source** | refused | refused |
+| `agent_inferred` | accepted | accepted |
+| `conversation_digest` | accepted | accepted |
+
+The fourth case is the one that matters. A check that only inspects the first
+element, or only the array's shape, passes it — and that is precisely how a
+compactor merging entries would slip a provenance-free row through. Stage 5 now
+cannot do that by accident.
+
+The first run of this gate reported `agent_inferred` and `conversation_digest`
+as refused on SQLite. They were not: `agent_memory` is
+`UNIQUE(workspace_id, user_id)`, and the earlier accepted case had already taken
+the row, so later inserts failed on the unique constraint rather than on
+provenance. The harness was wrong, not the trigger. Worth recording because the
+failure was perfectly plausible — a new constraint, two sources rejected — and
+believing it would have meant "fixing" a trigger that was correct.
+
+---
+
+## V-12 — `agent_retrieval` JOINs across a service boundary
+
+**Severity: medium. Needs a decision, not a move.**
+
+`app/services/agent_retrieval.py` does
+
+```sql
+SELECT ... FROM graph_tasks gt LEFT JOIN ventures v ON v.id = gt.venture_id
+```
+
+`graph_tasks` belongs to Memory & Knowledge; `ventures` belongs to Workspace
+Domain. This is a single SQL JOIN across two services, and there is no
+contract call that reproduces it — the whole point of the join is that the
+database does the correlation.
+
+Three options, none free:
+
+1. **Two calls and a join in Python.** Same result, more round trips, and it
+   stops being a database join — which for a retrieval path that already runs
+   per request is a real cost, not a theoretical one.
+2. **Workspace Domain exposes an enriched read** that returns tasks already
+   carrying their venture. Cleaner contract, but it means Workspace Domain
+   knowing what Memory & Knowledge wants to correlate.
+3. **Denormalise** the venture name onto `graph_tasks`. Fastest at read time,
+   and it introduces a copy that can drift.
+
+Not resolved in this PR. Picking one changes either the query plan or the data
+model, and the brief is explicit that a move must not contain a behaviour
+change. Recorded so it is chosen rather than defaulted into by whoever touches
+it next.
+
+---
+
+## V-13 — Memory & Knowledge stores Identity's OAuth credentials
+
+**Severity: medium-high. Clear owner, real move.**
+
+`graph_repo.py` contains `get_oauth_connection`, `upsert_oauth_connection` and
+`revoke_oauth_connection` — three functions that read and **write**
+`oauth_connections`, which belongs to Identity & Access.
+
+They live there because graph sync needed connector credentials and graph sync
+lives in Memory & Knowledge. The effect is that one service stores another
+service's credentials: token refresh, revocation and storage all happen outside
+the service that owns identity.
+
+This is worse than the usual cross-service read. A credential write outside
+Identity & Access means the audit log does not see it, and revocation is not
+something Identity can guarantee it can perform.
+
+**Resolution:** these three operations belong on the Identity & Access contract
+as `get_connector_credentials` / `store_connector_credentials` /
+`revoke_connector_credentials`, with Memory & Knowledge calling them.
+
+Not done in this PR: moving credential storage between services touches the
+OAuth flow, and doing it inside a service move would mean two behaviour changes
+at once. It is the first thing to do when Identity's remaining table violations
+are cleared.
+
+---
+
+## Stage 4 progress: what "moved" currently means
+
+Three of six services are moved and enforced at the **import** boundary with
+zero violations. The **table** boundary is a separate criterion and is not
+finished for any of them:
+
+| Service | Imports | Outbound table access |
+|---|---|---|
+| Model Gateway | enforced, 0 | 0 — genuinely clean |
+| Identity & Access | enforced, 0 | **4 remaining** |
+| Memory & Knowledge | enforced, 0 | **9 remaining** (2 are V-12/V-13) |
+| Agent Runtime | pending | 1 |
+| Workspace Domain | pending | 15 |
+
+The brief's per-service criterion is "no cross-service table access remains".
+Only Model Gateway actually satisfies it. Identity and Memory & Knowledge have
+had their import boundaries established and their table boundaries partly
+retired — stating that plainly rather than letting "moved" imply more than it
+does.
+
+The remaining table violations cluster almost entirely around Workspace Domain,
+which is the service that did not exist until it was ratified. Most of them
+resolve once it is moved and its read operations exist.
+
+---
+
 ## Not violations, deliberately excluded
 
 - **`app/db/*`** — the persistence adapter every service goes *through*. It names

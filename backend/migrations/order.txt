@@ -57,3 +57,7 @@
 # Stage 4 / V-08. Creates model_usage_log, which ai_router has been writing to
 # since before any migration created it. Independent of 019 and 020.
 021_model_usage_log.sql
+
+# V-11. Makes memory provenance structural on Postgres. Depends on 015, which
+# creates agent_memory.
+022_memory_provenance.sql

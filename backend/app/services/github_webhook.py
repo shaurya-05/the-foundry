@@ -28,7 +28,7 @@ import asyncpg
 import structlog
 
 from app.db.postgres import get_pool
-from app.services import graph_repo
+from app.services import memory_knowledge as graph_repo
 
 log = structlog.get_logger()
 

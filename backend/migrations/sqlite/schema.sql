@@ -850,3 +850,41 @@ CREATE TABLE IF NOT EXISTS metric_samples (
 
 CREATE INDEX IF NOT EXISTS metric_samples_metric_idx ON metric_samples (metric, recorded_at DESC);
 CREATE INDEX IF NOT EXISTS metric_samples_recorded_idx ON metric_samples (recorded_at);
+
+-- ─── V-11: memory provenance, enforced (parity with 022) ────────────────────
+-- SQLite cannot put a subquery in a CHECK either, and json_each requires a FROM
+-- clause, so the guarantee is a pair of triggers. Same rule, same effect: an
+-- entry with no recognised `source` is rejected by the database rather than by
+-- whichever writer happens to be well behaved.
+--
+-- Unlike Postgres there is no NOT VALID equivalent, so these apply to every
+-- write from creation. Desktop databases carrying legacy provenance-free
+-- entries will reject the next UPDATE to that row -- which is the correct
+-- failure: it is visible, it names the problem, and the row can be repaired.
+
+DROP TRIGGER IF EXISTS agent_memory_provenance_insert;
+CREATE TRIGGER agent_memory_provenance_insert
+BEFORE INSERT ON agent_memory
+WHEN EXISTS (
+    SELECT 1 FROM json_each(NEW.content)
+    WHERE json_extract(value, '$.source') IS NULL
+       OR json_extract(value, '$.source') NOT IN
+          ('user_stated', 'agent_inferred', 'conversation_digest')
+)
+BEGIN
+    SELECT RAISE(ABORT, 'agent_memory: every entry must declare a recognised source (V-11)');
+END;
+
+DROP TRIGGER IF EXISTS agent_memory_provenance_update;
+CREATE TRIGGER agent_memory_provenance_update
+BEFORE UPDATE ON agent_memory
+WHEN EXISTS (
+    SELECT 1 FROM json_each(NEW.content)
+    WHERE json_extract(value, '$.source') IS NULL
+       OR json_extract(value, '$.source') NOT IN
+          ('user_stated', 'agent_inferred', 'conversation_digest')
+)
+BEGIN
+    SELECT RAISE(ABORT, 'agent_memory: every entry must declare a recognised source (V-11)');
+END;
+

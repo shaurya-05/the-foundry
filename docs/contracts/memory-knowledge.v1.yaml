@@ -23,14 +23,18 @@ invariants:
     rule: >
       NO code path writes memory without a declared `source`. Every write
       operation in this contract requires it; there is no overload that omits it.
-    enforcement: application_only
-    correction: >
-      Stage 3 described this as "structural, not a convention". That was wrong,
-      and Stage 4 proved it: agent_memory stores a JSONB array with `source`
-      inside each element, and the database accepts an element with no source at
-      all. 015_agent_memory.sql says so in its own comment -- "enforced by the
-      loop once it exists, not by this table". The rule stands; the claim that
-      the schema enforces it did not. See VIOLATIONS.md V-11.
+    enforcement: database
+    history: >
+      Stage 3 described this as "structural, not a convention". That was wrong
+      when written: agent_memory stores a JSONB array with `source` inside each
+      element, and the database accepted an element with no source at all --
+      015_agent_memory.sql said so in its own comment, "enforced by the loop once
+      it exists, not by this table".
+
+      Made true in Stage 4 by migration 022: a CHECK constraint on Postgres and
+      a trigger pair on SQLite, both rejecting any entry whose source is missing
+      or unrecognised, including one invalid entry hidden among valid ones.
+      Verified on both backends by trying to break it. See VIOLATIONS.md V-11.
   - id: MK-2
     rule: >
       Compaction must not become a backdoor around MK-1. A compacted entry
@@ -273,3 +277,12 @@ changelog:
       Initial extraction. compact_memory is declared but not implemented —
       declared now specifically so Stage 5 cannot implement it as a shortcut
       around MK-1.
+  - version: 1
+    date: 2026-09-29
+    note: >
+      Stage 4 move, additive. app/services/memory_knowledge.py is the facade;
+      nine modules rewritten to import it. MK-1 is now enforced by the database
+      on both backends (migration 022), which matters because Stage 5 adds a
+      second writer. The table boundary is only partly retired -- see V-12 and
+      V-13; this service still reads Workspace Domain and Identity tables in two
+      places that need design decisions rather than mechanical moves.
