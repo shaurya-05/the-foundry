@@ -1,0 +1,158 @@
+contract: observability
+version: 1
+title: Observability
+status: stable
+kind: shared_substrate
+
+why_shared: >
+  This is not one of the five contexts and cannot be. Every service emits into
+  it, so declaring one service the owner would mean four services legitimately
+  writing another service's tables — which would make the central rule
+  meaningless on day one.
+
+  Instead it is shared with a SINGLE named write path. Nobody reaches into the
+  storage; everybody calls this contract. The rule survives intact and the
+  cross-cutting reality is admitted rather than disguised.
+
+tables:
+  - spans
+  - metric_samples
+write_only_via: app/services/tracing.py
+read_only_via: app/routers/observability.py
+
+invariants:
+  - id: OB-1
+    rule: >
+      A write here never fails the operation it describes. The observability
+      layer causing an outage it then reports is worse than a missing row.
+      Failures are logged loudly instead.
+  - id: OB-2
+    rule: >
+      One request is one trace, including across the backend→frontend→backend
+      hop. A trace arriving with more than one root is surfaced as
+      `disconnected` rather than rendered as though it were fine.
+  - id: OB-3
+    rule: >
+      Every log line carries trace_id, org_id, actor_id and service. Lines
+      emitted before authentication carry nulls for the identity fields, which
+      is accurate rather than absent.
+  - id: OB-4
+    rule: >
+      Retention is defined, enforced and visible. The policy and the age of the
+      oldest retained span appear in the same place, so the policy and its
+      actual effect can be compared without leaving the page.
+  - id: OB-5
+    rule: >
+      Reads are gated on `trace.read`; deleting anything is gated on
+      `admin.write`. Deleting data is not a read, however routine.
+
+operations:
+
+  span:
+    summary: Record one span, nested under the currently active span.
+    request:
+      type: object
+      required: [name, service]
+      properties:
+        name: { type: string }
+        service:
+          type: string
+          enum: [identity_access, model_gateway, agent_runtime,
+                 memory_knowledge, perception_actuation, api]
+        attributes: { type: object }
+    response:
+      type: object
+      properties:
+        span_id: { type: string, format: uuid }
+        trace_id: { type: string, format: uuid }
+    errors: []   # OB-1: never raises into the caller
+
+  record_metric:
+    summary: Record a point-in-time measurement that is not a span duration.
+    request:
+      type: object
+      required: [metric, value]
+      properties:
+        metric: { type: string }
+        value: { type: number }
+        labels: { type: object, additionalProperties: { type: [string, number] } }
+    response:
+      type: object
+      properties: {}
+    errors: []   # OB-1
+
+  attach_call_context:
+    summary: >
+      Stash trace context against a pending frontend call_id so the second leg
+      of the round trip can rejoin the trace it belongs to.
+    request:
+      type: object
+      required: [call_id]
+      properties:
+        call_id: { type: string, format: uuid }
+    response:
+      type: object
+      properties: {}
+    errors: []
+
+  rejoin_from_call:
+    summary: >
+      Recover and rebind the trace a pending call belongs to. Keyed on
+      call_id server-side; the client carries nothing (OB-2).
+    request:
+      type: object
+      required: [call_id]
+      properties:
+        call_id: { type: string, format: uuid }
+    response:
+      type: object
+      properties:
+        trace_id: { type: [string, "null"], format: uuid }
+    errors: []
+
+  sweep_retention:
+    summary: Delete spans and metric samples older than the retention window.
+    x-requires-permission: admin.write
+    request:
+      type: object
+      properties:
+        days: { type: integer, minimum: 1, maximum: 3650 }
+    response:
+      type: object
+      properties:
+        retention_days: { type: integer }
+        spans_deleted: { type: integer }
+        metrics_deleted: { type: integer }
+    errors: []
+
+http_surface:
+  - { method: GET,  path: "/api/observability/summary",           requires: trace.read }
+  - { method: GET,  path: "/api/observability/traces",            requires: trace.read }
+  - { method: GET,  path: "/api/observability/traces/{trace_id}", requires: trace.read }
+  - { method: GET,  path: "/api/observability/metrics",           requires: trace.read }
+  - { method: POST, path: "/api/observability/retention/sweep",   requires: admin.write }
+
+retention:
+  policy_days_env: TRACE_RETENTION_DAYS
+  default_days: 7
+  rationale: >
+    One machine, no autoscaling, a span per model call and tool execution. An
+    observability layer that fills the disk it is meant to be observing is a
+    particularly bad way to learn this lesson.
+
+known_gaps:
+  - id: OB-GAP-1
+    detail: >
+      Trace context for the frontend hop lives in a module-level dict, sharing
+      the pending-call registry's single-worker assumption. Deliberate: the two
+      fail together rather than one degrading silently.
+  - id: OB-GAP-2
+    detail: >
+      The retention sweep is manual. Nothing schedules it, so the policy is
+      enforced only when someone asks. Needs a scheduled trigger; not added in
+      Stage 3 because scheduling is an implementation move.
+
+changelog:
+  - version: 1
+    date: 2026-09-29
+    note: Initial extraction of the Stage 2 substrate.

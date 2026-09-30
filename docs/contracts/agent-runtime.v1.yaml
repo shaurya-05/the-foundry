@@ -1,0 +1,297 @@
+contract: agent_runtime
+version: 1
+title: Agent Runtime
+status: stable
+owns: >
+  The plan/act/observe/reflect loop, the tool registry, the async round-trip
+  protocol, conversation transcripts, and execution traces.
+
+surface: mixed   # WebSocket + HTTP for the conversation, internal for tools
+
+owns_tables:
+  - agent_runs
+  - pipeline_runs
+  - pipeline_step_logs
+  - forge_outputs
+  - command_history
+  - copilot_messages
+
+invariants:
+  - id: AR-1
+    rule: >
+      A tool is either `sync` (carries execute()) or `async_frontend` (must not).
+      Enforced by ValueError in both directions at registration, not by review.
+  - id: AR-2
+    rule: >
+      Every pending frontend call is workspace-scoped. A call_id from one
+      workspace cannot be resolved by another, and a late or duplicate result
+      arriving after the timeout is rejected rather than treated as an error.
+  - id: AR-3
+    rule: >
+      The loop reaches models only through the Model Gateway contract, naming a
+      tier. It never names a model and never implements its own fallback.
+  - id: AR-4
+    rule: >
+      The loop reaches memory only through the Memory & Knowledge contract. It
+      never writes agent_memory directly, because provenance is enforced there.
+  - id: AR-5
+    rule: >
+      The trace survives the backend→frontend→backend hop. Trace context is
+      keyed on call_id server-side; the frontend carries nothing and therefore
+      cannot drop, reorder or forge it.
+  - id: AR-6
+    rule: >
+      Reflection reports named criteria, not a score. A caller can tell
+      `file_was_read` from `summary_grounded` failing.
+
+operations:
+
+  run_agent_loop:
+    summary: Execute one goal through plan/act/observe/reflect.
+    request:
+      type: object
+      required: [goal, workspace_id, actor_id]
+      properties:
+        goal: { type: string }
+        workspace_id: { type: string, format: uuid }
+        actor_id: { type: string, format: uuid }
+        thread_id: { type: [string, "null"], format: uuid }
+        max_iterations: { type: integer, default: 6, minimum: 1 }
+    response:
+      type: object
+      description: A stream of typed events, in order.
+      properties:
+        events:
+          type: array
+          items:
+            oneOf:
+              - $ref: "#/event_schemas/agent_plan"
+              - $ref: "#/event_schemas/agent_tool_call"
+              - $ref: "#/event_schemas/tool_request"
+              - $ref: "#/event_schemas/agent_observation"
+              - $ref: "#/event_schemas/agent_reflection"
+              - $ref: "#/event_schemas/text_delta"
+              - $ref: "#/event_schemas/model_used"
+    errors:
+      - tier_unavailable      # from Model Gateway
+      - tool_not_registered
+      - max_iterations_reached
+
+  submit_tool_result:
+    summary: >
+      The second leg of the async round trip. Resolves a pending call that the
+      loop is awaiting; does NOT start a new turn.
+    request:
+      type: object
+      required: [call_id, status]
+      properties:
+        call_id: { type: string, format: uuid }
+        status: { type: string, enum: [ok, error] }
+        result: { type: object }
+    response:
+      type: object
+      properties:
+        accepted:
+          type: boolean
+          description: >
+            False is not an error the caller should retry. It means unknown
+            call_id, wrong workspace, or already resolved — most commonly the
+            loop timed out and moved on. AR-2.
+        reason: { type: [string, "null"] }
+    errors:
+      - missing_call_id
+
+  list_tools:
+    summary: Tool definitions the planner may choose from.
+    request:
+      type: object
+      properties: {}
+    response:
+      type: object
+      properties:
+        tools:
+          type: array
+          items: { $ref: "#/component_schemas/ToolSpec" }
+    errors: []
+
+  register_tool:
+    summary: >
+      Add a tool to the registry. This is how Perception & Actuation's camera
+      and vision capabilities enter the loop in Phase A — as registered tools,
+      not as a parallel path around it.
+    request:
+      $ref: "#/component_schemas/ToolSpec"
+    response:
+      type: object
+      properties:
+        registered: { type: boolean }
+    errors:
+      - duplicate_tool_name
+      - sync_tool_without_execute
+      - async_frontend_tool_with_execute
+
+  purge_workspace:
+    summary: >
+      Delete everything this service holds for a workspace. Part of the V-03
+      resolution: Identity & Access orchestrates account deletion by calling
+      each service, instead of reaching into four services' tables itself.
+    status: declared_not_implemented
+    x-requires-permission: access.manage
+    request:
+      type: object
+      required: [workspace_id]
+      properties:
+        workspace_id: { type: string, format: uuid }
+        dry_run: { type: boolean, default: true }
+    response:
+      type: object
+      properties:
+        tables_cleared: { type: array, items: { type: string } }
+        rows_deleted: { type: integer }
+    errors:
+      - workspace_not_found
+
+  export_workspace:
+    summary: Everything this service holds for a workspace, for data export.
+    status: declared_not_implemented
+    x-requires-permission: access.manage
+    request:
+      type: object
+      required: [workspace_id]
+      properties:
+        workspace_id: { type: string, format: uuid }
+    response:
+      type: object
+      properties:
+        agent_runs: { type: array, items: { type: object } }
+        conversations: { type: array, items: { type: object } }
+        forge_outputs: { type: array, items: { type: object } }
+        command_history: { type: array, items: { type: object } }
+    errors:
+      - workspace_not_found
+
+component_schemas:
+  ToolSpec:
+    type: object
+    required: [name, description, input_schema, kind]
+    properties:
+      name: { type: string }
+      description: { type: string }
+      input_schema:
+        type: object
+        description: JSON Schema. Arguments are flat; no nested objects.
+      kind:
+        type: string
+        enum: [sync, async_frontend]
+      frontend_timeout_s:
+        type: number
+        default: 15
+        description: Only meaningful for async_frontend.
+
+event_schemas:
+  agent_plan:
+    type: object
+    properties:
+      type: { const: agent_plan }
+      iteration: { type: integer }
+      plan: { type: string }
+  agent_tool_call:
+    type: object
+    properties:
+      type: { const: agent_tool_call }
+      iteration: { type: integer }
+      tool: { type: string }
+      args: { type: object }
+  tool_request:
+    type: object
+    description: >
+      Sent to the frontend for an async_frontend tool. The frontend answers via
+      submit_tool_result with this call_id. Trace context is recovered from the
+      call_id server-side (AR-5); the frontend does not carry it.
+    properties:
+      type: { const: tool_request }
+      call_id: { type: string, format: uuid }
+      tool: { type: string }
+      args: { type: object }
+  agent_observation:
+    type: object
+    properties:
+      type: { const: agent_observation }
+      iteration: { type: integer }
+      tool: { type: string }
+      result: { type: object }
+  agent_reflection:
+    type: object
+    properties:
+      type: { const: agent_reflection }
+      passed: { type: boolean }
+      task_types: { type: array, items: { type: string } }
+      checked_criteria: { type: array, items: { type: string } }
+      failed_criteria:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+              enum: [addresses_ask, sources_present, sources_real, file_was_read,
+                     summary_grounded, memory_hit_real, memory_write_confirmed]
+            task_type: { type: string }
+            reason: { type: string }
+  text_delta:
+    type: object
+    properties:
+      type: { const: text_delta }
+      text: { type: string }
+  model_used:
+    type: object
+    description: >
+      The model that actually answered. Re-emitted as a correction if a
+      failover occurred mid-stream (Model Gateway MG-2).
+    properties:
+      type: { const: model_used }
+      model: { type: string }
+
+depends_on:
+  model_gateway:
+    operations: [route_query, classify_query]
+    note: By tier only, never by model id (AR-3).
+  memory_knowledge:
+    operations: [read_memory, write_memory, retrieve]
+    note: Never writes agent_memory directly (AR-4).
+  identity_access:
+    operations: [authorize]
+    note: Workspace scoping on every pending call (AR-2).
+  observability:
+    operations: [span, record_metric]
+
+emits:
+  metrics:
+    - tool.execution          # labels: tool, kind, outcome
+    - reflection.criterion    # labels: criterion, outcome
+    - reflection.result       # labels: outcome, task_types
+  spans:
+    - agent.loop
+    - tool.<name>
+    - tool.result.received
+
+known_gaps:
+  - id: AR-GAP-1
+    rule: AR-2
+    detail: >
+      The pending-call registry is a module-level dict, valid only because the
+      backend runs single-worker. Documented rather than fixed: making it
+      shared state is a topology change, and Stage 3 moves nothing. Trace
+      context for the hop deliberately lives in the same place so the two fail
+      together rather than one degrading silently.
+  - id: AR-GAP-2
+    detail: >
+      copilot.py reads copilot_messages directly, which it owns, but the
+      `_test_file_tool` WebSocket scaffold is Stage-3 test apparatus still
+      present in a production router. It should be removed now that the real
+      loop exists.
+
+changelog:
+  - version: 1
+    date: 2026-09-29
+    note: Initial extraction. Describes existing behaviour; nothing moved.

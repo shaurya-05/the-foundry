@@ -152,6 +152,11 @@ def create_pending_call(workspace_id: str) -> tuple[str, asyncio.Future]:
     call_id = str(uuid.uuid4())
     future: asyncio.Future = asyncio.get_event_loop().create_future()
     _PENDING_FRONTEND_CALLS[call_id] = (future, workspace_id)
+    # Stash the trace context against this call_id so the frontend's reply can
+    # rejoin the same trace. The call_id already round-trips by necessity, so
+    # this needs nothing from the client and cannot be lost or forged by it.
+    from app.services.tracing import attach_call_context
+    attach_call_context(call_id)
     return call_id, future
 
 
@@ -178,6 +183,10 @@ def resolve_pending_call(call_id: str, workspace_id: str, payload: dict) -> bool
 def cancel_pending_call(call_id: str) -> None:
     """Cleanup after a timeout or an aborted loop. Safe to call more than once or on an already-resolved/absent call_id -- pop(..., None) never raises."""
     _PENDING_FRONTEND_CALLS.pop(call_id, None)
+    # Trace context is cleaned up on exactly the same paths as the future it
+    # shadows, so a timed-out call cannot leak a context entry forever.
+    from app.services.tracing import detach_call_context
+    detach_call_context(call_id)
 
 
 # Default wait for a frontend round-trip. A real File System Access API

@@ -75,16 +75,32 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r requirements.txt
+      - name: Check every migration file is covered by something
+        run: python scripts/check_migrations.py
+
+      - name: Validate service contracts (Stage 3)
+        # Contracts exist, parse, are structurally complete, and every table is
+        # assigned to exactly one owner in both directions.
+        run: python scripts/check_contracts.py
+
+      - name: Check service boundaries (Stage 3)
+        # Fails on boundary violations NOT in docs/contracts/boundary-baseline.json.
+        # Stage 3 moves nothing, so today's 37 are frozen; new ones cannot land.
+        run: python scripts/check_service_boundaries.py
+
       - name: Run migrations and verify fresh schema
         env:
           PGPASSWORD: foundry_secret
           LC_ALL: C
         run: |
           set -euo pipefail
-          for f in migrations/*.sql; do
-            echo "Applying $f"
-            psql -X -v ON_ERROR_STOP=1 -h localhost -U foundry -d foundry_db -f "$f"
-          done
+          # Order comes from migrations/order.txt, not from a glob. A glob sorts
+          # alphabetically, which is how 000b/000c ended up referencing a table
+          # before the migration that creates it.
+          while read -r f; do
+            echo "Applying migrations/$f"
+            psql -X -v ON_ERROR_STOP=1 -h localhost -U foundry -d foundry_db -f "migrations/$f"
+          done < <(python scripts/check_migrations.py --print-order)
           psql -X -v ON_ERROR_STOP=1 -h localhost -U foundry -d foundry_db <<'SQL'
           SELECT column_name, data_type
           FROM information_schema.columns
@@ -106,6 +122,13 @@ jobs:
             END IF;
           END $$;
           SQL
+      - name: Verify SQLite backend builds and enforces identity from cold
+        # The desktop build (DATABASE_BACKEND=sqlite) has its own schema, which
+        # no CI step touched before this one -- the Postgres glob does not
+        # recurse into migrations/sqlite/. This drives the real permission code
+        # against a database created from nothing.
+        run: python scripts/verify_sqlite_identity.py
+
       - name: Check backend starts and health
         run: |
           set -euo pipefail
@@ -134,6 +157,14 @@ jobs:
           echo
           echo "POST /api/auth/login: HTTP $status"
           test "$status" = 401
+          # Stage 2: tracing, including survival across the
+          # backend->frontend->backend hop. Runs here rather than as its own
+          # step because T13-T15 need the server that this step just started.
+          python scripts/verify_tracing.py --base-url http://localhost:8000
+          # Stage 2 done-when: a real round trip across the
+          # backend->frontend->backend hop, read back through the dashboard's
+          # own API as a Stage 1 role, asserted to be ONE connected trace.
+          python scripts/verify_stage2_done.py --base-url http://localhost:8000
         env:
           DATABASE_URL: postgresql://foundry:foundry_secret@localhost:5432/foundry_db
           REDIS_URL: redis://localhost:6379

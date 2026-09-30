@@ -38,7 +38,12 @@ structlog.configure(
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
-        structlog.dev.ConsoleRenderer() if not IS_PROD
+        # JSON everywhere by default. The brief asks for structured logs, not
+        # prose, and a dev environment that renders differently from production
+        # is one where the field you need is missing exactly when you go
+        # looking for it. LOG_CONSOLE=1 opts back into the human renderer for
+        # local work.
+        structlog.dev.ConsoleRenderer() if os.getenv("LOG_CONSOLE") == "1"
         else structlog.processors.JSONRenderer(),
     ],
     wrapper_class=structlog.make_filtering_bound_logger(20),  # INFO+
@@ -76,7 +81,7 @@ from app.routers import (
     copilot, context, notifications, command, launchpad,
     blueprint, workspace, auth, subscription, analytics,
     oauth, webhooks, agent, ventures, billing, admin,
-    watches, cloud_sync,
+    watches, cloud_sync, access, observability,
 )
 
 @asynccontextmanager
@@ -199,36 +204,12 @@ app.add_middleware(
     allow_origin_regex=ALLOWED_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID", "X-Trace-Id"],
+    # Without expose_headers the browser cannot READ X-Trace-Id off a
+    # response, so the frontend could never echo it back to continue a
+    # trace. Allowing the request header alone is only half the round trip.
+    expose_headers=["X-Request-ID", "X-Trace-Id"],
 )
-
-
-@app.middleware("http")
-async def request_id_middleware(request: Request, call_next):
-    """Attach a unique request ID to every request for tracing."""
-    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())[:8]
-    structlog.contextvars.clear_contextvars()
-    structlog.contextvars.bind_contextvars(request_id=request_id)
-    response = await call_next(request)
-    response.headers["X-Request-ID"] = request_id
-    return response
-
-
-@app.middleware("http")
-async def request_logging_middleware(request: Request, call_next):
-    start = time.perf_counter()
-    response = await call_next(request)
-    duration_ms = round((time.perf_counter() - start) * 1000, 2)
-    if request.url.path != "/health":  # Don't log health checks
-        log.info(
-            "request",
-            method=request.method,
-            path=request.url.path,
-            status=response.status_code,
-            duration_ms=duration_ms,
-            client=request.client.host if request.client else "unknown",
-        )
-    return response
 
 
 @app.middleware("http")
@@ -259,6 +240,61 @@ async def security_headers_middleware(request: Request, call_next):
         response.headers["Cache-Control"] = "no-store, no-transform"
     else:
         response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.middleware("http")
+async def trace_middleware(request: Request, call_next):
+    """Start (or continue) one trace per request.
+
+    An inbound `X-Trace-Id` is honoured so a caller that already has a trace —
+    the frontend continuing a conversation, or another service once Stage 4
+    splits them — extends it rather than starting a disconnected one. Anything
+    else gets a fresh trace.
+
+    `org_id` and `actor_id` are not known here: authentication happens inside
+    the route. `require_auth` enriches the same context once it has decoded the
+    token, so lines emitted before auth carry nulls, which is accurate rather
+    than absent.
+    """
+    from app.services import tracing
+
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())[:8]
+    inbound = request.headers.get("X-Trace-Id")
+    try:
+        # Only honour a well-formed UUID. A malformed or hostile header should
+        # start a clean trace, not poison the store with junk trace ids.
+        trace_id = str(uuid.UUID(inbound)) if inbound else None
+    except (ValueError, AttributeError, TypeError):
+        trace_id = None
+
+    tracing.clear_context()
+    trace_id = tracing.bind_context(trace_id=trace_id, service=tracing.SERVICE_API)
+    structlog.contextvars.bind_contextvars(request_id=request_id)
+
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = round((time.perf_counter() - start) * 1000, 2)
+
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Trace-Id"] = trace_id
+
+    if request.url.path != "/health":  # Don't log health checks
+        # Starlette runs call_next in a child task, so contextvars bound by
+        # require_auth inside the route do NOT propagate back out here. The
+        # identity is read off request.state instead, which require_auth sets
+        # explicitly. Binding alone looked like it worked and produced request
+        # lines with no org_id or actor_id on them at all.
+        log.info(
+            "request",
+            method=request.method,
+            path=request.url.path,
+            status=response.status_code,
+            duration_ms=duration_ms,
+            client=request.client.host if request.client else "unknown",
+            org_id=getattr(request.state, "org_id", None),
+            actor_id=getattr(request.state, "actor_id", None),
+        )
     return response
 
 
@@ -297,6 +333,9 @@ app.include_router(billing.router, prefix="/api")
 app.include_router(admin.router)
 app.include_router(watches.router)
 app.include_router(cloud_sync.router)
+app.include_router(access.router)
+app.include_router(access.audit_router)
+app.include_router(observability.router)
 
 
 # ─── Health check (deep) ─────────────────────────────────────────────────────

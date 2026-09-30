@@ -1,33 +1,98 @@
 import html as _html
 import os
-import secrets
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from app.db.postgres import get_pool
 import structlog
 
 log = structlog.get_logger()
 router = APIRouter(tags=["admin"])
-_security = HTTPBasic()
+
+# Cutover complete (step 5 of 5, see docs/BUILD_LOG.md). HTTP Basic and
+# ADMIN_PASSWORD are gone from this module entirely — not disabled behind a flag,
+# not left importable "just in case". A second auth mechanism kept for
+# emergencies is the one that quietly becomes the real one, and the emergency
+# path that actually exists is scripts/grant_owner.py: a direct database write,
+# run on the box, which restores access without reopening a network door.
 
 
-def _require_admin(credentials: HTTPBasicCredentials = Depends(_security)):
-    password = os.getenv("ADMIN_PASSWORD", "")
-    if not password:
-        raise HTTPException(status_code=503, detail="ADMIN_PASSWORD not configured")
-    ok = secrets.compare_digest(credentials.password.encode(), password.encode())
-    if not ok:
-        raise HTTPException(
-            status_code=401,
-            detail="Unauthorized",
-            headers={"WWW-Authenticate": 'Basic realm="FOUNDRY Admin"'},
+class AdminPrincipal:
+    """Who got through the admin gate."""
+    __slots__ = ("user_id", "workspace_id", "email", "via")
+
+    def __init__(self, user_id: Optional[str], workspace_id: Optional[str],
+                 email: Optional[str], via: str = "jwt"):
+        self.user_id = user_id
+        self.workspace_id = workspace_id
+        self.email = email
+        self.via = via
+
+
+def _admin_gate(permission: str):
+    """Admin access requiring `permission`, carried by the same session as the
+    rest of the system. One identity, one login, including the admin surfaces."""
+
+    async def _check(
+        request: Request,
+        authorization: Optional[str] = Header(None),
+    ) -> AdminPrincipal:
+        from app.services.access import has_permission, record_audit
+        from app.services import tracing
+
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(
+                status_code=401,
+                detail="Admin requires an authenticated session",
+            )
+
+        from jose import JWTError
+        from app.auth import decode_token
+
+        try:
+            payload = decode_token(authorization.split(" ", 1)[1], expected_type="access")
+        except JWTError:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+        user_id = payload["sub"]
+        workspace_id = payload["workspace_id"]
+        email = payload.get("email")
+
+        # This gate decodes its own JWT rather than going through
+        # require_auth, so it has to bind the trace context itself. Without
+        # this, admin request lines carried trace_id and service but no org_id
+        # or actor_id -- the two fields you actually want when reading an audit
+        # trail of privileged access.
+        tracing.bind_context(
+            trace_id=tracing.current_trace_id(),
+            workspace_id=workspace_id,
+            actor_id=user_id,
         )
-    return credentials
+        request.state.org_id = workspace_id
+        request.state.actor_id = user_id
+
+        allowed = await has_permission(user_id, workspace_id, permission)
+        await record_audit(
+            action=f"admin.access:{permission}",
+            actor_id=user_id, actor_email=email, workspace_id=workspace_id,
+            target_type="permission", target_id=permission,
+            outcome="allowed" if allowed else "denied",
+        )
+        if not allowed:
+            raise HTTPException(
+                status_code=403, detail=f"Requires the '{permission}' permission"
+            )
+        return AdminPrincipal(user_id, workspace_id, email)
+
+    return _check
+
+
+_require_admin = _admin_gate("admin.read")
+_require_admin_write = _admin_gate("admin.write")
 
 
 @router.get("/admin", response_class=HTMLResponse)
-async def admin_dashboard(_: HTTPBasicCredentials = Depends(_require_admin)):
+async def admin_dashboard(_: AdminPrincipal = Depends(_require_admin)):
     pool = await get_pool()
     async with pool.acquire() as conn:
         total_signups = await conn.fetchval("SELECT COUNT(*) FROM workspaces")
@@ -288,7 +353,7 @@ async def admin_dashboard(_: HTTPBasicCredentials = Depends(_require_admin)):
 
 
 @router.post("/admin/digest/trigger")
-async def trigger_digest(_: HTTPBasicCredentials = Depends(_require_admin)):
+async def trigger_digest(_: AdminPrincipal = Depends(_require_admin_write)):
     """Manually trigger the weekly digest for all eligible workspaces."""
     from app.services.digest import run_weekly_digest
     result = await run_weekly_digest()
@@ -296,7 +361,7 @@ async def trigger_digest(_: HTTPBasicCredentials = Depends(_require_admin)):
     return {"ok": True, **result}
 
 @router.get("/stats/model-usage")
-async def model_usage_stats(_: HTTPBasicCredentials = Depends(_require_admin)):
+async def model_usage_stats(_: AdminPrincipal = Depends(_require_admin)):
     """Returns breakdown of AI model usage across all copilot messages."""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -349,14 +414,32 @@ async def _ollama_status(reg_rows: list) -> dict:
         return {"configured": True, "reachable": False, "error": str(e)[:160]}
 
     labels = {}
+    total_vram = 0
     for r in ollama_labels:
         m = loaded.get(r["model_name"])
+        vram = m["size_vram"] if m else None
+        if vram:
+            total_vram += int(vram)
         labels[r["label"]] = {
             "model_name": r["model_name"],
             "warm": m is not None,
-            "size_vram_bytes": m["size_vram"] if m else None,
+            "size_vram_bytes": vram,
             "expires_at": m.get("expires_at") if m else None,
         }
+
+    # Stage 2 metric: real VRAM, sampled from what Ollama reports as actually
+    # resident -- not the sum of what the registry says models ought to cost.
+    # The system has already come within 98MB of exhausting 12GB once, and the
+    # thing that makes that visible in hindsight is a time series, not a gauge
+    # you have to be looking at when it happens.
+    from app.services.tracing import record_metric
+    for label, info in labels.items():
+        if info["size_vram_bytes"]:
+            await record_metric(
+                "vram.model_bytes", float(info["size_vram_bytes"]),
+                tier=label, model=info["model_name"],
+            )
+    await record_metric("vram.total_bytes", float(total_vram), loaded_models=len(loaded))
 
     return {
         "configured": True,
@@ -367,7 +450,7 @@ async def _ollama_status(reg_rows: list) -> dict:
 
 
 @router.get("/api/admin/health")
-async def admin_health(_: HTTPBasicCredentials = Depends(_require_admin)):
+async def admin_health(_: AdminPrincipal = Depends(_require_admin)):
     """
     Deep health snapshot — providers + connectors + infra + fitness.
 
@@ -446,7 +529,7 @@ def _safe_json_loads(v):
 
 
 @router.post("/api/admin/registry/refresh")
-async def admin_registry_refresh(_: HTTPBasicCredentials = Depends(_require_admin)):
+async def admin_registry_refresh(_: AdminPrincipal = Depends(_require_admin_write)):
     """Force a reload of MODEL_REGISTRY from the DB (after editing rows)."""
     from app.services.model_provider import load_registry_from_db
     reg = await load_registry_from_db()
@@ -455,7 +538,7 @@ async def admin_registry_refresh(_: HTTPBasicCredentials = Depends(_require_admi
 
 @router.post("/api/admin/fitness/refresh")
 async def admin_fitness_refresh(
-    _: HTTPBasicCredentials = Depends(_require_admin),
+    _: AdminPrincipal = Depends(_require_admin_write),
     window_days: int = 7,
 ):
     """
@@ -468,7 +551,7 @@ async def admin_fitness_refresh(
 
 
 @router.get("/admin/model-stats")
-async def model_stats(_: HTTPBasicCredentials = Depends(_require_admin)):
+async def model_stats(_: AdminPrincipal = Depends(_require_admin)):
     """Detailed model usage breakdown with cost and efficiency metrics."""
     pool = await get_pool()
     async with pool.acquire() as conn:

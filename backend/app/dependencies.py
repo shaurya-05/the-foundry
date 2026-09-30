@@ -1,5 +1,5 @@
 """Shared FastAPI dependencies for auth and context extraction."""
-from fastapi import Header, HTTPException, Depends
+from fastapi import Depends, Header, HTTPException, Request
 from typing import Optional
 from app.auth import decode_token
 from jose import JWTError
@@ -17,17 +17,34 @@ class AuthContext:
         self.email = email
 
 
-async def require_auth(authorization: Optional[str] = Header(None)) -> AuthContext:
+async def require_auth(
+    request: Request, authorization: Optional[str] = Header(None)
+) -> AuthContext:
     """Dependency: extract and validate JWT from Authorization header."""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or malformed Authorization header")
     try:
         payload = decode_token(authorization.split(" ", 1)[1], expected_type="access")
-        return AuthContext(
+        ctx = AuthContext(
             user_id=payload["sub"],
             workspace_id=payload["workspace_id"],
             email=payload["email"],
         )
+        # Enrich the trace context now that we know who is asking. The
+        # middleware bound trace_id before auth ran, so every line from here on
+        # carries org_id and actor_id as well.
+        from app.services import tracing
+        tracing.bind_context(
+            trace_id=tracing.current_trace_id(),
+            workspace_id=ctx.workspace_id,
+            actor_id=ctx.user_id,
+        )
+        # Also stash on request.state. Starlette runs the route in a child task,
+        # so contextvars bound here never reach the outer trace middleware that
+        # writes the request-completion line -- it reads these instead.
+        request.state.org_id = ctx.workspace_id
+        request.state.actor_id = ctx.user_id
+        return ctx
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
@@ -49,6 +66,52 @@ def RequireRole(min_role: str):
             required_level = ROLE_HIERARCHY.get(min_role, 0)
             if user_level < required_level:
                 raise HTTPException(status_code=403, detail=f"Requires {min_role} role or higher")
+        return auth
+
+    return _check
+
+
+def RequirePermission(permission: str):
+    """Factory: returns a dependency asserting the caller holds `permission`.
+
+    Stage 1 replacement for RequireRole. The difference is not cosmetic:
+    RequireRole asks "is this user senior enough", which has no answer once
+    roles are peers rather than rungs (ml_engineer is not above or below
+    engineer). RequirePermission asks "may this user do this specific thing",
+    which stays answerable however many roles exist.
+
+    Every decision is audited, allowed and denied alike. The brief asks for
+    "every privileged action", and an audit log holding only refusals cannot
+    answer who actually did the thing — which is the question it exists for.
+
+    The volume this produces is a retention problem, not a reason to record
+    less. Stage 2 owns the retention policy; solving retention by not writing
+    the row leaves you with a log that is cheap and useless. Note that only the
+    admin and access surfaces use this dependency today, so the write rate is
+    bounded to privileged endpoints rather than every request in the system.
+
+    Endpoints additionally record their own audit entries where there is
+    before/after state worth keeping — this dependency only ever sees the
+    attempt, not what changed.
+    """
+
+    async def _check(auth: AuthContext = Depends(require_auth)) -> AuthContext:
+        from app.services.access import has_permission, record_audit
+
+        allowed = await has_permission(auth.user_id, auth.workspace_id, permission)
+        await record_audit(
+            action=f"permission.check:{permission}",
+            actor_id=auth.user_id,
+            actor_email=auth.email,
+            workspace_id=auth.workspace_id,
+            target_type="permission",
+            target_id=permission,
+            outcome="allowed" if allowed else "denied",
+        )
+        if not allowed:
+            raise HTTPException(
+                status_code=403, detail=f"Requires the '{permission}' permission"
+            )
         return auth
 
     return _check

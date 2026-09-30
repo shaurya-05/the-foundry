@@ -1,0 +1,240 @@
+# Service ownership map — Stage 3, Contract Extraction.
+#
+# This file is the machine-readable half of the contracts. It says which service
+# owns which tables and which modules implement it, and
+# `backend/scripts/check_service_boundaries.py` reads it to find code that
+# reaches across a boundary.
+#
+# NOTHING MOVES IN STAGE 3. This describes the boundaries as they should be,
+# against code that is still where it is. The gap between the two is the
+# violations register (VIOLATIONS.md), which is generated from this file rather
+# than written by hand — a hand-written register is out of date the first time
+# someone adds a query.
+#
+# Rules encoded here:
+#   - a table has exactly one owning service, or is explicitly `shared`
+#   - a module belongs to exactly one service
+#   - a module may read/write only tables owned by its own service, or shared ones
+#   - `shared` tables carry a named write path; nothing else may write them
+
+version: 1
+
+services:
+
+  identity_access:
+    title: Identity & Access
+    owns: users, orgs, teams, roles, permissions, sessions, API keys, audit log,
+          and the org-level entitlement that billing expresses
+    contract: identity-access.v1.yaml
+    tables:
+      - users
+      - workspaces
+      - workspace_members
+      - workspace_invitations
+      - email_verification_tokens
+      - password_reset_tokens
+      - teams
+      - roles
+      - permissions
+      - role_permissions
+      - team_members
+      - audit_log
+      - oauth_connections
+      # Billing is not one of the five contexts. Parked here because an
+      # entitlement is a property of an org, and an org is this service's.
+      # See VIOLATIONS.md V-01 — this is a placement under protest, not a
+      # decision.
+      - plans
+      - subscriptions
+      - usage_tracking
+    modules:
+      - app/auth.py
+      - app/dependencies.py
+      - app/routers/auth.py
+      - app/routers/access.py
+      - app/routers/workspace.py
+      - app/routers/oauth.py
+      - app/routers/billing.py
+      - app/routers/subscription.py
+      - app/services/access.py
+      - app/services/usage.py
+      - app/services/stripe_service.py
+      - app/services/email.py
+
+  model_gateway:
+    title: Model Gateway
+    owns: model registry, routing, fitness data, provider adapters, tier health
+    contract: model-gateway.v1.yaml
+    tables:
+      - model_registry
+      - model_usage_log
+    modules:
+      - app/services/model_provider.py
+      - app/services/ai_router.py
+      - app/services/claude.py
+      - app/services/circuit_breaker.py
+      - app/services/embeddings.py
+
+  agent_runtime:
+    title: Agent Runtime
+    owns: plan/act/observe/reflect loop, tool registry, the async round-trip
+          protocol, conversation transcripts, execution traces
+    contract: agent-runtime.v1.yaml
+    tables:
+      - agent_runs
+      - pipeline_runs
+      - pipeline_step_logs
+      - forge_outputs
+      - command_history
+      - copilot_messages
+    modules:
+      - app/services/agent_loop.py
+      - app/services/agent_tools.py
+      - app/services/agent_reflection.py
+      - app/services/agent_search_before_build.py
+      - app/services/file_access_tool.py
+      - app/services/web_search_tool.py
+      - app/services/system_files_tool.py
+      - app/services/system_action_tool.py
+      - app/services/watch_tool.py
+      - app/routers/copilot.py
+      - app/routers/agent.py
+      - app/routers/agents.py
+      - app/routers/command.py
+      - app/routers/launchpad.py
+
+  memory_knowledge:
+    title: Memory & Knowledge
+    owns: agent memory with provenance, knowledge items, the workspace graph,
+          retrieval, summarization and compaction
+    contract: memory-knowledge.v1.yaml
+    tables:
+      - agent_memory
+      - knowledge_items
+      - knowledge
+      - docs
+      - persons
+      - events
+      - graph_tasks
+      - edges
+    modules:
+      - app/services/memory_tool.py
+      - app/services/agent_retrieval.py
+      - app/services/document_retrieval.py
+      - app/services/graph_repo.py
+      - app/services/graph.py
+      - app/services/context_engine.py
+      - app/routers/knowledge.py
+      - app/routers/context.py
+
+  perception_actuation:
+    title: Perception & Actuation
+    owns: audio in (STT), audio out (TTS), camera capture, vision models,
+          robotics adapters
+    contract: perception-actuation.v1.yaml
+    # Unimplemented by design. The contract exists so Phase A's vision work and
+    # Phase C's robotics work have a defined place to land rather than being
+    # bolted onto Agent Runtime.
+    tables: []
+    modules: []
+
+  workspace_domain:
+    title: Workspace Domain
+    owns: >
+      The product entities a workspace is actually made of — projects, tasks,
+      ideas, ventures, the blueprint canvas, notifications, activity, watches and
+      the sync that keeps them current.
+    contract: workspace-domain.v1.yaml
+    ratified: >
+      2026-09-29, GRW. Stage 3 V-01 option 1. The five original contexts describe
+      the substrate the assistant runs on; this one describes the application it
+      runs inside. Both existed; only one had been named, and 30 of 37 boundary
+      violations ran through the gap.
+    tables:
+      - projects
+      - tasks
+      - ideas
+      - ventures
+      - activity_events
+      - notifications
+      - blueprint_canvas
+      - blueprint_ops
+      - watches
+      - cloud_sync_link
+      - sync_jobs
+      - webhook_events
+      - revenue
+    modules:
+      - app/routers/projects.py
+      - app/routers/tasks.py
+      - app/routers/ventures.py
+      - app/routers/blueprint.py
+      - app/routers/notifications.py
+      - app/routers/analytics.py
+      - app/routers/watches.py
+      - app/routers/cloud_sync.py
+      - app/routers/webhooks.py
+      - app/routers/admin.py
+      - app/services/watch_service.py
+      - app/services/cloud_sync_runner.py
+      - app/services/github_sync.py
+      - app/services/github_webhook.py
+      - app/services/github_client.py
+      - app/services/google_drive.py
+      - app/services/digest.py
+      - app/services/notifications.py
+      - app/services/h3ro_style.py
+      - app/workers/pipeline_worker.py
+
+# ─── Shared substrate ────────────────────────────────────────────────────────
+# Observability is not one of the five contexts and cannot be: every service
+# emits into it. Rather than pretend one service owns it, it is declared shared
+# with a SINGLE named write path. That preserves the actual rule — nobody
+# reaches into another service's storage — while admitting that a trace sink is
+# genuinely cross-cutting. See VIOLATIONS.md V-02.
+shared:
+  observability:
+    tables:
+      - spans
+      - metric_samples
+    write_only_via:
+      - app/services/tracing.py
+    read_only_via:
+      - app/routers/observability.py
+    contract: observability.v1.yaml
+
+# ─── Referenced by code, created by no Postgres migration ────────────────────
+# Found by scripts/check_contracts.py, not by reading. Both are recorded rather
+# than fixed: Stage 3 moves nothing. See VIOLATIONS.md V-08.
+#
+# Anything NOT listed here that code references but migrations do not create
+# will fail the contract check. This list is frozen debt, not a licence.
+unmigrated:
+  - table: model_usage_log
+    referenced_by:
+      - app/services/ai_router.py    # INSERT, inside a swallowing try/except
+      - app/routers/admin.py         # SELECT for the model-stats page
+    detail: >
+      014_model_registry.sql mentions it in a comment only. On a database built
+      from the migration chain the table does not exist, every usage write
+      fails silently, and the admin model-stats page is empty. Same family as
+      the 000b/000c bug Stage 0 fixed: code depending on schema no migration
+      creates, invisible because nobody rebuilt from cold.
+  - table: knowledge
+    referenced_by:
+      - migrations/sqlite/schema.sql
+    detail: >
+      Exists on the SQLite backend and not on Postgres. A real divergence
+      between the two schemas, surfaced by the same check.
+
+# ─── Persistence adapter ─────────────────────────────────────────────────────
+# app/db/* is the layer every service goes THROUGH to reach storage, not a
+# service that owns storage. It names tables only in idempotent ADD COLUMN
+# helpers for pre-existing desktop databases. Exempt by role, not by exception.
+infrastructure:
+  persistence:
+    modules:
+      - app/db/postgres.py
+      - app/db/sqlite.py
+      - app/db/redis.py
+      - app/db/neo4j.py
