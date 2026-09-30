@@ -12,7 +12,9 @@ from app.services.email import send_verification_email, send_password_reset_emai
 from jose import JWTError
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+import structlog
 
+log = structlog.get_logger()
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 def _get_real_ip(request: Request) -> str:
@@ -293,6 +295,22 @@ async def reset_password(req: ResetPasswordRequest, request: Request):
 
 @router.delete("/me")
 async def delete_account(req: DeleteAccountRequest, auth: AuthContext = Depends(require_auth)):
+    """Delete this account and every trace of it, across every service.
+
+    V-03. This used to enumerate seven tables belonging to four other services,
+    each delete wrapped in `try/except: pass` "for tables that may not exist in
+    all environments". Two things were wrong with that. It covered seven tables
+    out of roughly thirty, so the deletion was substantially incomplete. And the
+    swallowed exception meant a delete that failed reported success -- a GDPR
+    path that could quietly delete nothing at all.
+
+    Identity & Access now orchestrates and owns no other service's table names.
+    Each service purges itself through its own contract. Adding a table to any
+    service no longer silently creates an incomplete deletion, because the
+    service that owns the table owns its purge spec.
+    """
+    from app.services import agent_runtime, memory_knowledge, workspace_domain
+
     pool = await get_pool()
     async with pool.acquire() as conn:
         user = await conn.fetchrow(
@@ -302,7 +320,6 @@ async def delete_account(req: DeleteAccountRequest, auth: AuthContext = Depends(
         if not user or not verify_password(req.password, user["password_hash"]):
             raise HTTPException(status_code=401, detail="Invalid password")
 
-        # Check sole-owner constraint
         owned = await conn.fetch(
             """SELECT w.id, w.name FROM workspaces w
                WHERE w.owner_id=$1
@@ -316,94 +333,86 @@ async def delete_account(req: DeleteAccountRequest, auth: AuthContext = Depends(
                 detail="Transfer ownership of your workspace before deleting your account",
             )
 
-        # Hard delete all user data (GDPR right to be forgotten)
-        # Use try/except for tables that may not exist in all environments
-        for table, col in [
-            ("copilot_messages", "user_id"),
-            ("forge_outputs", "user_id"),
-            ("agent_runs", "user_id"),
-            ("email_verification_tokens", "user_id"),
-            ("password_reset_tokens", "user_id"),
-        ]:
-            try:
-                await conn.execute(f"DELETE FROM {table} WHERE {col}=$1", auth.user_id)
-            except Exception:
-                pass
-        try:
-            await conn.execute("DELETE FROM command_history WHERE workspace_id=$1", auth.workspace_id)
-        except Exception:
-            pass
-        try:
-            await conn.execute("DELETE FROM tasks WHERE workspace_id=$1 AND user_id=$2", auth.workspace_id, auth.user_id)
-        except Exception:
-            pass
-        await conn.execute("DELETE FROM workspace_members WHERE user_id=$1", auth.user_id)
-        await conn.execute("UPDATE users SET deleted_at=NOW(), email=email||'_deleted_'||id, password_hash=NULL, preferences='{}' WHERE id=$1", auth.user_id)
+    # Every other service purges its own rows for this user. Not wrapped in
+    # try/except: if a service cannot complete its purge, the caller must find
+    # out. A partial deletion reported as complete is worse than a failure.
+    purges = []
+    for service in (agent_runtime, memory_knowledge, workspace_domain):
+        purges.append(
+            await service.purge(auth.workspace_id, user_id=auth.user_id, dry_run=False)
+        )
 
-    return {"deleted": True}
+    # Identity & Access purges what it actually owns.
+    async with pool.acquire() as conn:
+        for table in ("email_verification_tokens", "password_reset_tokens"):
+            await conn.execute(f"DELETE FROM {table} WHERE user_id=$1", auth.user_id)
+        await conn.execute("DELETE FROM team_members WHERE user_id=$1", auth.user_id)
+        await conn.execute("DELETE FROM workspace_members WHERE user_id=$1", auth.user_id)
+        await conn.execute(
+            "UPDATE users SET deleted_at=NOW(), email=email||'_deleted_'||id, "
+            "password_hash=NULL, preferences='{}' WHERE id=$1",
+            auth.user_id,
+        )
+
+    rows = sum(p["rows_deleted"] for p in purges)
+    log.info(
+        "account_deleted",
+        user_id=auth.user_id, workspace_id=auth.workspace_id,
+        cross_service_rows_deleted=rows,
+        services=[p["service"] for p in purges],
+    )
+    return {
+        "deleted": True,
+        "services_purged": [
+            {"service": p["service"], "tables": p["tables_cleared"],
+             "rows": p["rows_deleted"]}
+            for p in purges
+        ],
+    }
 
 
 # ─── Data Export ──────────────────────────────────────────────────────────────
 
 @router.get("/export")
 async def export_data(auth: AuthContext = Depends(require_auth)):
-    """Full data export — includes all content for GDPR compliance."""
+    """Full data export, assembled from every service that holds data (V-03).
+
+    Previously this enumerated other services' tables with nested
+    try/except fallbacks guessing whether each had a workspace_id column. Each
+    service now answers for itself, so a table added anywhere appears in the
+    export without this endpoint being touched.
+    """
     import datetime
+
+    from app.services import agent_runtime, memory_knowledge, workspace_domain
+
+    def encode(value):
+        if isinstance(value, datetime.datetime):
+            return value.isoformat()
+        if isinstance(value, (dict, list, str, int, float, bool, type(None))):
+            return value
+        return str(value)
+
+    def encode_rows(rows):
+        return [{k: encode(v) for k, v in row.items()} for row in rows]
+
     pool = await get_pool()
     async with pool.acquire() as conn:
-        user = await conn.fetchrow("SELECT email, display_name, created_at FROM users WHERE id=$1", auth.user_id)
-        projects = await conn.fetch("SELECT id, title, status, plan, metadata, created_at FROM projects WHERE workspace_id=$1", auth.workspace_id)
-        tasks = await conn.fetch("SELECT id, title, description, status, priority, metadata, created_at FROM tasks WHERE workspace_id=$1", auth.workspace_id)
-        knowledge = await conn.fetch("SELECT id, title, content, summary, type, source_url, tags, created_at FROM knowledge_items WHERE workspace_id=$1", auth.workspace_id)
-        ideas = await conn.fetch("SELECT id, domains, content, metadata, created_at FROM ideas WHERE workspace_id=$1", auth.workspace_id)
+        user = await conn.fetchrow(
+            "SELECT email, display_name, created_at FROM users WHERE id=$1", auth.user_id
+        )
 
-        # These tables may not have workspace_id — query by user_id with fallback
-        agent_runs = []
-        copilot_msgs = []
-        forge_outs = []
-        try:
-            agent_runs = await conn.fetch("SELECT id, agent_id, context, output, created_at FROM agent_runs WHERE workspace_id=$1", auth.workspace_id)
-        except Exception:
-            try:
-                agent_runs = await conn.fetch("SELECT id, agent_id, context, output, created_at FROM agent_runs WHERE user_id=$1", auth.user_id)
-            except Exception:
-                pass
-        try:
-            copilot_msgs = await conn.fetch("SELECT role, content, created_at FROM copilot_messages WHERE workspace_id=$1 ORDER BY created_at", auth.workspace_id)
-        except Exception:
-            try:
-                copilot_msgs = await conn.fetch("SELECT role, content, created_at FROM copilot_messages WHERE user_id=$1 ORDER BY created_at", auth.user_id)
-            except Exception:
-                pass
-        try:
-            forge_outs = await conn.fetch("SELECT type, input, output, created_at FROM forge_outputs WHERE workspace_id=$1", auth.workspace_id)
-        except Exception:
-            try:
-                forge_outs = await conn.fetch("SELECT type, input, output, created_at FROM forge_outputs WHERE user_id=$1", auth.user_id)
-            except Exception:
-                pass
-
-    def safe_dict(row):
-        d = dict(row)
-        for k, v in d.items():
-            if isinstance(v, datetime.datetime):
-                d[k] = v.isoformat()
-            elif isinstance(v, (dict, list)):
-                pass  # JSON-serializable already
-            elif hasattr(v, '__str__') and not isinstance(v, (str, int, float, bool, type(None))):
-                d[k] = str(v)
-        return d
+    services = {}
+    for service in (agent_runtime, memory_knowledge, workspace_domain):
+        result = await service.export(auth.workspace_id, user_id=auth.user_id)
+        services[result["service"]] = {
+            table: encode_rows(rows) for table, rows in result["tables"].items()
+        }
 
     return {
-        "exported_at": datetime.datetime.utcnow().isoformat(),
-        "user": safe_dict(user) if user else {},
-        "projects": [safe_dict(r) for r in projects],
-        "tasks": [safe_dict(r) for r in tasks],
-        "knowledge": [safe_dict(r) for r in knowledge],
-        "ideas": [safe_dict(r) for r in ideas],
-        "agent_runs": [safe_dict(r) for r in agent_runs],
-        "copilot_history": [safe_dict(r) for r in copilot_msgs],
-        "forge_outputs": [safe_dict(r) for r in forge_outs],
+        "exported_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "user": {k: encode(v) for k, v in dict(user).items()} if user else {},
+        "services": services,
     }
 
 

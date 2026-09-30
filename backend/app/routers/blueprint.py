@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Optional, List, Any, Dict
 from app.db.postgres import get_pool
 from app.db.redis import get_redis
-from app.dependencies import AuthContext, require_auth
+from app.services.identity import AuthContext, require_auth
 
 router = APIRouter(prefix="/api/blueprint", tags=["blueprint"])
 

@@ -2,7 +2,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, Query
 from app.models.schemas import TaskCreate, TaskUpdate, Task, BulkStatusUpdate
 from app.db.postgres import get_pool
-from app.dependencies import AuthContext, require_auth
+from app.services.identity import AuthContext, require_auth
 from typing import Optional
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])

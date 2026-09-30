@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from app.models.schemas import AgentRunRequest, PipelineRunRequest
 from app.db.postgres import get_pool
-from app.services.claude import stream_claude
+from app.services.model_gateway import stream_direct as stream_claude
 from app.services.context_engine import get_workspace_summary
-from app.dependencies import AuthContext, require_auth
+from app.services.identity import AuthContext, require_auth
 import uuid, json
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])

@@ -37,7 +37,7 @@ def _admin_gate(permission: str):
         request: Request,
         authorization: Optional[str] = Header(None),
     ) -> AdminPrincipal:
-        from app.services.access import has_permission, record_audit
+        from app.services.identity import has_permission, record_audit
         from app.services import tracing
 
         if not authorization or not authorization.startswith("Bearer "):
@@ -47,7 +47,7 @@ def _admin_gate(permission: str):
             )
 
         from jose import JWTError
-        from app.auth import decode_token
+        from app.services.identity import decode_token
 
         try:
             payload = decode_token(authorization.split(" ", 1)[1], expected_type="access")
@@ -149,7 +149,7 @@ async def admin_dashboard(_: AdminPrincipal = Depends(_require_admin)):
         )
 
     # ─── Health snapshot ─────────────────────────────────────────────────
-    from app.services.model_provider import registry_health
+    from app.services.model_gateway import registry_health
     from app.services import circuit_breaker
     provider_snapshot = await registry_health()
     connector_snapshot = await circuit_breaker.all_status()
@@ -458,7 +458,7 @@ async def admin_health(_: AdminPrincipal = Depends(_require_admin)):
     circuit-breaker state, and each model's rolling measured_fitness
     from model_usage_log.
     """
-    from app.services.model_provider import registry_health, registry_rows, registry_last_loaded_iso
+    from app.services.model_gateway import registry_health, registry_rows, registry_last_loaded_iso
     from app.services import circuit_breaker
     from app.db.redis import get_redis
 
@@ -531,7 +531,7 @@ def _safe_json_loads(v):
 @router.post("/api/admin/registry/refresh")
 async def admin_registry_refresh(_: AdminPrincipal = Depends(_require_admin_write)):
     """Force a reload of MODEL_REGISTRY from the DB (after editing rows)."""
-    from app.services.model_provider import load_registry_from_db
+    from app.services.model_gateway import load_registry as load_registry_from_db
     reg = await load_registry_from_db()
     return {"loaded": list(reg.keys())}
 
@@ -545,44 +545,18 @@ async def admin_fitness_refresh(
     Recompute measured_fitness for every model with recent activity and
     write it back to model_registry.
     """
-    from app.services.model_provider import refresh_measured_fitness
+    from app.services.model_gateway import refresh_measured_fitness
     result = await refresh_measured_fitness(window_days=window_days)
     return result
 
 
 @router.get("/admin/model-stats")
 async def model_stats(_: AdminPrincipal = Depends(_require_admin)):
-    """Detailed model usage breakdown with cost and efficiency metrics."""
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT
-                model,
-                query_type,
-                COUNT(*) as calls,
-                SUM(input_tokens) as total_input_tokens,
-                SUM(output_tokens) as total_output_tokens,
-                SUM(cost_usd) as total_cost_usd,
-                AVG(latency_ms) as avg_latency_ms,
-                AVG(efficiency_score) as avg_efficiency,
-                AVG(tokens_per_second) as avg_tokens_per_second
-            FROM model_usage_log
-            GROUP BY model, query_type
-            ORDER BY total_cost_usd DESC
-            """
-        )
-    return [
-        {
-            "model": r["model"],
-            "query_type": r["query_type"],
-            "calls": r["calls"],
-            "total_input_tokens": r["total_input_tokens"],
-            "total_output_tokens": r["total_output_tokens"],
-            "total_cost_usd": round(float(r["total_cost_usd"] or 0), 4),
-            "avg_latency_ms": round(float(r["avg_latency_ms"] or 0), 1),
-            "avg_efficiency": round(float(r["avg_efficiency"] or 0), 0),
-            "avg_tokens_per_second": round(float(r["avg_tokens_per_second"] or 0), 1),
-        }
-        for r in rows
-    ]
+    """Detailed model usage breakdown with cost and efficiency metrics.
+
+    Reads through the Model Gateway contract rather than its table -- this
+    endpoint is an operator surface, not an owner of model data.
+    """
+    from app.services.model_gateway import usage_stats
+
+    return await usage_stats()

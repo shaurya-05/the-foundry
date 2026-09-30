@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from app.db.postgres import get_pool
-from app.dependencies import AuthContext, require_auth
+from app.services.identity import AuthContext, require_auth
 
 router = APIRouter(tags=["ventures"])
 

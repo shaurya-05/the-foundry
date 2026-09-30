@@ -53,3 +53,7 @@
 # actor_id by value, not by foreign key, so a retention sweep that deletes a
 # workspace's spans can never cascade into identity data.
 020_observability.sql
+
+# Stage 4 / V-08. Creates model_usage_log, which ai_router has been writing to
+# since before any migration created it. Independent of 019 and 020.
+021_model_usage_log.sql

@@ -246,6 +246,120 @@ absent telemetry.
 
 ---
 
+## V-09 — `circuit_breaker` was assigned to the wrong service *(found by moving it)*
+
+**Severity: contract correction, resolved.**
+
+Stage 3 filed `app/services/circuit_breaker.py` under Model Gateway, on the
+reasonable-sounding basis that it wraps provider calls. Moving the service in
+Stage 4 showed that was wrong: `github_sync`, `google_drive` and `notion_sync`
+all use the same breaker for **their own connectors**, which have nothing to do
+with models. Leaving it where Stage 3 put it would have created three new
+enforced import violations the moment the facade went up — for code that was
+doing nothing wrong.
+
+Resolved by declaring a **shared `resilience` substrate**, the same pattern as
+observability: one named implementation, callable by everyone, owned by no
+single service. `breaker_status` on the Model Gateway contract now delegates to
+it rather than owning it.
+
+Worth recording as a Stage 3 miss rather than quietly re-filing it. The
+boundary looked right on paper and was wrong in the code, and the thing that
+revealed it was trying to enforce it. That is an argument for moving services
+one at a time: a boundary is a hypothesis until something tests it.
+
+---
+
+## V-03 — **RESOLVED** (Stage 4)
+
+Each service now purges and exports itself through its own contract; Identity &
+Access orchestrates and knows no other service's table names.
+
+What the rewrite found was worse than the register described. The old path:
+
+- covered **7 tables out of roughly 30** — `ideas`, `projects`, `knowledge_items`,
+  `agent_memory`, `notifications`, `activity_events`, `blueprint_*`, `watches`,
+  `docs`, `persons`, `events`, `graph_tasks`, `edges`, `pipeline_runs`,
+  `ventures` and more were never deleted at all;
+- wrapped **every delete in `try/except: pass`**, commented "for tables that may
+  not exist in all environments" — so a delete that failed reported success. A
+  GDPR path that could delete nothing and return `{"deleted": true}`.
+
+After V-08 we know that comment was not hypothetical: `model_usage_log` really
+did not exist on databases built from the migration chain.
+
+Verified live, by direct query rather than the endpoint's own report: 18 seeded
+rows across three services, all gone; a colleague's row in a table the leaver
+also used survived; identity soft-deleted with credentials cleared and
+membership removed. Nothing is swallowed — a purge that cannot complete now
+fails loudly, because a partial deletion reported as complete is the worst of
+the three outcomes.
+
+---
+
+## V-10 — `webhook_events` cannot be purged per workspace
+
+**Severity: low, structural.**
+
+`webhook_events` records raw provider deliveries (`provider`, `delivery_id`,
+`payload`, `signature_valid`) and carries **no workspace or user column at
+all**. There is no correct way to include it in a workspace purge, so it is
+deliberately absent from the Workspace Domain purge spec rather than silently
+skipped.
+
+Payloads may contain personal data from the source system. Either it needs a
+workspace column, or a retention window of its own, or a documented decision
+that it holds nothing personal. Recorded so the choice is made rather than
+defaulted into.
+
+---
+
+## V-11 — Memory provenance is NOT structural *(found by testing it)*
+
+**Severity: high. Contradicts a guarantee the brief calls absolute.**
+
+The Foundation brief states: *"The provenance guarantee is absolute: no code
+path may write memory without a declared `source`."* Stage 3's MK-1 repeated
+that, describing it as "structural, not a convention".
+
+**That is not true, and the migration says so out loud.**
+`015_agent_memory.sql` stores one JSONB array per `(workspace_id, user_id)`,
+with `source` inside each array element. Its own comment reads:
+
+> Source provenance is required per entry ... **(enforced by the loop once it
+> exists, not by this table)**
+
+There is no `source` column, no CHECK constraint, no trigger. Proven rather than
+argued — this was accepted by the live database without complaint:
+
+```sql
+INSERT INTO agent_memory (workspace_id, user_id, content)
+VALUES (..., '[{"text":"a memory with NO source at all"}]'::jsonb);
+-- provenance-free row accepted
+```
+
+So provenance holds exactly as long as every writer goes through
+`memory_tool.py`. Today one does. That is a convention, not a guarantee, and it
+is the only invariant in the system described as absolute that has nothing
+enforcing it — the audit log gets a trigger, built-in roles get a trigger,
+memory provenance gets a comment.
+
+**This matters most for Stage 5.** The brief says compaction must not become a
+backdoor around provenance. With no structural enforcement, a compactor that
+writes a merged entry without `source` simply succeeds, and nothing anywhere
+notices.
+
+**Recommendation:** a CHECK constraint asserting every element of the array has
+a recognised `source`, on both backends. Cheap, and it converts the sentence in
+the brief from an aspiration into a fact.
+
+**Not fixed here.** `agent_memory` belongs to Memory & Knowledge, which Stage 4
+moves third, and the enforcement interacts directly with Stage 5's compaction
+design. MK-1 in the contract has been corrected to state what is actually true
+rather than what was intended.
+
+---
+
 ## Not violations, deliberately excluded
 
 - **`app/db/*`** — the persistence adapter every service goes *through*. It names

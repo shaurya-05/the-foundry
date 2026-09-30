@@ -32,7 +32,7 @@ import structlog
 
 from app.db.postgres import get_pool
 from app.services import graph_repo
-from app.services.embeddings import embed_batch
+from app.services.model_gateway import embed_batch
 from app.services.github_client import GitHubClient, GitHubError
 from app.services.oauth_encryption import decrypt_token
 

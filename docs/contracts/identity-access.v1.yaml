@@ -412,3 +412,13 @@ x-changelog:
   - version: 1
     date: 2026-09-29
     note: Initial extraction. Describes shipped Stage 1 behaviour; nothing moved.
+  - version: 1
+    date: 2026-09-29
+    note: >
+      Stage 4 move, additive. app/services/identity.py is the facade; twenty
+      modules rewritten to import it. The FastAPI dependency callables are
+      re-exported by name rather than wrapped -- FastAPI inspects their
+      signatures to build the request graph, so a wrapper would change the
+      behaviour of every endpoint that uses one. Account deletion and export now
+      orchestrate through each service's purge_workspace / export_workspace
+      instead of reaching into four services' tables (V-03).

@@ -4,7 +4,14 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    # Stage 4 moves one service per PR, and those PRs stack on the Foundation
+    # branch rather than targeting main directly. Without these, a stacked PR
+    # gets no checks at all -- which is the same hollow-green problem Stage 0
+    # existed to remove, arriving by a different route.
+    branches:
+      - main
+      - 'phase-a/**'
+      - 'stage-4/**'
 
 jobs:
   # ─── Frontend ────────────────────────────────────────────────────────────────
@@ -82,6 +89,12 @@ jobs:
         # Contracts exist, parse, are structurally complete, and every table is
         # assigned to exactly one owner in both directions.
         run: python scripts/check_contracts.py
+
+      - name: Check service imports (Stage 4)
+        # Enforced only for services that have actually been moved -- a service
+        # declares a `facade:` in ownership.yaml when its turn comes. Model
+        # Gateway is enforced; the other five are reported, not failed.
+        run: python scripts/check_service_imports.py
 
       - name: Check service boundaries (Stage 3)
         # Fails on boundary violations NOT in docs/contracts/boundary-baseline.json.
@@ -165,6 +178,11 @@ jobs:
           # backend->frontend->backend hop, read back through the dashboard's
           # own API as a Stage 1 role, asserted to be ONE connected trace.
           python scripts/verify_stage2_done.py --base-url http://localhost:8000
+          # V-03: cross-service deletion and export. Every assertion is a
+          # direct database count after the fact, never the endpoint's own
+          # report -- an endpoint reporting on its own deletion is exactly
+          # what failed before.
+          python scripts/verify_v03_purge.py --base-url http://localhost:8000
         env:
           DATABASE_URL: postgresql://foundry:foundry_secret@localhost:5432/foundry_db
           REDIS_URL: redis://localhost:6379

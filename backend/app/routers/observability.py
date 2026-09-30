@@ -19,7 +19,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.db.postgres import get_pool
-from app.dependencies import AuthContext, RequirePermission
+from app.services.identity import AuthContext, RequirePermission
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/api/observability", tags=["observability"])

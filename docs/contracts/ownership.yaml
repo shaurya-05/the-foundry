@@ -26,6 +26,8 @@ services:
     owns: users, orgs, teams, roles, permissions, sessions, API keys, audit log,
           and the org-level entitlement that billing expresses
     contract: identity-access.v1.yaml
+    facade: app/services/identity.py
+    moved: 2026-09-29   # Stage 4, service 2 of 4
     tables:
       - users
       - workspaces
@@ -48,6 +50,7 @@ services:
       - subscriptions
       - usage_tracking
     modules:
+      - app/services/identity.py   # the facade (Stage 4)
       - app/auth.py
       - app/dependencies.py
       - app/routers/auth.py
@@ -65,14 +68,19 @@ services:
     title: Model Gateway
     owns: model registry, routing, fitness data, provider adapters, tier health
     contract: model-gateway.v1.yaml
+    # Stage 4, moved 2026-09-29. Declaring a facade turns on import
+    # enforcement for this service; services awaiting their turn have none.
+    facade: app/services/model_gateway.py
+    moved: 2026-09-29
+    modules_are_private: true
     tables:
       - model_registry
       - model_usage_log
     modules:
+      - app/services/model_gateway.py   # the facade (Stage 4)
       - app/services/model_provider.py
       - app/services/ai_router.py
       - app/services/claude.py
-      - app/services/circuit_breaker.py
       - app/services/embeddings.py
 
   agent_runtime:
@@ -88,6 +96,7 @@ services:
       - command_history
       - copilot_messages
     modules:
+      - app/services/agent_runtime.py   # facade (purge/export only so far)
       - app/services/agent_loop.py
       - app/services/agent_tools.py
       - app/services/agent_reflection.py
@@ -118,6 +127,7 @@ services:
       - graph_tasks
       - edges
     modules:
+      - app/services/memory_knowledge.py   # facade (purge/export only so far)
       - app/services/memory_tool.py
       - app/services/agent_retrieval.py
       - app/services/document_retrieval.py
@@ -165,6 +175,7 @@ services:
       - webhook_events
       - revenue
     modules:
+      - app/services/workspace_domain.py   # facade (purge/export only so far)
       - app/routers/projects.py
       - app/routers/tasks.py
       - app/routers/ventures.py
@@ -193,6 +204,16 @@ services:
 # reaches into another service's storage — while admitting that a trace sink is
 # genuinely cross-cutting. See VIOLATIONS.md V-02.
 shared:
+  # Generic resilience. Assigned to Model Gateway in Stage 3; the move showed
+  # that was wrong -- github_sync, google_drive and notion_sync all use it for
+  # their own connectors, which have nothing to do with models. Shared with a
+  # single named implementation, same pattern as observability. VIOLATIONS V-09.
+  resilience:
+    tables: []
+    modules:
+      - app/services/circuit_breaker.py
+    contract: model-gateway.v1.yaml   # breaker_status delegates here
+
   observability:
     tables:
       - spans
@@ -204,22 +225,13 @@ shared:
     contract: observability.v1.yaml
 
 # ─── Referenced by code, created by no Postgres migration ────────────────────
-# Found by scripts/check_contracts.py, not by reading. Both are recorded rather
-# than fixed: Stage 3 moves nothing. See VIOLATIONS.md V-08.
+# Found by scripts/check_contracts.py, not by reading. See VIOLATIONS.md V-08.
+# model_usage_log was fixed in Stage 4 (migration 021) as part of moving the
+# Model Gateway -- it is that service's own table. `knowledge` remains.
 #
 # Anything NOT listed here that code references but migrations do not create
 # will fail the contract check. This list is frozen debt, not a licence.
 unmigrated:
-  - table: model_usage_log
-    referenced_by:
-      - app/services/ai_router.py    # INSERT, inside a swallowing try/except
-      - app/routers/admin.py         # SELECT for the model-stats page
-    detail: >
-      014_model_registry.sql mentions it in a comment only. On a database built
-      from the migration chain the table does not exist, every usage write
-      fails silently, and the admin model-stats page is empty. Same family as
-      the 000b/000c bug Stage 0 fixed: code depending on schema no migration
-      creates, invisible because nobody rebuilt from cold.
   - table: knowledge
     referenced_by:
       - migrations/sqlite/schema.sql
@@ -238,3 +250,4 @@ infrastructure:
       - app/db/sqlite.py
       - app/db/redis.py
       - app/db/neo4j.py
+      - app/db/purge.py

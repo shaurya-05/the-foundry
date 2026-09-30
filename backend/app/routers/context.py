@@ -4,8 +4,8 @@ from fastapi.responses import StreamingResponse
 from app.db.postgres import get_pool
 from app.services.context_engine import generate_insights
 from app.services.graph import get_connections
-from app.services.claude import stream_claude
-from app.dependencies import AuthContext, require_auth
+from app.services.model_gateway import stream_direct as stream_claude
+from app.services.identity import AuthContext, require_auth
 
 router = APIRouter(prefix="/api/context", tags=["context"])
 

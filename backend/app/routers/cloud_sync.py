@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.db.postgres import get_pool
-from app.dependencies import AuthContext, require_auth
+from app.services.identity import AuthContext, require_auth
 from app.services.cloud_sync_runner import (
     CloudSyncOpError,
     cloud_sync_enabled,

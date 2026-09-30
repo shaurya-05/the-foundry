@@ -108,7 +108,7 @@ async def lifespan(app: FastAPI):
     # hasn't been applied yet, the loader silently keeps the hard-coded
     # fallback registry so the app still boots.
     try:
-        from app.services.model_provider import load_registry_from_db
+        from app.services.model_gateway import load_registry as load_registry_from_db
         await load_registry_from_db()
     except Exception as e:
         log.warning("model_registry_load_failed", error=str(e))
@@ -401,7 +401,7 @@ async def api_health():
 
 
 # ─── WebSocket auth helper ───────────────────────────────────────────────────
-from app.auth import decode_token
+from app.services.identity import decode_token
 from jose import JWTError
 
 
