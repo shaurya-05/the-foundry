@@ -23,7 +23,8 @@ from typing import AsyncIterator, Optional
 
 import structlog
 
-from app.services import document_retrieval, web_search
+from app.services import web_search
+from app.services import memory_knowledge as _mk
 from app.services.model_provider import MODEL_REGISTRY, ModelResponse, call_with_resilience
 
 log = structlog.get_logger()
@@ -467,8 +468,8 @@ async def route_query(
     # on, not provider.is_configured(), since a local DOCUMENT model can
     # be perfectly configured and still have nothing real to answer from.
     document_context = None
-    if label == "DOCUMENT" and provider.is_configured() and workspace_id and document_retrieval.is_configured():
-        document_context = await document_retrieval.retrieve_context(workspace_id, message)
+    if label == "DOCUMENT" and provider.is_configured() and workspace_id and _mk.documents_configured():
+        document_context = await _mk.retrieve_document_context(workspace_id, message)
 
     if document_context:
         formatted_system += (

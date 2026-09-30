@@ -14,7 +14,7 @@ DOCS_API = "https://docs.googleapis.com/v1"
 
 async def _get_token(workspace_id: str, user_id: str) -> str | None:
     """Get decrypted Google OAuth token for a user."""
-    from app.services import graph_repo
+    from app.services import memory_knowledge as graph_repo
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await graph_repo.get_oauth_connection(conn, user_id, "google")

@@ -1301,3 +1301,148 @@ it holds nothing personal.
 | import scan | 0 enforced, 21 pending |
 
 Boundary violations: **37 → 29**, all eight of them `auth.py`'s.
+
+---
+
+## 2026-09-30 — V-11 resolved: memory provenance is now enforced by the database
+
+The Foundation brief calls this guarantee absolute. Until now it was a
+convention held up by one well-behaved writer.
+
+`agent_memory` has no `source` column. Provenance lives inside a JSONB array,
+and `015_agent_memory.sql` said so in its own comment — *"enforced by the loop
+once it exists, not by this table"*. The database accepted an entry with no
+source at all. The audit log gets a trigger, built-in roles get a trigger; this
+got a comment.
+
+Migration 022 fixes that on both backends:
+
+- **Postgres** — an `IMMUTABLE` function over `jsonb_array_elements`, called from
+  a CHECK constraint. A CHECK cannot contain a subquery, but scanning a
+  parameter is not a table subquery, so the test lives in the function.
+- **SQLite** — a `BEFORE INSERT` / `BEFORE UPDATE` trigger pair using `json_each`
+  and `RAISE(ABORT)`, because SQLite has the same restriction.
+
+### Why `NOT VALID`, deliberately
+
+`NOT VALID` **still enforces on every INSERT and UPDATE** — which is the actual
+goal. What it skips is the retroactive scan of existing rows, so the migration
+cannot fail on a live database holding provenance-free entries written during
+the years when nothing stopped them.
+
+A migration that refuses to apply to production is not a safety feature, it is
+an outage. On a fresh database there are no rows, so the constraint is fully
+valid from the first moment; `VALIDATE CONSTRAINT` closes it once legacy rows
+are clean.
+
+### Verified by trying to break it
+
+Six cases, both backends, twelve checks:
+
+| Case | Expected | Both backends |
+|---|---|---|
+| no source at all | refused | refused |
+| unrecognised source | refused | refused |
+| `user_stated` | accepted | accepted |
+| **one valid entry + one with no source** | refused | refused |
+| `agent_inferred` | accepted | accepted |
+| `conversation_digest` | accepted | accepted |
+
+The fourth is the one that matters. A check inspecting only the first element,
+or only the array's shape, passes it — and that is exactly how a compactor
+merging entries would slip a provenance-free row through. Stage 5 now cannot do
+that by accident, which is precisely what the brief asked for when it said
+compaction must not become a backdoor.
+
+### What broke
+
+The first run reported `agent_inferred` and `conversation_digest` as **refused**
+on SQLite. Entirely plausible — new constraint, two sources rejected — and
+wrong. `agent_memory` is `UNIQUE(workspace_id, user_id)`, so the earlier
+accepted case had taken the row and every later insert failed on the unique
+constraint rather than on provenance.
+
+The harness was wrong, not the trigger. Believing the output would have meant
+"fixing" a constraint that was already correct.
+
+---
+
+## 2026-09-30 — Stage 4, service 3 of 4: Memory & Knowledge moved
+
+Nine modules rewritten to import `app/services/memory_knowledge.py`. Imports are
+lazy, for the same reason the Model Gateway's are: `context_engine` and
+`agent_retrieval` reach the Model Gateway, which reaches `document_retrieval` —
+one of this service's own modules. Eager imports would close that loop at import
+time.
+
+`read_memory` is deliberately **not** on the facade. The only reader today is
+the agent loop, which reaches memory through the `memory_read` ToolSpec rather
+than a direct call, so a facade function would be a wrapper with no caller.
+Adding it when Stage 5 needs it is additive; adding it now would be inventing an
+interface to look complete.
+
+The graph repository is exposed as named pass-throughs rather than a re-exported
+module. Handing back `graph_repo` itself would satisfy the import checker while
+narrowing nothing — naming each operation is what makes the surface countable.
+
+### Two findings that need decisions, not moves
+
+**V-12 — `agent_retrieval` JOINs across a service boundary.** It runs
+`FROM graph_tasks gt LEFT JOIN ventures v` — `graph_tasks` is this service's,
+`ventures` is Workspace Domain's. No contract call reproduces it, because the
+whole point is that the database does the correlation. Three options (two calls
+joined in Python, an enriched read on Workspace Domain, or denormalising the
+venture onto `graph_tasks`), each with a real cost. Recorded so it gets chosen
+rather than defaulted into.
+
+**V-13 — this service stores Identity's OAuth credentials.** `graph_repo.py`
+holds `get_oauth_connection`, `upsert_oauth_connection` and
+`revoke_oauth_connection` — reading and **writing** `oauth_connections`, which
+belongs to Identity & Access. Worse than a cross-service read: a credential
+write outside Identity means the audit log never sees it, and revocation is not
+something Identity can guarantee it can perform. These belong on the Identity
+contract. Not moved here, because doing it inside a service move would mean two
+behaviour changes at once.
+
+### What "moved" currently means — stated plainly
+
+Three of six services are enforced at the **import** boundary with zero
+violations. The **table** boundary is a separate criterion, and only one service
+satisfies it:
+
+| Service | Imports | Outbound table access |
+|---|---|---|
+| Model Gateway | enforced, 0 | 0 — genuinely clean |
+| Identity & Access | enforced, 0 | **4 remaining** |
+| Memory & Knowledge | enforced, 0 | **9 remaining** (2 are V-12/V-13) |
+| Agent Runtime | pending | 1 |
+| Workspace Domain | pending | 15 |
+
+The brief's per-service criterion is "no cross-service table access remains".
+Only Model Gateway meets it. Identity and Memory & Knowledge have had their
+import boundaries established and their table boundaries partly retired. Saying
+so rather than letting "moved" imply more than it does.
+
+The remaining violations cluster almost entirely around Workspace Domain — the
+service that did not exist until it was ratified. Most resolve once it moves and
+its read operations exist.
+
+### Also fixed
+
+`aiosqlite` was missing from `backend/.venv312`, flagged back in Stage 2. The
+SQLite gates ran under the system interpreter but not the repo's own virtualenv,
+so a contributor running the documented command got `ModuleNotFoundError`
+instead of a result. Installed from `requirements.txt`.
+
+### Verified after the move
+
+| Check | Result |
+|---|---|
+| backend boots (9 rewritten modules) | health 200 |
+| Stage 1 live | pass |
+| tracing | pass |
+| Stage 2 done-when | pass |
+| V-03 purge | pass |
+| V-11 provenance, both backends | pass |
+| SQLite identity | pass |
+| contracts / imports / boundaries | all clean |

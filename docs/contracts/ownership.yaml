@@ -117,6 +117,8 @@ services:
     owns: agent memory with provenance, knowledge items, the workspace graph,
           retrieval, summarization and compaction
     contract: memory-knowledge.v1.yaml
+    facade: app/services/memory_knowledge.py
+    moved: 2026-09-29   # Stage 4, service 3 of 4
     tables:
       - agent_memory
       - knowledge_items

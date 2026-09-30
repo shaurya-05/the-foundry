@@ -46,7 +46,7 @@ from pydantic import BaseModel
 from app.auth import ALGORITHM, SECRET_KEY
 from app.db.postgres import get_pool
 from app.dependencies import AuthContext, require_auth
-from app.services import graph_repo
+from app.services import memory_knowledge as graph_repo
 from app.services.oauth_encryption import encrypt_token
 from app.services.notion_sync import run_initial_notion_sync
 

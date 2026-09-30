@@ -12,7 +12,11 @@ from jose import JWTError
 from app.models.schemas import CopilotMessage, IntentRequest, IntentResponse
 from app.services.model_gateway import stream_direct as stream_claude
 from app.services.model_gateway import route as route_query, council as get_council_perspectives, estimate_tokens
-from app.services.context_engine import get_workspace_summary, build_copilot_system, build_project_copilot_system
+from app.services.memory_knowledge import (
+    workspace_summary as get_workspace_summary,
+    copilot_system as build_copilot_system,
+    project_copilot_system as build_project_copilot_system,
+)
 from app.services.identity import check_limit, increment_usage
 from app.services.agent_tools import resolve_pending_call, create_pending_call, await_frontend_response, ToolContext
 from app.services.agent_loop import run_agent_loop
@@ -144,7 +148,7 @@ async def _append_conversation_memory(
     memory stays warm even when the founder starts a brand-new chat.
     Bypasses the confirm gate — these are system digests, not inferred secrets.
     """
-    from app.services.memory_tool import append_memory_entry
+    from app.services.memory_knowledge import write_memory as append_memory_entry
 
     u = (user_message or "").strip().replace("\n", " ")
     a = (assistant_answer or "").strip().replace("\n", " ")
